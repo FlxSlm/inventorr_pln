@@ -139,12 +139,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     </div>
                 <?php endif; ?>
                 
-                <div class="alert alert-info mb-3">
-                    <i class="bi bi-info-circle me-2"></i>
-                    Upload dokumen bukti pengembalian barang seperti:
-                    <ul class="mb-0 mt-2">
-                        <li>Foto barang yang dikembalikan</li>
-                        <li>Berita acara serah terima</li>
+                <div class="alert mb-3" style="background: rgba(15, 117, 188, 0.2); border: 1px solid #0f75bc;">
+                    <i class="bi bi-download me-2 text-white"></i>
+                    <strong class="text-white">Template Pengembalian:</strong> 
+                    <a href="/public/assets/templates/PENGEMBALIAN.xlsx" style="color: #FDB913; font-weight: bold;" download>Download Template Excel</a>
+                </div>
+                
+                <div class="alert mb-3" style="background: rgba(16, 185, 129, 0.1); border: 1px solid #10b981;">
+                    <i class="bi bi-info-circle me-2 text-success"></i>
+                    <span class="text-white">Upload dokumen bukti pengembalian seperti:</span>
+                    <ul class="mb-0 mt-2 text-white-50">
+                        <li>Berita Acara Serah Terima yang sudah diisi</li>
                         <li>Bukti kondisi barang</li>
                     </ul>
                 </div>
@@ -153,8 +158,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <div class="mb-3">
                         <label class="form-label text-white">Pilih File Dokumen</label>
                         <input type="file" name="return_document" class="form-control bg-dark text-white border-secondary" 
-                               accept=".pdf,.jpg,.jpeg,.png" required>
-                        <small class="text-secondary">Format: PDF, JPG, PNG. Maksimal 5MB</small>
+                               accept=".xlsx,.xls,.pdf,.jpg,.jpeg,.png" required>
+                        <small class="text-secondary">Format: Excel (.xlsx, .xls), PDF, JPG, PNG. Maksimal 5MB</small>
                     </div>
                     
                     <div class="d-grid">

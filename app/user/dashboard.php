@@ -9,7 +9,8 @@ $myPending = $pdo->prepare('SELECT COUNT(*) FROM loans WHERE user_id = ? AND sta
 $myPending->execute([$userId]);
 $myPendingCount = $myPending->fetchColumn();
 
-$myApproved = $pdo->prepare('SELECT COUNT(*) FROM loans WHERE user_id = ? AND status = "approved"');
+// Count loans that are fully approved (document uploaded and approved by admin, not yet returned)
+$myApproved = $pdo->prepare('SELECT COUNT(*) FROM loans WHERE user_id = ? AND status = "approved" AND stage = "approved" AND (return_stage IS NULL OR return_stage = "none")');
 $myApproved->execute([$userId]);
 $myApprovedCount = $myApproved->fetchColumn();
 
@@ -25,15 +26,32 @@ $awaitingReturnDocLoans = $awaitingReturnDoc->fetchAll();
 
 // Get featured items (latest 6 items with stock)
 $featuredItems = $pdo->query('SELECT * FROM inventories WHERE stock_available > 0 AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 6')->fetchAll();
+
+// Top borrowed items (for chart) - global data like admin
+$topBorrowed = $pdo->query("
+  SELECT i.name, COUNT(l.id) as borrow_count
+  FROM loans l
+  JOIN inventories i ON i.id = l.inventory_id
+  GROUP BY l.inventory_id
+  ORDER BY borrow_count DESC
+  LIMIT 5
+")->fetchAll();
+
+$chartLabels = [];
+$chartData = [];
+foreach ($topBorrowed as $item) {
+    $chartLabels[] = $item['name'];
+    $chartData[] = (int)$item['borrow_count'];
+}
 ?>
 
 <!-- Alert for Awaiting Document -->
 <?php foreach($awaitingDocLoans as $loan): ?>
-    <div class="alert alert-info alert-dismissible fade show mb-3" role="alert">
-        <i class="bi bi-file-earmark-text me-2"></i>
-        Your loan request #<?= $loan['id'] ?> has been initially approved. Please
-        <a href="/index.php?page=upload_document&loan_id=<?= $loan['id'] ?>" class="alert-link">download template & upload</a>.
-        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    <div class="alert alert-dismissible fade show mb-3" role="alert" style="background: linear-gradient(135deg, #0f75bc 0%, #1e88e5 100%); border: none; color: white;">
+        <i class="bi bi-file-earmark-check me-2"></i>
+        <strong>Pengajuan #<?= $loan['id'] ?> telah disetujui!</strong> Silakan 
+        <a href="/index.php?page=upload_document&loan_id=<?= $loan['id'] ?>" style="color: #FDB913; font-weight: bold;">download template & upload dokumen</a>.
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="alert" aria-label="Close"></button>
     </div>
 <?php endforeach; ?>
 
@@ -96,7 +114,7 @@ $featuredItems = $pdo->query('SELECT * FROM inventories WHERE stock_available > 
                     </div>
                     <div>
                         <div class="stats-number" style="color: #22c55e;"><?= (int)$myApprovedCount ?></div>
-                        <div class="stats-label">Disetujui</div>
+                        <div class="stats-label">Peminjaman Aktif</div>
                     </div>
                 </div>
             </div>
@@ -257,21 +275,21 @@ document.addEventListener('DOMContentLoaded', function() {
                 label: 'Jumlah Peminjaman',
                 data: <?= json_encode($chartData) ?>,
                 backgroundColor: [
-                    'rgba(255, 206, 86, 0.8)',
                     'rgba(15, 117, 188, 0.8)',
-                    'rgba(75, 192, 192, 0.8)',
-                    'rgba(153, 102, 255, 0.8)',
-                    'rgba(255, 159, 64, 0.8)'
+                    'rgba(253, 185, 19, 0.8)',
+                    'rgba(16, 185, 129, 0.8)',
+                    'rgba(239, 68, 68, 0.8)',
+                    'rgba(139, 92, 246, 0.8)'
                 ],
                 borderColor: [
-                    'rgba(255, 206, 86, 1)',
-                    'rgba(15, 117, 188, 1)',
-                    'rgba(75, 192, 192, 1)',
-                    'rgba(153, 102, 255, 1)',
-                    'rgba(255, 159, 64, 1)'
+                    'rgb(15, 117, 188)',
+                    'rgb(253, 185, 19)',
+                    'rgb(16, 185, 129)',
+                    'rgb(239, 68, 68)',
+                    'rgb(139, 92, 246)'
                 ],
-                borderWidth: 1,
-                borderRadius: 5
+                borderWidth: 2,
+                borderRadius: 8
             }]
         },
         options: {
@@ -300,7 +318,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         minRotation: 45
                     },
                     grid: {
-                        color: 'rgba(255, 255, 255, 0.1)'
+                        display: false
                     }
                 }
             }

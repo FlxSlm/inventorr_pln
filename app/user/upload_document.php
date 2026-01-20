@@ -75,9 +75,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 ?>
 
-<div class="card p-3">
-  <h5>Upload Filled Document</h5>
-  <p class="small-muted">Download template: <a href="/public/assets/templates/BA STM ULTG GORONTALO.xlsx" target="_blank" download>Download Template Excel</a></p>
+<div class="card p-4">
+  <h5 class="text-white mb-3"><i class="bi bi-upload me-2"></i>Upload Dokumen Peminjaman</h5>
+  
+  <div class="alert mb-3" style="background: rgba(15, 117, 188, 0.2); border: 1px solid #0f75bc;">
+    <i class="bi bi-download me-2 text-white"></i>
+    <strong class="text-white">Template:</strong> 
+    <a href="/public/assets/templates/BA STM ULTG GORONTALO.xlsx" style="color: #FDB913; font-weight: bold;" target="_blank" download>Download Template Excel</a>
+  </div>
 
   <?php foreach($errors as $e): ?>
     <div class="alert alert-danger"><?= htmlspecialchars($e) ?></div>
@@ -88,9 +93,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
   <form method="POST" enctype="multipart/form-data">
     <div class="mb-3">
-      <label>Upload Excel (.xlsx)</label>
-      <input type="file" name="document" accept=".xlsx,.xls" class="form-control" required>
+      <label class="form-label text-white">Upload Excel (.xlsx, .xls)</label>
+      <input type="file" name="document" accept=".xlsx,.xls" class="form-control bg-dark text-white border-secondary" required>
+      <small class="text-secondary">Maksimal 5 MB</small>
     </div>
-    <button class="btn btn-primary">Upload & Submit</button>
+    <button class="btn btn-primary"><i class="bi bi-cloud-upload me-2"></i>Upload & Submit</button>
   </form>
 </div>

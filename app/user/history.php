@@ -510,10 +510,10 @@ $loans = $stmt->fetchAll();
           <div class="modal-body">
             <input type="hidden" name="action" value="upload_return_document">
             <input type="hidden" name="loan_id" value="<?= $l['id'] ?>">
-            <div class="alert alert-info">
-              <i class="bi bi-info-circle me-2"></i>
-              <strong>Template:</strong> 
-              <a href="/public/assets/templates/BA STM ULTG GORONTALO.xlsx" class="alert-link" download>Download Template Excel</a>
+            <div class="alert" style="background: rgba(15, 117, 188, 0.2); border: 1px solid #0f75bc;">
+              <i class="bi bi-info-circle me-2 text-white"></i>
+              <strong class="text-white">Template Pengembalian:</strong> 
+              <a href="/public/assets/templates/PENGEMBALIAN.xlsx" style="color: #FDB913; font-weight: bold;" download>Download Template Excel</a>
             </div>
             <div class="mb-3">
               <label class="form-label">Pilih File Excel (.xlsx, .xls)</label>

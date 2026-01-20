@@ -150,21 +150,21 @@ foreach ($topBorrowed as $idx => $item) {
         <i class="bi bi-pie-chart me-2"></i>Statistik Cepat
       </div>
       <div class="card-body">
-        <div class="d-flex justify-content-between align-items-center mb-3 p-2" style="background: rgba(15, 117, 188, 0.1); border-radius: 8px;">
-          <span><i class="bi bi-people me-2 text-pln-blue"></i>Total User</span>
-          <span class="fw-bold text-pln-yellow"><?= (int)$totalUsers ?></span>
+        <div class="d-flex justify-content-between align-items-center mb-3 p-2" style="background: rgba(15, 117, 188, 0.15); border-radius: 8px;">
+          <span class="text-white"><i class="bi bi-people me-2" style="color: #4DA6E8;"></i>Total User</span>
+          <span class="fw-bold" style="color: #4DA6E8; font-size: 1.2rem;"><?= (int)$totalUsers ?></span>
         </div>
-        <div class="d-flex justify-content-between align-items-center mb-3 p-2" style="background: rgba(16, 185, 129, 0.1); border-radius: 8px;">
-          <span><i class="bi bi-check-circle me-2 text-success"></i>Barang Tersedia</span>
-          <span class="fw-bold text-success"><?= (int)$totalItems ?></span>
+        <div class="d-flex justify-content-between align-items-center mb-3 p-2" style="background: rgba(16, 185, 129, 0.15); border-radius: 8px;">
+          <span class="text-white"><i class="bi bi-check-circle me-2" style="color: #22c55e;"></i>Barang Tersedia</span>
+          <span class="fw-bold" style="color: #22c55e; font-size: 1.2rem;"><?= (int)$totalItems ?></span>
         </div>
-        <div class="d-flex justify-content-between align-items-center mb-3 p-2" style="background: rgba(220, 53, 69, 0.1); border-radius: 8px;">
-          <span><i class="bi bi-exclamation-triangle me-2 text-danger"></i>Stok Rendah</span>
-          <span class="fw-bold text-danger"><?= (int)$lowStock ?></span>
+        <div class="d-flex justify-content-between align-items-center mb-3 p-2" style="background: rgba(239, 68, 68, 0.15); border-radius: 8px;">
+          <span class="text-white"><i class="bi bi-exclamation-triangle me-2" style="color: #ef4444;"></i>Stok Rendah</span>
+          <span class="fw-bold" style="color: #ef4444; font-size: 1.2rem;"><?= (int)$lowStock ?></span>
         </div>
-        <div class="d-flex justify-content-between align-items-center p-2" style="background: rgba(253, 185, 19, 0.1); border-radius: 8px;">
-          <span><i class="bi bi-clock me-2 text-warning"></i>Total Peminjaman</span>
-          <span class="fw-bold text-warning"><?= $pdo->query('SELECT COUNT(*) FROM loans')->fetchColumn() ?></span>
+        <div class="d-flex justify-content-between align-items-center p-2" style="background: rgba(253, 185, 19, 0.15); border-radius: 8px;">
+          <span class="text-white"><i class="bi bi-clock me-2" style="color: #FDB913;"></i>Total Peminjaman</span>
+          <span class="fw-bold" style="color: #FDB913; font-size: 1.2rem;"><?= $pdo->query('SELECT COUNT(*) FROM loans')->fetchColumn() ?></span>
         </div>
       </div>
     </div>
@@ -218,18 +218,18 @@ foreach ($topBorrowed as $idx => $item) {
                   <?php elseif($l['status'] === 'rejected'): ?>
                     <span class="badge bg-danger"><i class="bi bi-x-circle me-1"></i>Ditolak</span>
                   <?php elseif($l['status'] === 'returned'): ?>
-                    <span class="badge bg-primary"><i class="bi bi-arrow-return-left me-1"></i>Dikembalikan</span>
+                    <span class="badge bg-success"><i class="bi bi-arrow-return-left me-1"></i>Dikembalikan</span>
                   <?php else: ?>
                     <span class="badge bg-secondary"><?= htmlspecialchars($l['status']) ?></span>
                   <?php endif; ?>
                 </td>
                 <td>
-                  <?php if($l['status'] === 'pending'): ?>
-                    <form method="POST" action="/index.php?page=loan_approve" style="display:inline-block" data-confirm="Approve peminjaman ini?">
+                  <?php if($l['status'] === 'pending' && $l['stage'] === 'pending'): ?>
+                    <form method="POST" action="/index.php?page=loan_approve" style="display:inline-block" onsubmit="return confirm('Approve peminjaman ini?');">
                       <input type="hidden" name="loan_id" value="<?= $l['id'] ?>">
                       <button class="btn btn-sm btn-success"><i class="bi bi-check-lg"></i></button>
                     </form>
-                    <form method="POST" action="/index.php?page=loan_reject" style="display:inline-block" data-confirm="Reject peminjaman ini?">
+                    <form method="POST" action="/index.php?page=loan_reject" style="display:inline-block" onsubmit="return confirm('Reject peminjaman ini?');">
                       <input type="hidden" name="loan_id" value="<?= $l['id'] ?>">
                       <button class="btn btn-sm btn-danger"><i class="bi bi-x-lg"></i></button>
                     </form>

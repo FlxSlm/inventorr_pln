@@ -27,6 +27,11 @@ body {
   color: var(--text-primary);
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
   min-height: 100vh;
+  overscroll-behavior: none;
+}
+
+html {
+  overscroll-behavior: none;
 }
 
 .container {
@@ -532,4 +537,24 @@ body {
 
 ::-webkit-scrollbar-thumb:hover {
   background: var(--pln-blue-light);
+}
+
+/* ============================================
+   STICKY FOOTER
+   Makes the footer sit at the bottom of the viewport
+   when page content is short, and follow content when long.
+   ============================================ */
+html, body {
+  height: 100%;
+}
+body {
+  display: flex;
+  flex-direction: column;
+}
+/* Ensure the main container (opened in header.php) grows to fill space */
+body > .container {
+  flex: 1 0 auto;
+}
+footer {
+  margin-top: auto;
 }

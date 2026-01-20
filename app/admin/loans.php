@@ -122,8 +122,8 @@ $loans = $stmt->fetchAll();
                                                 'pending_return' => ['Pengajuan Kembali', 'warning', 'text-dark'],
                                                 'awaiting_return_doc' => ['Tunggu Dok Kembali', 'info', ''],
                                                 'return_submitted' => ['Dok Kembali Submitted', 'primary', ''],
-                                                'return_approved' => ['Dikembalikan', 'secondary', ''],
-                                                'return_rejected' => ['Kembali Ditolak', 'danger', '']
+                                                'return_approved' => ['Dikembalikan', 'success', ''],
+                                                'return_rejected' => ['Peminjaman Ditolak', 'danger', '']
                                             ];
                                             $rInfo = $returnLabels[$rs] ?? ['Unknown', 'secondary', ''];
                                         ?>
