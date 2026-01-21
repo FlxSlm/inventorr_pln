@@ -147,8 +147,9 @@ function initCharts() {
     }
     
     // Bar Chart for Top Borrowed Items
+    // Skip if chart is already created by inline script (dashboard.php)
     const topBorrowedCtx = document.getElementById('topBorrowedChart');
-    if (topBorrowedCtx && typeof Chart !== 'undefined' && typeof chartLabels !== 'undefined') {
+    if (topBorrowedCtx && typeof Chart !== 'undefined' && typeof chartLabels !== 'undefined' && typeof topBorrowedChart === 'undefined') {
         new Chart(topBorrowedCtx, {
             type: 'bar',
             data: {

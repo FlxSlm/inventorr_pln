@@ -145,10 +145,10 @@ foreach ($users as $u) {
             <thead>
                 <tr>
                     <th>User</th>
-                    <th>Email</th>
+                    <th class="hide-mobile">Email</th>
                     <th>Role</th>
                     <th>Status</th>
-                    <th>Bergabung</th>
+                    <th class="hide-mobile">Bergabung</th>
                     <th>Aksi</th>
                 </tr>
             </thead>
@@ -183,7 +183,7 @@ foreach ($users as $u) {
                             </div>
                         </div>
                     </td>
-                    <td><?= htmlspecialchars($u['email']) ?></td>
+                    <td class="hide-mobile"><?= htmlspecialchars($u['email']) ?></td>
                     <td>
                         <?php if($u['role'] === 'admin'): ?>
                         <span class="badge bg-warning" style="color: #000;">
@@ -202,7 +202,7 @@ foreach ($users as $u) {
                         <span class="status-badge success">Aktif</span>
                         <?php endif; ?>
                     </td>
-                    <td>
+                    <td class="hide-mobile">
                         <small><?= date('d M Y', strtotime($u['created_at'])) ?></small>
                     </td>
                     <td>

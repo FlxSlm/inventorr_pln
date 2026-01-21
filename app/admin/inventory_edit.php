@@ -409,7 +409,78 @@ document.addEventListener('DOMContentLoaded', function() {
     const input = document.getElementById('imageInput');
     
     if (container) {
+        // Click to select file
         container.addEventListener('click', () => input.click());
+        
+        // Drag & Drop functionality
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            container.addEventListener(eventName, preventDefaults, false);
+        });
+        
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+        
+        // Highlight on drag
+        ['dragenter', 'dragover'].forEach(eventName => {
+            container.addEventListener(eventName, () => {
+                container.style.borderColor = 'var(--primary)';
+                container.style.background = 'rgba(26, 154, 170, 0.1)';
+            });
+        });
+        
+        ['dragleave', 'drop'].forEach(eventName => {
+            container.addEventListener(eventName, () => {
+                container.style.borderColor = 'var(--border-color)';
+                container.style.background = 'var(--bg-tertiary)';
+            });
+        });
+        
+        // Handle dropped files
+        container.addEventListener('drop', function(e) {
+            const dt = e.dataTransfer;
+            const files = dt.files;
+            
+            if (files.length > 0) {
+                const file = files[0];
+                if (file.type.startsWith('image/')) {
+                    // Transfer file to input
+                    const dataTransfer = new DataTransfer();
+                    dataTransfer.items.add(file);
+                    input.files = dataTransfer.files;
+                    
+                    // Preview
+                    previewImage(file);
+                } else {
+                    alert('Mohon pilih file gambar (JPG, PNG, GIF, WEBP)');
+                }
+            }
+        });
+    }
+    
+    // Preview on file select
+    if (input) {
+        input.addEventListener('change', function() {
+            if (this.files && this.files[0]) {
+                previewImage(this.files[0]);
+            }
+        });
+    }
+    
+    function previewImage(file) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            if (container) {
+                container.innerHTML = `
+                    <img src="${e.target.result}" style="max-width: 100%; max-height: 200px; border-radius: 8px; object-fit: cover;">
+                    <p style="margin-top: 10px; color: var(--text-muted); font-size: 13px;">
+                        <i class="bi bi-check-circle text-success me-1"></i>${file.name}
+                    </p>
+                `;
+            }
+        };
+        reader.readAsDataURL(file);
     }
 });
 </script>

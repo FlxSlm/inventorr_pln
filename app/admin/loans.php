@@ -128,8 +128,8 @@ foreach ($loans as $l) {
                     <th>Peminjam</th>
                     <th>Barang</th>
                     <th>Qty</th>
-                    <th>Catatan</th>
-                    <th>Tanggal</th>
+                    <th class="hide-mobile">Catatan</th>
+                    <th class="hide-mobile">Tanggal</th>
                     <th>Status</th>
                     <th>Aksi</th>
                 </tr>
@@ -145,7 +145,7 @@ foreach ($loans as $l) {
                         $rowStatus = 'rejected';
                     }
                 ?>
-                <tr data-status="<?= $rowStatus ?>"
+                <tr data-status="<?= $rowStatus ?>">
                     <td><span class="badge bg-secondary">#<?= $l['id'] ?></span></td>
                     <td>
                         <div class="d-flex align-items-center gap-2">
@@ -176,7 +176,7 @@ foreach ($loans as $l) {
                         </div>
                     </td>
                     <td><span style="font-weight: 700; color: var(--primary-light);"><?= $l['quantity'] ?></span></td>
-                    <td>
+                    <td class="hide-mobile">
                         <?php if ($l['note']): ?>
                         <button type="button" class="btn btn-secondary btn-sm" 
                                 data-bs-toggle="modal" 
@@ -187,7 +187,7 @@ foreach ($loans as $l) {
                         <span style="color: var(--text-light);">-</span>
                         <?php endif; ?>
                     </td>
-                    <td>
+                    <td class="hide-mobile">
                         <div style="font-size: 13px;">
                             <?= date('d M Y', strtotime($l['requested_at'])) ?>
                             <br>
@@ -225,12 +225,19 @@ foreach ($loans as $l) {
                     </td>
                     <td>
                         <?php if($l['stage'] === 'pending'): ?>
-                        <form method="POST" action="/index.php?page=loan_approve" style="display:inline-block">
-                            <input type="hidden" name="loan_id" value="<?= $l['id'] ?>">
-                            <button class="btn btn-success btn-sm" onclick="return confirm('Set initial approval dan request dokumen dari karyawan?')">
-                                <i class="bi bi-check-lg me-1"></i> Approve
+                        <div class="d-flex gap-1">
+                            <form method="POST" action="/index.php?page=loan_approve" style="display:inline-block">
+                                <input type="hidden" name="loan_id" value="<?= $l['id'] ?>">
+                                <button class="btn btn-success btn-sm" onclick="return confirm('Set initial approval dan request dokumen dari karyawan?')">
+                                    <i class="bi bi-check-lg me-1"></i> Approve
+                                </button>
+                            </form>
+                            <button type="button" class="btn btn-danger btn-sm" 
+                                    data-bs-toggle="modal" 
+                                    data-bs-target="#rejectModal<?= $l['id'] ?>">
+                                <i class="bi bi-x-lg me-1"></i> Reject
                             </button>
-                        </form>
+                        </div>
                         <?php elseif($l['stage'] === 'awaiting_document'): ?>
                         <small style="color: var(--text-muted);">Menunggu upload user</small>
                         <?php elseif($l['stage'] === 'submitted'): ?>
@@ -291,6 +298,56 @@ foreach ($loans as $l) {
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Tutup</button>
             </div>
+        </div>
+    </div>
+</div>
+<?php endif; ?>
+
+<!-- Reject Modal with Note -->
+<?php if ($l['stage'] === 'pending'): ?>
+<div class="modal fade" id="rejectModal<?= $l['id'] ?>" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-x-circle me-2" style="color: var(--danger);"></i>
+                    Tolak Peminjaman
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="/index.php?page=loan_reject">
+                <div class="modal-body">
+                    <input type="hidden" name="loan_id" value="<?= $l['id'] ?>">
+                    
+                    <div style="margin-bottom: 16px; padding: 16px; background: var(--bg-main); border-radius: var(--radius);">
+                        <div class="d-flex align-items-center gap-3">
+                            <?php if ($l['inventory_image']): ?>
+                            <img src="/public/assets/uploads/<?= htmlspecialchars($l['inventory_image']) ?>" 
+                                 style="width: 50px; height: 50px; object-fit: cover; border-radius: var(--radius);">
+                            <?php endif; ?>
+                            <div>
+                                <strong><?= htmlspecialchars($l['inventory_name']) ?></strong>
+                                <br><small style="color: var(--text-muted);">Diminta oleh <?= htmlspecialchars($l['user_name']) ?> • <?= $l['quantity'] ?> unit</small>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label" style="color: var(--text-dark); font-weight: 500;">
+                            Alasan Penolakan <span class="text-danger">*</span>
+                        </label>
+                        <textarea name="rejection_note" class="form-control" rows="4" 
+                                  placeholder="Berikan alasan mengapa peminjaman ini ditolak..." required></textarea>
+                        <small style="color: var(--text-muted);">Catatan ini akan dikirimkan kepada peminjam.</small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+                    <button type="submit" class="btn btn-danger">
+                        <i class="bi bi-x-lg me-1"></i> Tolak Peminjaman
+                    </button>
+                </div>
+            </form>
         </div>
     </div>
 </div>

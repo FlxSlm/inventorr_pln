@@ -736,6 +736,34 @@ html, body {
     color: #fff;
 }
 
+/* Chart Type Toggle Buttons */
+.chart-type-btn {
+    width: 36px;
+    height: 36px;
+    border: 1px solid var(--border-color);
+    background: transparent;
+    border-radius: var(--radius-sm);
+    font-size: 16px;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: var(--transition);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.chart-type-btn:hover {
+    background: var(--bg-main);
+    color: var(--primary);
+    border-color: var(--primary-light);
+}
+
+.chart-type-btn.active {
+    background: var(--primary-light);
+    border-color: var(--primary-light);
+    color: #fff;
+}
+
 .card-menu-btn {
     width: 36px;
     height: 36px;
@@ -1530,6 +1558,8 @@ textarea.form-control {
 }
 
 /* ===== RESPONSIVE ===== */
+
+/* Large screens */
 @media (max-width: 1200px) {
     .content-grid {
         grid-template-columns: 1fr;
@@ -1538,8 +1568,13 @@ textarea.form-control {
     .content-grid.equal {
         grid-template-columns: 1fr;
     }
+    
+    .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
 }
 
+/* Tablet */
 @media (max-width: 992px) {
     .sidebar {
         transform: translateX(-100%);
@@ -1578,11 +1613,40 @@ textarea.form-control {
         opacity: 1;
         visibility: visible;
     }
+    
+    .page-header {
+        flex-direction: column;
+        gap: 16px;
+    }
+    
+    .page-header-actions {
+        width: 100%;
+        flex-wrap: wrap;
+    }
+    
+    .page-header-actions .btn {
+        flex: 1;
+        min-width: 120px;
+    }
+    
+    /* Table responsive adjustments */
+    .data-table th,
+    .data-table td {
+        padding: 10px 12px;
+        font-size: 13px;
+    }
+    
+    /* Form adjustments */
+    .modal-dialog {
+        margin: 16px;
+    }
 }
 
+/* Small tablets and large phones */
 @media (max-width: 768px) {
     .stats-grid {
-        grid-template-columns: 1fr;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
     }
     
     .page-content {
@@ -1598,40 +1662,344 @@ textarea.form-control {
     }
     
     .topbar-title {
-        font-size: 18px;
+        font-size: 16px;
     }
     
     .chart-stats {
-        gap: 16px;
+        gap: 12px;
+        flex-wrap: wrap;
     }
     
     .page-header {
         flex-direction: column;
         align-items: stretch;
+        gap: 12px;
+    }
+    
+    .page-header-left h3 {
+        font-size: 18px;
+    }
+    
+    .page-header-left p {
+        font-size: 13px;
     }
     
     .page-header-actions {
         justify-content: flex-start;
+        gap: 8px;
     }
     
-    .table-responsive {
+    .page-header-actions .btn {
         font-size: 13px;
+        padding: 8px 12px;
     }
-}
-
-@media (max-width: 576px) {
+    
+    /* Cards */
+    .modern-card,
+    .table-card {
+        border-radius: var(--radius);
+    }
+    
+    .card-header {
+        padding: 12px 16px !important;
+        flex-direction: column;
+        align-items: flex-start !important;
+        gap: 10px;
+    }
+    
+    .card-header .card-title {
+        font-size: 15px;
+    }
+    
+    .card-body {
+        padding: 12px 16px !important;
+    }
+    
+    /* Table responsive */
+    .table-responsive {
+        font-size: 12px;
+        margin: 0 -16px;
+        padding: 0 16px;
+    }
+    
+    .data-table th,
+    .data-table td {
+        padding: 8px 10px;
+        white-space: nowrap;
+    }
+    
+    /* Hide some columns on mobile */
+    .data-table .hide-mobile {
+        display: none;
+    }
+    
+    /* Stat cards */
     .stat-card {
-        padding: 16px;
+        padding: 14px;
+    }
+    
+    .stat-card-title {
+        font-size: 11px;
     }
     
     .stat-card-value {
-        font-size: 24px;
+        font-size: 22px;
+    }
+    
+    .stat-card-icon {
+        width: 40px;
+        height: 40px;
+        font-size: 18px;
+    }
+    
+    .stat-card-btn {
+        font-size: 11px;
+        padding: 6px 12px;
+    }
+    
+    /* Filter buttons */
+    .table-filters {
+        flex-wrap: wrap;
+        gap: 6px;
+    }
+    
+    .table-filter-btn {
+        font-size: 12px;
+        padding: 6px 12px;
+    }
+    
+    /* Product items */
+    .product-item {
+        padding: 10px;
+    }
+    
+    .product-img {
+        width: 40px;
+        height: 40px;
+    }
+    
+    .product-name {
+        font-size: 13px;
+    }
+    
+    /* Avatar */
+    .topbar-avatar {
+        width: 36px;
+        height: 36px;
+        font-size: 14px;
+    }
+    
+    /* Buttons */
+    .btn-sm {
+        padding: 4px 8px;
+        font-size: 12px;
+    }
+    
+    /* Modal on mobile */
+    .modal-dialog {
+        margin: 10px;
+        max-width: calc(100% - 20px);
+    }
+    
+    .modal-body {
+        padding: 16px;
+    }
+    
+    /* Catalog grid */
+    .catalog-grid {
+        grid-template-columns: repeat(2, 1fr) !important;
+        gap: 12px;
+    }
+    
+    /* Chart */
+    .chart-container {
+        min-height: 250px;
+    }
+    
+    /* Notification item */
+    .notification-item {
+        padding: 12px 16px !important;
+    }
+    
+    /* Suggestion item */
+    .suggestion-item {
+        padding: 12px 16px !important;
+    }
+}
+
+/* Mobile phones */
+@media (max-width: 576px) {
+    .stats-grid {
+        grid-template-columns: 1fr;
+        gap: 10px;
+    }
+    
+    .stat-card {
+        padding: 14px 16px;
+    }
+    
+    .stat-card-header {
+        margin-bottom: 8px;
+    }
+    
+    .stat-card-value {
+        font-size: 26px;
     }
     
     .stat-card-icon {
         width: 44px;
         height: 44px;
         font-size: 20px;
+    }
+    
+    .stat-card-footer {
+        margin-top: 8px;
+    }
+    
+    .stat-card-btn {
+        margin-top: 10px;
+    }
+    
+    /* Page header */
+    .page-header-actions {
+        flex-direction: column;
+    }
+    
+    .page-header-actions .btn {
+        width: 100%;
+    }
+    
+    /* Table */
+    .data-table th,
+    .data-table td {
+        padding: 8px;
+        font-size: 11px;
+    }
+    
+    .badge {
+        font-size: 10px;
+        padding: 2px 6px;
+    }
+    
+    /* Catalog */
+    .catalog-grid {
+        grid-template-columns: 1fr !important;
+    }
+    
+    /* Form */
+    .form-control,
+    .form-select {
+        font-size: 14px;
+        padding: 10px 12px;
+    }
+    
+    .form-label {
+        font-size: 13px;
+    }
+    
+    /* Buttons */
+    .btn {
+        padding: 10px 16px;
+        font-size: 13px;
+    }
+    
+    .btn-lg {
+        padding: 12px 20px;
+        font-size: 14px;
+    }
+    
+    /* Alert */
+    .alert {
+        padding: 12px 14px;
+        font-size: 13px;
+    }
+    
+    /* Sidebar user */
+    .sidebar-user {
+        padding: 12px 16px;
+    }
+    
+    .sidebar-user-avatar {
+        width: 36px;
+        height: 36px;
+        font-size: 14px;
+    }
+    
+    .sidebar-user-name {
+        font-size: 13px;
+    }
+    
+    .sidebar-user-role {
+        font-size: 11px;
+    }
+    
+    /* Empty state */
+    .empty-state {
+        padding: 30px 20px !important;
+    }
+    
+    .empty-state-icon {
+        width: 60px !important;
+        height: 60px !important;
+        font-size: 24px !important;
+    }
+    
+    .empty-state-title {
+        font-size: 16px;
+    }
+    
+    .empty-state-text {
+        font-size: 13px;
+    }
+    
+    /* Chart container */
+    .chart-container {
+        min-height: 200px;
+        padding: 10px;
+    }
+    
+    /* Info card list */
+    .info-list-item {
+        padding: 10px 0;
+    }
+    
+    .info-list-icon {
+        width: 32px;
+        height: 32px;
+        font-size: 14px;
+    }
+    
+    .info-list-text {
+        font-size: 12px;
+    }
+    
+    .info-list-value {
+        font-size: 13px;
+    }
+    
+    /* Action buttons group */
+    .table-actions {
+        flex-direction: column;
+        gap: 4px;
+    }
+    
+    .table-action-btn {
+        width: 100%;
+        justify-content: center;
+    }
+    
+    .btn-group-sm {
+        flex-direction: column;
+        gap: 4px;
+    }
+    
+    .btn-group-sm > .btn,
+    .btn-group-sm > form {
+        width: 100%;
+    }
+    
+    .btn-group-sm > form > .btn {
+        width: 100%;
     }
 }
 

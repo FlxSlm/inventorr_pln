@@ -25,6 +25,11 @@ $awaitingReturnDoc = $pdo->prepare('SELECT l.*, i.name as inventory_name FROM lo
 $awaitingReturnDoc->execute([$userId]);
 $awaitingReturnDocLoans = $awaitingReturnDoc->fetchAll();
 
+// Get unread notifications count
+$unreadNotifStmt = $pdo->prepare('SELECT COUNT(*) FROM notifications WHERE user_id = ? AND is_read = 0');
+$unreadNotifStmt->execute([$userId]);
+$unreadNotifCount = $unreadNotifStmt->fetchColumn();
+
 // Get featured items
 $featuredItems = $pdo->query('SELECT * FROM inventories WHERE stock_available > 0 AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 6')->fetchAll();
 
@@ -57,6 +62,21 @@ foreach ($topBorrowed as $item) {
     $chartData[] = (int)$item['borrow_count'];
 }
 ?>
+
+<!-- Notification Badge Alert -->
+<?php if ($unreadNotifCount > 0): ?>
+<a href="/index.php?page=user_notifications" class="d-block text-decoration-none mb-3">
+    <div style="background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%); color: #fff; border-radius: var(--radius); padding: 12px 20px; display: flex; align-items: center; justify-content: space-between;">
+        <div class="d-flex align-items-center">
+            <div style="width: 36px; height: 36px; background: rgba(255,255,255,0.2); border-radius: 8px; display: flex; align-items: center; justify-content: center; margin-right: 12px;">
+                <i class="bi bi-bell-fill"></i>
+            </div>
+            <span>Anda memiliki <strong><?= $unreadNotifCount ?></strong> notifikasi baru</span>
+        </div>
+        <i class="bi bi-chevron-right"></i>
+    </div>
+</a>
+<?php endif; ?>
 
 <!-- Alerts for Awaiting Document -->
 <?php foreach($awaitingDocLoans as $loan): ?>

@@ -7,9 +7,33 @@ if (!isset($_SESSION['user']) || $_SESSION['user']['role'] !== 'admin') {
 $pdo = require __DIR__ . '/../config/database.php';
 
 $loan_id = (int)($_POST['loan_id'] ?? 0);
+$rejection_note = trim($_POST['rejection_note'] ?? '');
+
 if ($loan_id) {
-    $stmt = $pdo->prepare('UPDATE loans SET status = "rejected" WHERE id = ?');
+    // Get loan details for notification
+    $stmt = $pdo->prepare('SELECT l.*, i.name AS inventory_name FROM loans l JOIN inventories i ON i.id = l.inventory_id WHERE l.id = ?');
     $stmt->execute([$loan_id]);
+    $loan = $stmt->fetch();
+    
+    if ($loan) {
+        // Update loan with rejection note
+        $stmt = $pdo->prepare('UPDATE loans SET status = "rejected", stage = "rejected", rejection_note = ? WHERE id = ?');
+        $stmt->execute([$rejection_note, $loan_id]);
+        
+        // Create notification for user
+        $notifTitle = 'Peminjaman Ditolak';
+        $notifMessage = 'Peminjaman Anda untuk "' . $loan['inventory_name'] . '" telah ditolak.';
+        if ($rejection_note) {
+            $notifMessage .= ' Alasan: ' . $rejection_note;
+        }
+        
+        $stmt = $pdo->prepare("
+            INSERT INTO notifications (user_id, type, title, message, reference_id, reference_type)
+            VALUES (?, 'loan_rejected', ?, ?, ?, 'loan')
+        ");
+        $stmt->execute([$loan['user_id'], $notifTitle, $notifMessage, $loan_id]);
+    }
 }
-header('Location: /index.php?page=admin_loans&msg=Loan+rejected');
+
+header('Location: /index.php?page=admin_loans&msg=Peminjaman+berhasil+ditolak');
 exit;

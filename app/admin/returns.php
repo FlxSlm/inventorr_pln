@@ -31,15 +31,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     
     elseif ($action === 'reject_return' && $loan_id) {
-        $stmt = $pdo->prepare('UPDATE loans SET return_stage = ?, return_note = CONCAT(IFNULL(return_note,""), "\n[admin] ditolak pada ", NOW()) WHERE id = ?');
-        $stmt->execute(['return_rejected', $loan_id]);
+        $rejection_note = trim($_POST['rejection_note'] ?? '');
+        
+        // Get loan details for notification
+        $stmt = $pdo->prepare('SELECT l.*, i.name AS inventory_name FROM loans l JOIN inventories i ON i.id = l.inventory_id WHERE l.id = ?');
+        $stmt->execute([$loan_id]);
+        $loan = $stmt->fetch();
+        
+        $stmt = $pdo->prepare('UPDATE loans SET return_stage = ?, return_rejection_note = ? WHERE id = ?');
+        $stmt->execute(['return_rejected', $rejection_note, $loan_id]);
+        
+        // Create notification
+        if ($loan) {
+            $notifTitle = 'Pengajuan Pengembalian Ditolak';
+            $notifMessage = 'Pengajuan pengembalian Anda untuk "' . $loan['inventory_name'] . '" telah ditolak.';
+            if ($rejection_note) {
+                $notifMessage .= ' Alasan: ' . $rejection_note;
+            }
+            
+            $stmt = $pdo->prepare("
+                INSERT INTO notifications (user_id, type, title, message, reference_id, reference_type)
+                VALUES (?, 'return_rejected', ?, ?, ?, 'loan')
+            ");
+            $stmt->execute([$loan['user_id'], $notifTitle, $notifMessage, $loan_id]);
+        }
+        
         $success = 'Pengajuan pengembalian ditolak.';
     }
     
     elseif ($action === 'final_approve_return' && $loan_id) {
         $pdo->beginTransaction();
         try {
-            $stmt = $pdo->prepare('SELECT * FROM loans WHERE id = ? FOR UPDATE');
+            $stmt = $pdo->prepare('SELECT l.*, i.name AS inventory_name FROM loans l JOIN inventories i ON i.id = l.inventory_id WHERE l.id = ? FOR UPDATE');
             $stmt->execute([$loan_id]);
             $loan = $stmt->fetch();
             
@@ -52,6 +75,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt = $pdo->prepare('UPDATE loans SET return_stage = ?, status = ?, returned_at = NOW() WHERE id = ?');
             $stmt->execute(['return_approved', 'returned', $loan_id]);
             
+            // Create notification
+            $notifTitle = 'Pengembalian Berhasil';
+            $notifMessage = 'Pengembalian Anda untuk "' . $loan['inventory_name'] . '" telah berhasil dikonfirmasi. Terima kasih!';
+            
+            $stmt = $pdo->prepare("
+                INSERT INTO notifications (user_id, type, title, message, reference_id, reference_type)
+                VALUES (?, 'return_approved', ?, ?, ?, 'loan')
+            ");
+            $stmt->execute([$loan['user_id'], $notifTitle, $notifMessage, $loan_id]);
+            
             $pdo->commit();
             $success = 'Pengembalian berhasil disetujui. Stok telah dikembalikan.';
         } catch (Exception $e) {
@@ -61,8 +94,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     
     elseif ($action === 'final_reject_return' && $loan_id) {
-        $stmt = $pdo->prepare('UPDATE loans SET return_stage = ?, return_note = CONCAT(IFNULL(return_note,""), "\n[admin] ditolak final pada ", NOW()) WHERE id = ?');
-        $stmt->execute(['return_rejected', $loan_id]);
+        $rejection_note = trim($_POST['rejection_note'] ?? '');
+        
+        // Get loan details for notification
+        $stmt = $pdo->prepare('SELECT l.*, i.name AS inventory_name FROM loans l JOIN inventories i ON i.id = l.inventory_id WHERE l.id = ?');
+        $stmt->execute([$loan_id]);
+        $loan = $stmt->fetch();
+        
+        $stmt = $pdo->prepare('UPDATE loans SET return_stage = ?, return_rejection_note = ? WHERE id = ?');
+        $stmt->execute(['return_rejected', $rejection_note, $loan_id]);
+        
+        // Create notification
+        if ($loan) {
+            $notifTitle = 'Pengembalian Ditolak';
+            $notifMessage = 'Pengembalian Anda untuk "' . $loan['inventory_name'] . '" telah ditolak.';
+            if ($rejection_note) {
+                $notifMessage .= ' Alasan: ' . $rejection_note;
+            }
+            
+            $stmt = $pdo->prepare("
+                INSERT INTO notifications (user_id, type, title, message, reference_id, reference_type)
+                VALUES (?, 'return_rejected', ?, ?, ?, 'loan')
+            ");
+            $stmt->execute([$loan['user_id'], $notifTitle, $notifMessage, $loan_id]);
+        }
+        
         $success = 'Pengembalian ditolak.';
     }
 }
@@ -270,11 +326,9 @@ $returnStageLabels = [
                                     <input type="hidden" name="loan_id" value="<?= $l['id'] ?>">
                                     <button class="btn btn-success"><i class="bi bi-check-lg me-1"></i>Approve</button>
                                 </form>
-                                <form method="POST" class="d-inline" onsubmit="return confirm('Tolak pengembalian ini?');">
-                                    <input type="hidden" name="action" value="reject_return">
-                                    <input type="hidden" name="loan_id" value="<?= $l['id'] ?>">
-                                    <button class="btn btn-danger"><i class="bi bi-x-lg"></i></button>
-                                </form>
+                                <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#rejectReturnModal<?= $l['id'] ?>">
+                                    <i class="bi bi-x-lg"></i>
+                                </button>
                             </div>
                             
                             <?php elseif ($rs === 'awaiting_return_doc'): ?>
@@ -294,11 +348,9 @@ $returnStageLabels = [
                                     <input type="hidden" name="loan_id" value="<?= $l['id'] ?>">
                                     <button class="btn btn-success"><i class="bi bi-check-lg me-1"></i>Final</button>
                                 </form>
-                                <form method="POST" class="d-inline" onsubmit="return confirm('Tolak pengembalian ini?');">
-                                    <input type="hidden" name="action" value="final_reject_return">
-                                    <input type="hidden" name="loan_id" value="<?= $l['id'] ?>">
-                                    <button class="btn btn-danger"><i class="bi bi-x-lg"></i></button>
-                                </form>
+                                <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#rejectFinalReturnModal<?= $l['id'] ?>">
+                                    <i class="bi bi-x-lg"></i>
+                                </button>
                             </div>
                             
                             <?php elseif ($rs === 'return_approved'): ?>
@@ -368,3 +420,106 @@ document.getElementById('searchReturns')?.addEventListener('input', function(e) 
     });
 });
 </script>
+
+<!-- Rejection Modals -->
+<?php foreach($returns as $l): ?>
+<?php if ($l['return_stage'] === 'pending_return'): ?>
+<div class="modal fade" id="rejectReturnModal<?= $l['id'] ?>" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-x-circle me-2" style="color: var(--danger);"></i>
+                    Tolak Pengembalian
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST">
+                <div class="modal-body">
+                    <input type="hidden" name="action" value="reject_return">
+                    <input type="hidden" name="loan_id" value="<?= $l['id'] ?>">
+                    
+                    <div style="margin-bottom: 16px; padding: 16px; background: var(--bg-main); border-radius: var(--radius);">
+                        <div class="d-flex align-items-center gap-3">
+                            <?php if ($l['inventory_image']): ?>
+                            <img src="/public/assets/uploads/<?= htmlspecialchars($l['inventory_image']) ?>" 
+                                 style="width: 50px; height: 50px; object-fit: cover; border-radius: var(--radius);">
+                            <?php endif; ?>
+                            <div>
+                                <strong><?= htmlspecialchars($l['inventory_name']) ?></strong>
+                                <br><small style="color: var(--text-muted);">Diajukan oleh <?= htmlspecialchars($l['user_name']) ?> • <?= $l['quantity'] ?> unit</small>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label" style="color: var(--text-dark); font-weight: 500;">
+                            Alasan Penolakan <span class="text-danger">*</span>
+                        </label>
+                        <textarea name="rejection_note" class="form-control" rows="4" 
+                                  placeholder="Berikan alasan mengapa pengembalian ini ditolak..." required></textarea>
+                        <small style="color: var(--text-muted);">Catatan ini akan dikirimkan kepada karyawan.</small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+                    <button type="submit" class="btn btn-danger">
+                        <i class="bi bi-x-lg me-1"></i> Tolak Pengembalian
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+<?php endif; ?>
+
+<?php if ($l['return_stage'] === 'return_submitted'): ?>
+<div class="modal fade" id="rejectFinalReturnModal<?= $l['id'] ?>" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-x-circle me-2" style="color: var(--danger);"></i>
+                    Tolak Pengembalian Final
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST">
+                <div class="modal-body">
+                    <input type="hidden" name="action" value="final_reject_return">
+                    <input type="hidden" name="loan_id" value="<?= $l['id'] ?>">
+                    
+                    <div style="margin-bottom: 16px; padding: 16px; background: var(--bg-main); border-radius: var(--radius);">
+                        <div class="d-flex align-items-center gap-3">
+                            <?php if ($l['inventory_image']): ?>
+                            <img src="/public/assets/uploads/<?= htmlspecialchars($l['inventory_image']) ?>" 
+                                 style="width: 50px; height: 50px; object-fit: cover; border-radius: var(--radius);">
+                            <?php endif; ?>
+                            <div>
+                                <strong><?= htmlspecialchars($l['inventory_name']) ?></strong>
+                                <br><small style="color: var(--text-muted);">Diajukan oleh <?= htmlspecialchars($l['user_name']) ?> • <?= $l['quantity'] ?> unit</small>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label" style="color: var(--text-dark); font-weight: 500;">
+                            Alasan Penolakan <span class="text-danger">*</span>
+                        </label>
+                        <textarea name="rejection_note" class="form-control" rows="4" 
+                                  placeholder="Berikan alasan mengapa dokumen pengembalian ini ditolak..." required></textarea>
+                        <small style="color: var(--text-muted);">Catatan ini akan dikirimkan kepada karyawan.</small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+                    <button type="submit" class="btn btn-danger">
+                        <i class="bi bi-x-lg me-1"></i> Tolak Pengembalian
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+<?php endif; ?>
+<?php endforeach; ?>

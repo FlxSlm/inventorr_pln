@@ -1,6 +1,9 @@
 <?php
 // app/includes/modern_header.php
 // Modern dashboard header with new teal/cyan theme
+
+// Initialize database connection once at the top
+$pdo_temp = require __DIR__ . '/../config/database.php';
 ?>
 <!DOCTYPE html>
 <html lang="id">
@@ -70,7 +73,6 @@
                                 <i class="bi bi-clipboard-check-fill"></i>
                                 <span>Peminjaman</span>
                                 <?php 
-                                $pdo_temp = require __DIR__ . '/../config/database.php';
                                 $pendingLoansCount = $pdo_temp->query("SELECT COUNT(*) FROM loans WHERE stage = 'pending'")->fetchColumn();
                                 if ($pendingLoansCount > 0): 
                                 ?>
@@ -100,6 +102,18 @@
                             <a href="/index.php?page=admin_users_list" class="sidebar-menu-link <?= (isset($_GET['page']) && $_GET['page'] === 'admin_users_list') ? 'active' : '' ?>">
                                 <i class="bi bi-people-fill"></i>
                                 <span>Kelola User</span>
+                            </a>
+                        </li>
+                        <li class="sidebar-menu-item">
+                            <a href="/index.php?page=admin_suggestions" class="sidebar-menu-link <?= (isset($_GET['page']) && ($_GET['page'] === 'admin_suggestions' || $_GET['page'] === 'admin_notifications')) ? 'active' : '' ?>">
+                                <i class="bi bi-lightbulb-fill"></i>
+                                <span>Usulan Material</span>
+                                <?php 
+                                $unreadSuggestionsCount = $pdo_temp->query("SELECT COUNT(*) FROM material_suggestions WHERE status = 'unread'")->fetchColumn();
+                                if ($unreadSuggestionsCount > 0): 
+                                ?>
+                                <span class="sidebar-menu-badge"><?= $unreadSuggestionsCount ?></span>
+                                <?php endif; ?>
                             </a>
                         </li>
                     </ul>
@@ -142,6 +156,18 @@
                         </li>
                     </ul>
                 </div>
+                
+                <div class="sidebar-menu-section">
+                    <p class="sidebar-menu-title">Lainnya</p>
+                    <ul class="sidebar-menu">
+                        <li class="sidebar-menu-item">
+                            <a href="/index.php?page=user_suggestions" class="sidebar-menu-link <?= (isset($_GET['page']) && $_GET['page'] === 'user_suggestions') ? 'active' : '' ?>">
+                                <i class="bi bi-lightbulb-fill"></i>
+                                <span>Usulan Material</span>
+                            </a>
+                        </li>
+                    </ul>
+                </div>
                 <?php endif; ?>
             </nav>
             
@@ -180,15 +206,31 @@
                     </form>
                 </div>
                 <div class="topbar-right">
-                    <button class="topbar-icon-btn" title="Notifikasi">
+                    <?php if (isset($_SESSION['user']) && $_SESSION['user']['role'] === 'admin'): ?>
+                    <!-- Admin notification - only material suggestions -->
+                    <a href="/index.php?page=admin_notifications" class="topbar-icon-btn" title="Notifikasi Usulan Material">
                         <i class="bi bi-bell"></i>
                         <?php 
-                        $totalNotif = ($pendingLoansCount ?? 0) + ($pendingReturnsCount ?? 0);
-                        if ($totalNotif > 0): 
+                        if (($unreadSuggestionsCount ?? 0) > 0): 
                         ?>
-                        <span class="notification-badge"><?= $totalNotif ?></span>
+                        <span class="notification-badge"><?= $unreadSuggestionsCount ?></span>
                         <?php endif; ?>
-                    </button>
+                    </a>
+                    <?php else: ?>
+                    <!-- Employee notification - all notifications -->
+                    <?php
+                    $userNotifCount = 0;
+                    if (isset($_SESSION['user'])) {
+                        $userNotifCount = $pdo_temp->query("SELECT COUNT(*) FROM notifications WHERE user_id = " . (int)$_SESSION['user']['id'] . " AND is_read = 0")->fetchColumn();
+                    }
+                    ?>
+                    <a href="/index.php?page=user_notifications" class="topbar-icon-btn" title="Notifikasi">
+                        <i class="bi bi-bell"></i>
+                        <?php if ($userNotifCount > 0): ?>
+                        <span class="notification-badge"><?= $userNotifCount ?></span>
+                        <?php endif; ?>
+                    </a>
+                    <?php endif; ?>
                     <div class="dropdown">
                         <div class="topbar-user" data-bs-toggle="dropdown" aria-expanded="false">
                             <div class="topbar-avatar">

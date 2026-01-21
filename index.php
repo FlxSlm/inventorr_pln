@@ -151,6 +151,23 @@ switch ($page) {
         view('admin/returns.php');
         break;
 
+    // ----- Suggestions & Notifications -----
+    case 'admin_suggestions':
+        view('admin/suggestions.php');
+        break;
+
+    case 'admin_notifications':
+        view('admin/notifications.php');
+        break;
+
+    case 'user_suggestions':
+        view('user/suggestions.php');
+        break;
+
+    case 'user_notifications':
+        view('user/notifications.php');
+        break;
+
 
 }
 ?>
