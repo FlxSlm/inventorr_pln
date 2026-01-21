@@ -64,6 +64,18 @@ body {
     min-height: 100vh;
 }
 
+/* Disable scroll bounce / overscroll (rubber-band) on modern browsers */
+html, body {
+    overscroll-behavior-x: none;
+    overscroll-behavior-y: none;
+}
+
+/* Ensure main layout containers don't propagate overscroll */
+.app-wrapper, .sidebar, .main-content, .content-grid, .container {
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: auto;
+}
+
 /* Remove old container margins */
 .container {
     max-width: 100% !important;
