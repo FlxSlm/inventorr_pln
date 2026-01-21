@@ -60,24 +60,40 @@ foreach ($topBorrowed as $item) {
 
 <!-- Alerts for Awaiting Document -->
 <?php foreach($awaitingDocLoans as $loan): ?>
-<div class="alert alert-info alert-dismissible fade show" style="background: linear-gradient(135deg, var(--primary-light), var(--accent)); color: #fff; border: none;">
-    <i class="bi bi-file-earmark-check me-2"></i>
-    <strong>Pengajuan #<?= $loan['id'] ?> (<?= htmlspecialchars($loan['inventory_name']) ?>) telah disetujui!</strong> 
-    <a href="/index.php?page=upload_document&loan_id=<?= $loan['id'] ?>" style="color: #fff; font-weight: bold; text-decoration: underline;">
-        Download template & upload dokumen
-    </a>
-    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="alert"></button>
+<div class="alert alert-dismissible fade show mb-3" style="background: linear-gradient(135deg, #0d9488 0%, #14b8a6 100%); color: #fff; border: none; border-radius: var(--radius); padding: 16px 20px; box-shadow: 0 4px 12px rgba(13, 148, 136, 0.3);">
+    <div class="d-flex align-items-center">
+        <div style="width: 40px; height: 40px; background: rgba(255,255,255,0.2); border-radius: 10px; display: flex; align-items: center; justify-content: center; margin-right: 16px;">
+            <i class="bi bi-file-earmark-check" style="font-size: 20px;"></i>
+        </div>
+        <div class="flex-grow-1">
+            <strong style="font-size: 15px;">Pengajuan #<?= $loan['id'] ?> (<?= htmlspecialchars($loan['inventory_name']) ?>) telah disetujui!</strong>
+            <div style="margin-top: 4px;">
+                <a href="/index.php?page=upload_document&loan_id=<?= $loan['id'] ?>" style="color: #fff; font-weight: 600; text-decoration: none; background: rgba(255,255,255,0.2); padding: 4px 12px; border-radius: 6px; font-size: 13px;">
+                    <i class="bi bi-upload me-1"></i>Download template & upload dokumen
+                </a>
+            </div>
+        </div>
+    </div>
+    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="alert" style="position: absolute; top: 12px; right: 12px;"></button>
 </div>
 <?php endforeach; ?>
 
 <?php foreach($awaitingReturnDocLoans as $loan): ?>
-<div class="alert alert-warning alert-dismissible fade show" style="border: none;">
-    <i class="bi bi-box-arrow-in-left me-2"></i>
-    <strong>Pengembalian #<?= $loan['id'] ?> (<?= htmlspecialchars($loan['inventory_name']) ?>) perlu dokumen!</strong> 
-    <a href="/index.php?page=upload_return_document&loan_id=<?= $loan['id'] ?>" style="color: inherit; font-weight: bold; text-decoration: underline;">
-        Upload dokumen pengembalian
-    </a>
-    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+<div class="alert alert-dismissible fade show mb-3" style="background: linear-gradient(135deg, #f59e0b 0%, #fbbf24 100%); color: #1f2937; border: none; border-radius: var(--radius); padding: 16px 20px; box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);">
+    <div class="d-flex align-items-center">
+        <div style="width: 40px; height: 40px; background: rgba(255,255,255,0.3); border-radius: 10px; display: flex; align-items: center; justify-content: center; margin-right: 16px;">
+            <i class="bi bi-box-arrow-in-left" style="font-size: 20px;"></i>
+        </div>
+        <div class="flex-grow-1">
+            <strong style="font-size: 15px;">Pengembalian #<?= $loan['id'] ?> (<?= htmlspecialchars($loan['inventory_name']) ?>) perlu dokumen!</strong>
+            <div style="margin-top: 4px;">
+                <a href="/index.php?page=upload_return_document&loan_id=<?= $loan['id'] ?>" style="color: #1f2937; font-weight: 600; text-decoration: none; background: rgba(255,255,255,0.4); padding: 4px 12px; border-radius: 6px; font-size: 13px;">
+                    <i class="bi bi-upload me-1"></i>Upload dokumen pengembalian
+                </a>
+            </div>
+        </div>
+    </div>
+    <button type="button" class="btn-close" data-bs-dismiss="alert" style="position: absolute; top: 12px; right: 12px;"></button>
 </div>
 <?php endforeach; ?>
 

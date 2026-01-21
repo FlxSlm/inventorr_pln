@@ -95,6 +95,9 @@ switch ($page) {
     case 'toggle_blacklist':
         require APP_PATH . 'admin/toggle_blacklist.php';
         break;
+    case 'admin_delete_user':
+        require APP_PATH . 'admin/delete_user.php';
+        break;
     case 'admin_edit_user':
         // optional: admin edit form handler/view
         // create a view('admin/user_edit.php');

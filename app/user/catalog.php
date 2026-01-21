@@ -221,7 +221,7 @@ foreach ($items as $item) {
             
             <div style="padding: 16px 20px; border-top: 1px solid var(--border-color);">
                 <?php if ($item['stock_available'] > 0): ?>
-                <a href="/index.php?page=user_request_loan&item_id=<?= $item['id'] ?>" class="btn btn-primary w-100">
+                <a href="/index.php?page=user_request_loan&item=<?= $item['id'] ?>" class="btn btn-primary w-100">
                     <i class="bi bi-hand-index me-1"></i> Ajukan Peminjaman
                 </a>
                 <?php else: ?>

@@ -102,9 +102,9 @@ foreach ($loans as $l) {
         </h3>
         <div class="card-actions">
             <div class="table-filters" style="padding: 0;">
-                <button class="table-filter-btn active">Semua</button>
-                <button class="table-filter-btn">Pending</button>
-                <button class="table-filter-btn">Disetujui</button>
+                <button class="table-filter-btn active" data-filter="all">Semua</button>
+                <button class="table-filter-btn" data-filter="pending">Pending</button>
+                <button class="table-filter-btn" data-filter="approved">Disetujui</button>
             </div>
         </div>
     </div>
@@ -134,9 +134,18 @@ foreach ($loans as $l) {
                     <th>Aksi</th>
                 </tr>
             </thead>
-            <tbody>
-                <?php foreach($loans as $l): ?>
-                <tr>
+            <tbody id="loansTableBody">
+                <?php foreach($loans as $l): 
+                    $rowStatus = 'all';
+                    if ($l['stage'] === 'pending' || $l['stage'] === 'awaiting_document' || $l['stage'] === 'submitted') {
+                        $rowStatus = 'pending';
+                    } elseif ($l['stage'] === 'approved') {
+                        $rowStatus = 'approved';
+                    } elseif ($l['stage'] === 'rejected') {
+                        $rowStatus = 'rejected';
+                    }
+                ?>
+                <tr data-status="<?= $rowStatus ?>"
                     <td><span class="badge bg-secondary">#<?= $l['id'] ?></span></td>
                     <td>
                         <div class="d-flex align-items-center gap-2">
@@ -287,3 +296,24 @@ foreach ($loans as $l) {
 </div>
 <?php endif; ?>
 <?php endforeach; ?>
+
+<script>
+// Filter buttons functionality
+document.querySelectorAll('.table-filter-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+        document.querySelectorAll('.table-filter-btn').forEach(b => b.classList.remove('active'));
+        this.classList.add('active');
+        
+        const filter = this.dataset.filter;
+        const rows = document.querySelectorAll('#loansTableBody tr');
+        
+        rows.forEach(row => {
+            if (filter === 'all' || row.dataset.status === filter) {
+                row.style.display = '';
+            } else {
+                row.style.display = 'none';
+            }
+        });
+    });
+});
+</script>

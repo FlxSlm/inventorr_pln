@@ -71,10 +71,10 @@
                                 <span>Peminjaman</span>
                                 <?php 
                                 $pdo_temp = require __DIR__ . '/../config/database.php';
-                                $pendingCount = $pdo_temp->query("SELECT COUNT(*) FROM loans WHERE status = 'pending'")->fetchColumn();
-                                if ($pendingCount > 0): 
+                                $pendingLoansCount = $pdo_temp->query("SELECT COUNT(*) FROM loans WHERE stage = 'pending'")->fetchColumn();
+                                if ($pendingLoansCount > 0): 
                                 ?>
-                                <span class="sidebar-menu-badge"><?= $pendingCount ?></span>
+                                <span class="sidebar-menu-badge"><?= $pendingLoansCount ?></span>
                                 <?php endif; ?>
                             </a>
                         </li>
@@ -82,6 +82,12 @@
                             <a href="/index.php?page=admin_returns" class="sidebar-menu-link <?= (isset($_GET['page']) && $_GET['page'] === 'admin_returns') ? 'active' : '' ?>">
                                 <i class="bi bi-box-arrow-in-left"></i>
                                 <span>Pengembalian</span>
+                                <?php 
+                                $pendingReturnsCount = $pdo_temp->query("SELECT COUNT(*) FROM loans WHERE return_stage IN ('pending_return', 'return_submitted', 'awaiting_return_doc')")->fetchColumn();
+                                if ($pendingReturnsCount > 0): 
+                                ?>
+                                <span class="sidebar-menu-badge"><?= $pendingReturnsCount ?></span>
+                                <?php endif; ?>
                             </a>
                         </li>
                     </ul>
@@ -167,16 +173,20 @@
                         <i class="bi bi-list"></i>
                     </button>
                     <h1 class="topbar-title"><?= $pageTitle ?? 'Dashboard' ?></h1>
-                    <div class="topbar-search">
+                    <form action="/index.php" method="GET" class="topbar-search">
+                        <input type="hidden" name="page" value="catalog">
                         <i class="bi bi-search"></i>
-                        <input type="text" placeholder="Cari barang, transaksi...">
-                    </div>
+                        <input type="text" name="search" placeholder="Cari barang, transaksi..." value="<?= htmlspecialchars($_GET['search'] ?? '') ?>">
+                    </form>
                 </div>
                 <div class="topbar-right">
                     <button class="topbar-icon-btn" title="Notifikasi">
                         <i class="bi bi-bell"></i>
-                        <?php if (isset($pendingCount) && $pendingCount > 0): ?>
-                        <span class="notification-badge"><?= $pendingCount ?></span>
+                        <?php 
+                        $totalNotif = ($pendingLoansCount ?? 0) + ($pendingReturnsCount ?? 0);
+                        if ($totalNotif > 0): 
+                        ?>
+                        <span class="notification-badge"><?= $totalNotif ?></span>
                         <?php endif; ?>
                     </button>
                     <div class="dropdown">
