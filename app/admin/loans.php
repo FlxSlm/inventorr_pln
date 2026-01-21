@@ -1,10 +1,12 @@
 <?php
-// app/admin/loans.php
-// admin page: show list of loans and allow approve/reject
+// app/admin/loans.php - Modern Style
+// Admin page: show list of loans and allow approve/reject
 if (!isset($_SESSION['user']) || $_SESSION['user']['role'] !== 'admin') {
     header('Location: /index.php?page=login');
     exit;
 }
+
+$pageTitle = 'Kelola Peminjaman';
 $pdo = require __DIR__ . '/../config/database.php';
 
 // Handle messages
@@ -19,190 +21,269 @@ $stmt = $pdo->query("
     ORDER BY l.requested_at DESC
 ");
 $loans = $stmt->fetchAll();
+
+// Count by status
+$pendingCount = 0;
+$approvedCount = 0;
+$rejectedCount = 0;
+foreach ($loans as $l) {
+    if ($l['stage'] === 'pending' || $l['stage'] === 'awaiting_document' || $l['stage'] === 'submitted') $pendingCount++;
+    elseif ($l['stage'] === 'approved') $approvedCount++;
+    elseif ($l['stage'] === 'rejected') $rejectedCount++;
+}
 ?>
 
-<div class="card">
-    <div class="card-header d-flex justify-content-between align-items-center">
-        <div>
-            <h4 class="mb-0"><i class="bi bi-clipboard-check me-2"></i>Kelola Peminjaman</h4>
-        </div>
-        <?php if($msg): ?>
-            <div class="alert alert-success mb-0 py-1 px-3">
-                <i class="bi bi-check-circle me-1"></i><?= htmlspecialchars($msg) ?>
-            </div>
-        <?php endif; ?>
+<!-- Page Header -->
+<div class="page-header">
+    <div class="page-header-left">
+        <h3><i class="bi bi-clipboard-check-fill"></i> Kelola Peminjaman</h3>
+        <p>Kelola dan proses permintaan peminjaman barang inventaris</p>
     </div>
-    
-    <div class="card-body p-0">
-        <?php if (empty($loans)): ?>
-            <div class="text-center py-5">
-                <i class="bi bi-inbox text-secondary" style="font-size: 4rem;"></i>
-                <h5 class="mt-3 text-secondary">Belum Ada Peminjaman</h5>
-                <p class="text-secondary">Belum ada permintaan peminjaman dari karyawan.</p>
+    <?php if($msg): ?>
+    <div class="alert alert-success mb-0 py-2 px-3" style="border: none;">
+        <i class="bi bi-check-circle-fill me-1"></i><?= htmlspecialchars($msg) ?>
+    </div>
+    <?php endif; ?>
+</div>
+
+<!-- Stats Summary -->
+<div class="stats-grid" style="margin-bottom: 24px;">
+    <div class="stat-card warning" style="padding: 20px;">
+        <div class="d-flex align-items-center justify-content-between">
+            <div>
+                <p class="stat-card-title" style="margin: 0 0 4px 0;">Perlu Diproses</p>
+                <p class="stat-card-value" style="font-size: 28px; margin: 0;"><?= $pendingCount ?></p>
             </div>
-        <?php else: ?>
-            <div class="table-responsive">
-                <table class="table table-hover mb-0">
-                    <thead>
-                        <tr>
-                            <th>ID</th>
-                            <th>Peminjam</th>
-                            <th>Barang</th>
-                            <th>Qty</th>
-                            <th>Catatan</th>
-                            <th>Tanggal</th>
-                            <th>Stage</th>
-                            <th>Aksi</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php foreach($loans as $l): ?>
-                            <tr>
-                                <td><span class="badge bg-secondary">#<?= $l['id'] ?></span></td>
-                                <td>
-                                    <div class="d-flex align-items-center">
-                                        <div class="me-2" style="width: 35px; height: 35px; background: linear-gradient(135deg, #0F75BC, #1E88E5); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold;">
-                                            <?= strtoupper(substr($l['user_name'], 0, 1)) ?>
-                                        </div>
-                                        <div>
-                                            <div class="fw-bold"><?= htmlspecialchars($l['user_name']) ?></div>
-                                            <small class="text-secondary"><?= htmlspecialchars($l['user_email']) ?></small>
-                                        </div>
-                                    </div>
-                                </td>
-                                <td>
-                                    <div class="d-flex align-items-center">
-                                        <?php if ($l['inventory_image']): ?>
-                                            <img src="/public/assets/uploads/<?= htmlspecialchars($l['inventory_image']) ?>" 
-                                                 alt="" class="me-2" 
-                                                 style="width: 40px; height: 40px; object-fit: cover; border-radius: 8px;">
-                                        <?php else: ?>
-                                            <div class="me-2" style="width: 40px; height: 40px; background: rgba(255,255,255,0.1); border-radius: 8px; display: flex; align-items: center; justify-content: center;">
-                                                <i class="bi bi-box-seam text-secondary"></i>
-                                            </div>
-                                        <?php endif; ?>
-                                        <div>
-                                            <div><?= htmlspecialchars($l['inventory_name']) ?></div>
-                                            <small class="text-secondary"><?= htmlspecialchars($l['inventory_code']) ?></small>
-                                        </div>
-                                    </div>
-                                </td>
-                                <td><span class="fw-bold text-pln-yellow"><?= $l['quantity'] ?></span></td>
-                                <td>
-                                    <?php if ($l['note']): ?>
-                                        <button type="button" class="btn btn-sm btn-outline-info" 
-                                                data-bs-toggle="modal" 
-                                                data-bs-target="#noteModal<?= $l['id'] ?>">
-                                            <i class="bi bi-chat-text me-1"></i> Lihat
-                                        </button>
-                                    <?php else: ?>
-                                        <span class="text-secondary small">-</span>
-                                    <?php endif; ?>
-                                </td>
-                                <td>
-                                    <small>
-                                        <?= date('d M Y', strtotime($l['requested_at'])) ?><br>
-                                        <span class="text-secondary"><?= date('H:i', strtotime($l['requested_at'])) ?></span>
-                                    </small>
-                                </td>
-                                <td>
-                                    <?php if($l['stage'] === 'pending'): ?>
-                                        <span class="badge bg-warning text-dark">Pending</span>
-                                    <?php elseif($l['stage'] === 'awaiting_document'): ?>
-                                        <span class="badge bg-info">Awaiting Document</span>
-                                        <small class="text-muted d-block">User must upload filled template</small>
-                                    <?php elseif($l['stage'] === 'submitted'): ?>
-                                        <span class="badge bg-primary">Submitted</span>
-                                    <?php elseif($l['stage'] === 'approved'): ?>
-                                        <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Approved</span>
-                                        <?php 
-                                        $rs = $l['return_stage'] ?? 'none';
-                                        if ($rs !== 'none' && $rs !== ''): 
-                                            $returnLabels = [
-                                                'pending_return' => ['Pengajuan Kembali', 'warning', 'text-dark'],
-                                                'awaiting_return_doc' => ['Tunggu Dok Kembali', 'info', ''],
-                                                'return_submitted' => ['Dok Kembali Submitted', 'primary', ''],
-                                                'return_approved' => ['Dikembalikan', 'success', ''],
-                                                'return_rejected' => ['Peminjaman Ditolak', 'danger', '']
-                                            ];
-                                            $rInfo = $returnLabels[$rs] ?? ['Unknown', 'secondary', ''];
-                                        ?>
-                                            <br><span class="badge bg-<?= $rInfo[1] ?> <?= $rInfo[2] ?> mt-1"><?= $rInfo[0] ?></span>
-                                        <?php endif; ?>
-                                    <?php elseif($l['stage'] === 'rejected'): ?>
-                                        <span class="badge bg-danger"><i class="bi bi-x-circle me-1"></i>Rejected</span>
-                                    <?php else: ?>
-                                        <span class="badge bg-secondary"><?= htmlspecialchars($l['stage'] ?? $l['status']) ?></span>
-                                    <?php endif; ?>
-                                </td>
-                                <td>
-                                    <?php if($l['stage'] === 'pending'): ?>
-                                        <!-- Approve initial -->
-                                        <form method="POST" action="/index.php?page=loan_approve" style="display:inline-block" data-confirm="Set initial approval and request employee document?">
-                                            <input type="hidden" name="loan_id" value="<?= $l['id'] ?>">
-                                            <button class="btn btn-sm btn-success">Approve (request doc)</button>
-                                        </form>
-                                    <?php elseif($l['stage'] === 'awaiting_document'): ?>
-                                        <small class="text-secondary">Waiting for user upload</small>
-                                    <?php elseif($l['stage'] === 'submitted'): ?>
-                                        <?php if(!empty($l['document_path'])): ?>
-                                            <a class="btn btn-sm btn-info" href="/public/<?= htmlspecialchars($l['document_path']) ?>" target="_blank">
-                                                <i class="bi bi-download me-1"></i>Download Doc
-                                            </a>
-                                        <?php endif; ?>
-                                        <!-- Final approve / reject -->
-                                        <form method="POST" action="/index.php?page=final_approve" style="display:inline-block" data-confirm="Final approve and reduce stock?">
-                                            <input type="hidden" name="loan_id" value="<?= $l['id'] ?>">
-                                            <button class="btn btn-sm btn-success">Final Approve</button>
-                                        </form>
-                                        <form method="POST" action="/index.php?page=final_reject" style="display:inline-block" data-confirm="Reject this loan?">
-                                            <input type="hidden" name="loan_id" value="<?= $l['id'] ?>">
-                                            <button class="btn btn-sm btn-danger">Reject</button>
-                                        </form>
-                                    <?php elseif($l['stage'] === 'approved'): ?>
-                                        <span class="text-secondary">—</span>
-                                    <?php elseif($l['stage'] === 'rejected'): ?>
-                                        <span class="text-secondary">—</span>
-                                    <?php else: ?>
-                                        <span class="text-secondary">—</span>
-                                    <?php endif; ?>
-                                </td>
-                            </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
+            <div class="stat-card-icon warning">
+                <i class="bi bi-hourglass-split"></i>
             </div>
-        <?php endif; ?>
+        </div>
+    </div>
+    <div class="stat-card success" style="padding: 20px;">
+        <div class="d-flex align-items-center justify-content-between">
+            <div>
+                <p class="stat-card-title" style="margin: 0 0 4px 0;">Disetujui</p>
+                <p class="stat-card-value" style="font-size: 28px; margin: 0;"><?= $approvedCount ?></p>
+            </div>
+            <div class="stat-card-icon success">
+                <i class="bi bi-check-circle"></i>
+            </div>
+        </div>
+    </div>
+    <div class="stat-card danger" style="padding: 20px;">
+        <div class="d-flex align-items-center justify-content-between">
+            <div>
+                <p class="stat-card-title" style="margin: 0 0 4px 0;">Ditolak</p>
+                <p class="stat-card-value" style="font-size: 28px; margin: 0;"><?= $rejectedCount ?></p>
+            </div>
+            <div class="stat-card-icon danger">
+                <i class="bi bi-x-circle"></i>
+            </div>
+        </div>
+    </div>
+    <div class="stat-card" style="padding: 20px;">
+        <div class="d-flex align-items-center justify-content-between">
+            <div>
+                <p class="stat-card-title" style="margin: 0 0 4px 0;">Total Peminjaman</p>
+                <p class="stat-card-value" style="font-size: 28px; margin: 0;"><?= count($loans) ?></p>
+            </div>
+            <div class="stat-card-icon primary">
+                <i class="bi bi-clipboard-data"></i>
+            </div>
+        </div>
     </div>
 </div>
 
-<!-- Note Modals (placed outside table to prevent rendering issues) -->
-<?php foreach($loans as $l): ?>
-    <?php if ($l['note']): ?>
-        <div class="modal fade" id="noteModal<?= $l['id'] ?>" tabindex="-1">
-            <div class="modal-dialog">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title">
-                            <i class="bi bi-chat-text me-2"></i>Catatan dari <?= htmlspecialchars($l['user_name']) ?>
-                        </h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                    </div>
-                    <div class="modal-body">
-                        <div class="mb-3">
-                            <small class="text-secondary">Barang yang diminta:</small>
-                            <div class="fw-bold"><?= htmlspecialchars($l['inventory_name']) ?> (<?= $l['quantity'] ?> unit)</div>
-                        </div>
-                        <div class="p-3" style="background: rgba(15, 117, 188, 0.1); border-radius: 10px; border-left: 4px solid #FDB913;">
-                            <small class="text-secondary d-block mb-2">Catatan:</small>
-                            <p class="mb-0"><?= nl2br(htmlspecialchars($l['note'])) ?></p>
-                        </div>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Tutup</button>
-                    </div>
-                </div>
+<!-- Loans Table -->
+<div class="table-card">
+    <div class="card-header" style="padding: 20px 24px; border-bottom: 1px solid var(--border-color);">
+        <h3 class="card-title" style="margin: 0;">
+            <i class="bi bi-list-ul"></i> Daftar Peminjaman
+        </h3>
+        <div class="card-actions">
+            <div class="table-filters" style="padding: 0;">
+                <button class="table-filter-btn active">Semua</button>
+                <button class="table-filter-btn">Pending</button>
+                <button class="table-filter-btn">Disetujui</button>
             </div>
         </div>
+    </div>
+    
+    <?php if (empty($loans)): ?>
+    <div class="card-body">
+        <div class="empty-state">
+            <div class="empty-state-icon">
+                <i class="bi bi-inbox"></i>
+            </div>
+            <h5 class="empty-state-title">Belum Ada Peminjaman</h5>
+            <p class="empty-state-text">Belum ada permintaan peminjaman dari karyawan.</p>
+        </div>
+    </div>
+    <?php else: ?>
+    <div class="table-responsive">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Peminjam</th>
+                    <th>Barang</th>
+                    <th>Qty</th>
+                    <th>Catatan</th>
+                    <th>Tanggal</th>
+                    <th>Status</th>
+                    <th>Aksi</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php foreach($loans as $l): ?>
+                <tr>
+                    <td><span class="badge bg-secondary">#<?= $l['id'] ?></span></td>
+                    <td>
+                        <div class="d-flex align-items-center gap-2">
+                            <div class="topbar-avatar" style="width: 38px; height: 38px; font-size: 14px;">
+                                <?= strtoupper(substr($l['user_name'], 0, 1)) ?>
+                            </div>
+                            <div>
+                                <div style="font-weight: 600;"><?= htmlspecialchars($l['user_name']) ?></div>
+                                <small style="color: var(--text-muted);"><?= htmlspecialchars($l['user_email']) ?></small>
+                            </div>
+                        </div>
+                    </td>
+                    <td>
+                        <div class="d-flex align-items-center gap-2">
+                            <?php if ($l['inventory_image']): ?>
+                            <img src="/public/assets/uploads/<?= htmlspecialchars($l['inventory_image']) ?>" 
+                                 alt="" 
+                                 style="width: 42px; height: 42px; object-fit: cover; border-radius: var(--radius);">
+                            <?php else: ?>
+                            <div style="width: 42px; height: 42px; background: var(--bg-main); border-radius: var(--radius); display: flex; align-items: center; justify-content: center;">
+                                <i class="bi bi-box-seam" style="color: var(--text-muted);"></i>
+                            </div>
+                            <?php endif; ?>
+                            <div>
+                                <div style="font-weight: 500;"><?= htmlspecialchars($l['inventory_name']) ?></div>
+                                <small style="color: var(--text-muted);"><?= htmlspecialchars($l['inventory_code']) ?></small>
+                            </div>
+                        </div>
+                    </td>
+                    <td><span style="font-weight: 700; color: var(--primary-light);"><?= $l['quantity'] ?></span></td>
+                    <td>
+                        <?php if ($l['note']): ?>
+                        <button type="button" class="btn btn-secondary btn-sm" 
+                                data-bs-toggle="modal" 
+                                data-bs-target="#noteModal<?= $l['id'] ?>">
+                            <i class="bi bi-chat-text me-1"></i> Lihat
+                        </button>
+                        <?php else: ?>
+                        <span style="color: var(--text-light);">-</span>
+                        <?php endif; ?>
+                    </td>
+                    <td>
+                        <div style="font-size: 13px;">
+                            <?= date('d M Y', strtotime($l['requested_at'])) ?>
+                            <br>
+                            <small style="color: var(--text-muted);"><?= date('H:i', strtotime($l['requested_at'])) ?></small>
+                        </div>
+                    </td>
+                    <td>
+                        <?php if($l['stage'] === 'pending'): ?>
+                            <span class="status-badge warning">Pending</span>
+                        <?php elseif($l['stage'] === 'awaiting_document'): ?>
+                            <span class="status-badge info">Menunggu Dokumen</span>
+                        <?php elseif($l['stage'] === 'submitted'): ?>
+                            <span class="status-badge info">Dokumen Submitted</span>
+                        <?php elseif($l['stage'] === 'approved'): ?>
+                            <span class="status-badge success">Disetujui</span>
+                            <?php 
+                            $rs = $l['return_stage'] ?? 'none';
+                            if ($rs !== 'none' && $rs !== ''): 
+                                $returnLabels = [
+                                    'pending_return' => ['Pengajuan Kembali', 'warning'],
+                                    'awaiting_return_doc' => ['Tunggu Dok Kembali', 'info'],
+                                    'return_submitted' => ['Dok Kembali Submitted', 'info'],
+                                    'return_approved' => ['Dikembalikan', 'success'],
+                                    'return_rejected' => ['Pengembalian Ditolak', 'danger']
+                                ];
+                                $rInfo = $returnLabels[$rs] ?? ['Unknown', 'secondary'];
+                            ?>
+                            <br><span class="status-badge <?= $rInfo[1] ?>" style="margin-top: 4px;"><?= $rInfo[0] ?></span>
+                            <?php endif; ?>
+                        <?php elseif($l['stage'] === 'rejected'): ?>
+                            <span class="status-badge danger">Ditolak</span>
+                        <?php else: ?>
+                            <span class="status-badge secondary"><?= htmlspecialchars($l['stage'] ?? $l['status']) ?></span>
+                        <?php endif; ?>
+                    </td>
+                    <td>
+                        <?php if($l['stage'] === 'pending'): ?>
+                        <form method="POST" action="/index.php?page=loan_approve" style="display:inline-block">
+                            <input type="hidden" name="loan_id" value="<?= $l['id'] ?>">
+                            <button class="btn btn-success btn-sm" onclick="return confirm('Set initial approval dan request dokumen dari karyawan?')">
+                                <i class="bi bi-check-lg me-1"></i> Approve
+                            </button>
+                        </form>
+                        <?php elseif($l['stage'] === 'awaiting_document'): ?>
+                        <small style="color: var(--text-muted);">Menunggu upload user</small>
+                        <?php elseif($l['stage'] === 'submitted'): ?>
+                        <div class="d-flex gap-1 flex-wrap">
+                            <?php if(!empty($l['document_path'])): ?>
+                            <a class="btn btn-secondary btn-sm" href="/public/<?= htmlspecialchars($l['document_path']) ?>" target="_blank">
+                                <i class="bi bi-download"></i>
+                            </a>
+                            <?php endif; ?>
+                            <form method="POST" action="/index.php?page=final_approve" style="display:inline;">
+                                <input type="hidden" name="loan_id" value="<?= $l['id'] ?>">
+                                <button class="btn btn-success btn-sm" onclick="return confirm('Final approve dan kurangi stok?')">
+                                    <i class="bi bi-check-lg"></i>
+                                </button>
+                            </form>
+                            <form method="POST" action="/index.php?page=final_reject" style="display:inline;">
+                                <input type="hidden" name="loan_id" value="<?= $l['id'] ?>">
+                                <button class="btn btn-danger btn-sm" onclick="return confirm('Tolak peminjaman ini?')">
+                                    <i class="bi bi-x-lg"></i>
+                                </button>
+                            </form>
+                        </div>
+                        <?php else: ?>
+                        <span style="color: var(--text-light);">—</span>
+                        <?php endif; ?>
+                    </td>
+                </tr>
+                <?php endforeach; ?>
+            </tbody>
+        </table>
+    </div>
     <?php endif; ?>
+</div>
+
+<!-- Note Modals -->
+<?php foreach($loans as $l): ?>
+<?php if ($l['note']): ?>
+<div class="modal fade" id="noteModal<?= $l['id'] ?>" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-chat-text me-2" style="color: var(--primary-light);"></i>
+                    Catatan dari <?= htmlspecialchars($l['user_name']) ?>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div style="margin-bottom: 16px;">
+                    <small style="color: var(--text-muted);">Barang yang diminta:</small>
+                    <div style="font-weight: 600;"><?= htmlspecialchars($l['inventory_name']) ?> (<?= $l['quantity'] ?> unit)</div>
+                </div>
+                <div style="background: var(--bg-main); padding: 16px; border-radius: var(--radius); border-left: 4px solid var(--primary-light);">
+                    <small style="color: var(--text-muted); display: block; margin-bottom: 8px;">Catatan:</small>
+                    <p style="margin: 0;"><?= nl2br(htmlspecialchars($l['note'])) ?></p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Tutup</button>
+            </div>
+        </div>
+    </div>
+</div>
+<?php endif; ?>
 <?php endforeach; ?>

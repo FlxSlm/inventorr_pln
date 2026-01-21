@@ -1,5 +1,6 @@
 <?php
-// app/user/dashboard.php
+// app/user/dashboard.php - Modern Style
+$pageTitle = 'Dashboard';
 $pdo = require __DIR__ . '/../config/database.php';
 $userId = $_SESSION['user']['id'] ?? 0;
 
@@ -9,25 +10,37 @@ $myPending = $pdo->prepare('SELECT COUNT(*) FROM loans WHERE user_id = ? AND sta
 $myPending->execute([$userId]);
 $myPendingCount = $myPending->fetchColumn();
 
-// Count loans that are fully approved (document uploaded and approved by admin, not yet returned)
+// Count loans that are fully approved
 $myApproved = $pdo->prepare('SELECT COUNT(*) FROM loans WHERE user_id = ? AND status = "approved" AND stage = "approved" AND (return_stage IS NULL OR return_stage = "none")');
 $myApproved->execute([$userId]);
 $myApprovedCount = $myApproved->fetchColumn();
 
 // Get loans awaiting document upload
-$awaitingDoc = $pdo->prepare('SELECT * FROM loans WHERE user_id = ? AND stage = "awaiting_document"');
+$awaitingDoc = $pdo->prepare('SELECT l.*, i.name as inventory_name FROM loans l JOIN inventories i ON i.id = l.inventory_id WHERE l.user_id = ? AND l.stage = "awaiting_document"');
 $awaitingDoc->execute([$userId]);
 $awaitingDocLoans = $awaitingDoc->fetchAll();
 
 // Get loans awaiting return document upload
-$awaitingReturnDoc = $pdo->prepare('SELECT * FROM loans WHERE user_id = ? AND return_stage = "awaiting_return_doc"');
+$awaitingReturnDoc = $pdo->prepare('SELECT l.*, i.name as inventory_name FROM loans l JOIN inventories i ON i.id = l.inventory_id WHERE l.user_id = ? AND l.return_stage = "awaiting_return_doc"');
 $awaitingReturnDoc->execute([$userId]);
 $awaitingReturnDocLoans = $awaitingReturnDoc->fetchAll();
 
-// Get featured items (latest 6 items with stock)
+// Get featured items
 $featuredItems = $pdo->query('SELECT * FROM inventories WHERE stock_available > 0 AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 6')->fetchAll();
 
-// Top borrowed items (for chart) - global data like admin
+// My recent loans
+$myRecentLoans = $pdo->prepare('
+    SELECT l.*, i.name as inventory_name, i.code as inventory_code 
+    FROM loans l 
+    JOIN inventories i ON i.id = l.inventory_id 
+    WHERE l.user_id = ? 
+    ORDER BY l.requested_at DESC 
+    LIMIT 5
+');
+$myRecentLoans->execute([$userId]);
+$recentLoans = $myRecentLoans->fetchAll();
+
+// Top borrowed items (for chart)
 $topBorrowed = $pdo->query("
   SELECT i.name, COUNT(l.id) as borrow_count
   FROM loans l
@@ -45,285 +58,229 @@ foreach ($topBorrowed as $item) {
 }
 ?>
 
-<!-- Alert for Awaiting Document -->
+<!-- Alerts for Awaiting Document -->
 <?php foreach($awaitingDocLoans as $loan): ?>
-    <div class="alert alert-dismissible fade show mb-3" role="alert" style="background: linear-gradient(135deg, #0f75bc 0%, #1e88e5 100%); border: none; color: white;">
-        <i class="bi bi-file-earmark-check me-2"></i>
-        <strong>Pengajuan #<?= $loan['id'] ?> telah disetujui!</strong> Silakan 
-        <a href="/index.php?page=upload_document&loan_id=<?= $loan['id'] ?>" style="color: #FDB913; font-weight: bold;">download template & upload dokumen</a>.
-        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="alert" aria-label="Close"></button>
-    </div>
+<div class="alert alert-info alert-dismissible fade show" style="background: linear-gradient(135deg, var(--primary-light), var(--accent)); color: #fff; border: none;">
+    <i class="bi bi-file-earmark-check me-2"></i>
+    <strong>Pengajuan #<?= $loan['id'] ?> (<?= htmlspecialchars($loan['inventory_name']) ?>) telah disetujui!</strong> 
+    <a href="/index.php?page=upload_document&loan_id=<?= $loan['id'] ?>" style="color: #fff; font-weight: bold; text-decoration: underline;">
+        Download template & upload dokumen
+    </a>
+    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="alert"></button>
+</div>
 <?php endforeach; ?>
 
-<!-- Dashboard Header -->
-<div class="dashboard-header mb-4">
-    <div class="d-flex justify-content-between align-items-center flex-wrap">
-        <div>
-            <h3 class="mb-1"><i class="bi bi-speedometer2 me-2"></i>Dashboard Karyawan</h3>
-            <p class="mb-0 opacity-75">Selamat datang, <?= htmlspecialchars($_SESSION['user']['name']) ?>!</p>
-        </div>
-        <div class="mt-2 mt-md-0">
-            <a class="btn btn-warning me-2" href="/index.php?page=user_request_loan">
-                <i class="bi bi-plus-lg me-1"></i> Ajukan Peminjaman
-            </a>
-            <a class="btn btn-outline-light" href="/index.php?page=history">
-                <i class="bi bi-clock-history me-1"></i> Riwayat
-            </a>
-        </div>
+<?php foreach($awaitingReturnDocLoans as $loan): ?>
+<div class="alert alert-warning alert-dismissible fade show" style="border: none;">
+    <i class="bi bi-box-arrow-in-left me-2"></i>
+    <strong>Pengembalian #<?= $loan['id'] ?> (<?= htmlspecialchars($loan['inventory_name']) ?>) perlu dokumen!</strong> 
+    <a href="/index.php?page=upload_return_document&loan_id=<?= $loan['id'] ?>" style="color: inherit; font-weight: bold; text-decoration: underline;">
+        Upload dokumen pengembalian
+    </a>
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+</div>
+<?php endforeach; ?>
+
+<!-- Page Header -->
+<div class="page-header">
+    <div class="page-header-left">
+        <h3><i class="bi bi-grid-1x2-fill"></i> Dashboard Karyawan</h3>
+        <p>Selamat datang kembali, <?= htmlspecialchars($_SESSION['user']['name']) ?>!</p>
+    </div>
+    <div class="page-header-actions">
+        <a class="btn btn-primary" href="/index.php?page=user_request_loan">
+            <i class="bi bi-plus-lg me-1"></i> Ajukan Peminjaman
+        </a>
+        <a class="btn btn-secondary" href="/index.php?page=history">
+            <i class="bi bi-clock-history me-1"></i> Riwayat
+        </a>
     </div>
 </div>
 
 <!-- Stats Cards -->
-<div class="row g-4 mb-4">
-    <div class="col-md-4">
-        <div class="card stats-card h-100">
-            <div class="card-body">
-                <div class="d-flex align-items-center">
-                    <div class="widget-icon blue me-3">
-                        <i class="bi bi-box-seam"></i>
-                    </div>
-                    <div>
-                        <div class="stats-number"><?= (int)$totalAvailable ?></div>
-                        <div class="stats-label">Barang Tersedia</div>
-                    </div>
-                </div>
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-card-header">
+            <div>
+                <p class="stat-card-title">Barang Tersedia</p>
+                <p class="stat-card-period">Dapat Dipinjam</p>
+            </div>
+            <div class="stat-card-icon primary">
+                <i class="bi bi-box-seam"></i>
             </div>
         </div>
+        <p class="stat-card-value"><?= number_format($totalAvailable) ?></p>
+        <a href="/index.php?page=catalog" class="stat-card-btn">
+            <i class="bi bi-eye"></i> Lihat Katalog
+        </a>
     </div>
-    <div class="col-md-4">
-        <div class="card stats-card h-100" style="border-left-color: #FDB913;">
-            <div class="card-body">
-                <div class="d-flex align-items-center">
-                    <div class="widget-icon yellow me-3">
-                        <i class="bi bi-hourglass-split"></i>
-                    </div>
-                    <div>
-                        <div class="stats-number"><?= (int)$myPendingCount ?></div>
-                        <div class="stats-label">Menunggu Approval</div>
-                    </div>
-                </div>
+    
+    <div class="stat-card warning">
+        <div class="stat-card-header">
+            <div>
+                <p class="stat-card-title">Menunggu Approval</p>
+                <p class="stat-card-period">Pengajuan Pending</p>
+            </div>
+            <div class="stat-card-icon warning">
+                <i class="bi bi-hourglass-split"></i>
             </div>
         </div>
+        <p class="stat-card-value"><?= number_format($myPendingCount) ?></p>
+        <a href="/index.php?page=history" class="stat-card-btn">
+            <i class="bi bi-eye"></i> Lihat Riwayat
+        </a>
     </div>
-    <div class="col-md-4">
-        <div class="card stats-card h-100" style="border-left-color: #10b981;">
-            <div class="card-body">
-                <div class="d-flex align-items-center">
-                    <div class="widget-icon green me-3">
-                        <i class="bi bi-check-circle"></i>
-                    </div>
-                    <div>
-                        <div class="stats-number" style="color: #22c55e;"><?= (int)$myApprovedCount ?></div>
-                        <div class="stats-label">Peminjaman Aktif</div>
-                    </div>
-                </div>
+    
+    <div class="stat-card success">
+        <div class="stat-card-header">
+            <div>
+                <p class="stat-card-title">Peminjaman Aktif</p>
+                <p class="stat-card-period">Sedang Dipinjam</p>
+            </div>
+            <div class="stat-card-icon success">
+                <i class="bi bi-check-circle"></i>
             </div>
         </div>
+        <p class="stat-card-value"><?= number_format($myApprovedCount) ?></p>
+        <a href="/index.php?page=history" class="stat-card-btn">
+            <i class="bi bi-eye"></i> Lihat Detail
+        </a>
     </div>
 </div>
 
-<!-- Awaiting Return Document Upload Section -->
-<?php if (!empty($awaitingReturnDocLoans)): ?>
-<div class="card mb-4">
-    <div class="card-header bg-info text-white">
-        <i class="bi bi-file-earmark-arrow-up me-2"></i>
-        Upload Dokumen Pengembalian
-    </div>
-    <div class="card-body">
-        <div class="alert alert-info">
-            <i class="bi bi-info-circle me-2"></i>
-            Pengembalian Anda telah disetujui tahap 1. Silakan upload dokumen pengembalian untuk proses verifikasi akhir.
+<!-- Content Grid -->
+<div class="content-grid">
+    <!-- Recent Loans -->
+    <div class="table-card">
+        <div class="card-header" style="padding: 20px 24px; border-bottom: 1px solid var(--border-color);">
+            <h3 class="card-title" style="margin: 0;">
+                <i class="bi bi-clock-history"></i> Peminjaman Terakhir
+            </h3>
+            <a href="/index.php?page=history" class="btn btn-secondary btn-sm">Lihat Semua</a>
         </div>
+        
+        <?php if (empty($recentLoans)): ?>
+        <div class="card-body">
+            <div class="empty-state" style="padding: 40px;">
+                <div class="empty-state-icon" style="width: 60px; height: 60px; font-size: 24px;">
+                    <i class="bi bi-inbox"></i>
+                </div>
+                <h5 class="empty-state-title">Belum Ada Peminjaman</h5>
+                <p class="empty-state-text mb-0">Mulai ajukan peminjaman pertama Anda</p>
+                <a href="/index.php?page=user_request_loan" class="btn btn-primary mt-3">
+                    <i class="bi bi-plus-lg me-1"></i> Ajukan Peminjaman
+                </a>
+            </div>
+        </div>
+        <?php else: ?>
         <div class="table-responsive">
-            <table class="table table-hover">
+            <table class="data-table">
                 <thead>
                     <tr>
                         <th>Barang</th>
-                        <th>Kode</th>
                         <th>Qty</th>
-                        <th>Aksi</th>
+                        <th>Tanggal</th>
+                        <th>Status</th>
                     </tr>
                 </thead>
                 <tbody>
-                    <?php foreach($awaitingReturnDocLoans as $rl): 
-                        $inv = $pdo->query("SELECT * FROM inventories WHERE id = {$rl['inventory_id']}")->fetch();
-                    ?>
+                    <?php foreach($recentLoans as $loan): ?>
                     <tr>
-                        <td class="text-white"><?= htmlspecialchars($inv['name'] ?? '-') ?></td>
-                        <td class="text-secondary"><?= htmlspecialchars($inv['code'] ?? '-') ?></td>
-                        <td class="text-white"><?= $rl['quantity'] ?></td>
                         <td>
-                            <a href="/index.php?page=upload_return_document&loan_id=<?= $rl['id'] ?>" 
-                               class="btn btn-sm btn-info">
-                                <i class="bi bi-upload me-1"></i> Upload Dok
-                            </a>
+                            <div>
+                                <div style="font-weight: 500;"><?= htmlspecialchars($loan['inventory_name']) ?></div>
+                                <small style="color: var(--text-muted);"><?= htmlspecialchars($loan['inventory_code']) ?></small>
+                            </div>
+                        </td>
+                        <td><strong><?= $loan['quantity'] ?></strong></td>
+                        <td><small><?= date('d M Y', strtotime($loan['requested_at'])) ?></small></td>
+                        <td>
+                            <?php if($loan['stage'] === 'pending'): ?>
+                                <span class="status-badge warning">Pending</span>
+                            <?php elseif($loan['stage'] === 'awaiting_document'): ?>
+                                <span class="status-badge info">Upload Dokumen</span>
+                            <?php elseif($loan['stage'] === 'submitted'): ?>
+                                <span class="status-badge info">Menunggu Verifikasi</span>
+                            <?php elseif($loan['stage'] === 'approved'): ?>
+                                <span class="status-badge success">Disetujui</span>
+                            <?php elseif($loan['stage'] === 'rejected'): ?>
+                                <span class="status-badge danger">Ditolak</span>
+                            <?php else: ?>
+                                <span class="status-badge secondary"><?= htmlspecialchars($loan['stage']) ?></span>
+                            <?php endif; ?>
                         </td>
                     </tr>
                     <?php endforeach; ?>
                 </tbody>
             </table>
         </div>
-    </div>
-</div>
-<?php endif; ?>
-
-<div class="row mb-4">
-    <!-- Chart Card -->
-    <div class="col-md-6">
-        <div class="card h-100">
-            <div class="card-header">
-                <i class="bi bi-bar-chart me-2"></i>Barang Paling Sering Dipinjam
-            </div>
-            <div class="card-body">
-                <?php if (!empty($chartLabels)): ?>
-                    <canvas id="topBorrowedChart" height="200"></canvas>
-                <?php else: ?>
-                    <div class="text-center py-4">
-                        <i class="bi bi-bar-chart text-secondary" style="font-size: 3rem;"></i>
-                        <p class="text-secondary mt-2">Belum ada data peminjaman</p>
-                    </div>
-                <?php endif; ?>
-            </div>
-        </div>
+        <?php endif; ?>
     </div>
     
-    <!-- Featured Items Card -->
-    <div class="col-md-6">
-        <div class="card h-100">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <span><i class="bi bi-grid me-2"></i>Barang Terbaru</span>
-                <a href="/index.php?page=catalog" class="btn btn-sm btn-outline-light">
-                    <i class="bi bi-arrow-right me-1"></i> Lihat Semua
-                </a>
+    <!-- Featured Items -->
+    <div class="modern-card">
+        <div class="card-header">
+            <h3 class="card-title">
+                <i class="bi bi-star-fill"></i> Barang Terbaru
+            </h3>
+            <a href="/index.php?page=catalog" style="color: var(--primary-light); font-size: 14px;">Lihat Semua</a>
+        </div>
+        <div class="card-body">
+            <?php if (empty($featuredItems)): ?>
+            <div class="empty-state" style="padding: 40px 20px;">
+                <div class="empty-state-icon" style="width: 60px; height: 60px; font-size: 24px;">
+                    <i class="bi bi-box-seam"></i>
+                </div>
+                <h5 class="empty-state-title">Belum Ada Barang</h5>
+                <p class="empty-state-text mb-0">Barang akan muncul di sini</p>
             </div>
-            <div class="card-body">
-                <?php if (empty($featuredItems)): ?>
-                    <div class="text-center py-4">
-                        <i class="bi bi-inbox text-secondary" style="font-size: 3rem;"></i>
-                        <p class="text-secondary mt-2">Belum ada barang tersedia</p>
-                    </div>
+            <?php else: ?>
+            <?php foreach(array_slice($featuredItems, 0, 5) as $item): ?>
+            <div class="product-item">
+                <?php if ($item['image']): ?>
+                <img src="/public/assets/uploads/<?= htmlspecialchars($item['image']) ?>" 
+                     alt="<?= htmlspecialchars($item['name']) ?>" 
+                     class="product-img"
+                     style="object-fit: cover;">
                 <?php else: ?>
-                    <div class="row g-2">
-                        <?php foreach(array_slice($featuredItems, 0, 4) as $it): ?>
-                            <div class="col-6">
-                                <div class="d-flex align-items-center p-2 featured-item-card">
-                                    <?php if ($it['image']): ?>
-                                        <img src="/public/assets/uploads/<?= htmlspecialchars($it['image']) ?>" 
-                                             alt="<?= htmlspecialchars($it['name']) ?>" 
-                                             class="featured-item-image me-2">
-                                    <?php else: ?>
-                                        <div class="featured-item-placeholder me-2">
-                                            <i class="bi bi-box-seam"></i>
-                                        </div>
-                                    <?php endif; ?>
-                                    <div class="flex-grow-1">
-                                        <h6 class="mb-0 text-pln-yellow small"><?= htmlspecialchars($it['name']) ?></h6>
-                                        <small class="text-success">
-                                            <?= $it['stock_available'] ?> tersedia
-                                        </small>
-                                    </div>
-                                </div>
-                            </div>
-                        <?php endforeach; ?>
-                    </div>
+                <div class="product-img">
+                    <i class="bi bi-box-seam" style="color: var(--primary-light);"></i>
+                </div>
                 <?php endif; ?>
+                <div class="product-info">
+                    <p class="product-name"><?= htmlspecialchars($item['name']) ?></p>
+                    <p class="product-category"><?= htmlspecialchars($item['code']) ?></p>
+                </div>
+                <div class="product-stock">
+                    <p class="product-stock-value" style="color: var(--success);"><?= $item['stock_available'] ?></p>
+                    <p class="product-stock-label">tersedia</p>
+                </div>
+            </div>
+            <?php endforeach; ?>
+            <?php endif; ?>
+        </div>
+    </div>
+</div>
+
+<!-- Chart Section -->
+<?php if (!empty($chartLabels)): ?>
+<div class="content-grid full" style="margin-top: 24px;">
+    <div class="modern-card">
+        <div class="card-header">
+            <h3 class="card-title">
+                <i class="bi bi-bar-chart-fill"></i> Barang Paling Sering Dipinjam
+            </h3>
+        </div>
+        <div class="card-body">
+            <div class="chart-container" style="height: 250px;">
+                <canvas id="topBorrowedChart"></canvas>
             </div>
         </div>
     </div>
 </div>
 
-<style>
-.featured-item-card {
-    background: rgba(15, 117, 188, 0.1);
-    border-radius: 10px;
-    transition: all 0.3s ease;
-}
-.featured-item-card:hover {
-    background: rgba(15, 117, 188, 0.2);
-    transform: translateX(5px);
-}
-.featured-item-image {
-    width: 60px;
-    height: 60px;
-    object-fit: cover;
-    border-radius: 10px;
-}
-.featured-item-placeholder {
-    width: 60px;
-    height: 60px;
-    background: rgba(255,255,255,0.1);
-    border-radius: 10px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1.5rem;
-    color: rgba(255,255,255,0.3);
-}
-</style>
-
-<!-- Chart.js -->
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
-<?php if (!empty($chartLabels)): ?>
-document.addEventListener('DOMContentLoaded', function() {
-    const ctx = document.getElementById('topBorrowedChart').getContext('2d');
-    new Chart(ctx, {
-        type: 'bar',
-        data: {
-            labels: <?= json_encode($chartLabels) ?>,
-            datasets: [{
-                label: 'Jumlah Peminjaman',
-                data: <?= json_encode($chartData) ?>,
-                backgroundColor: [
-                    'rgba(15, 117, 188, 0.8)',
-                    'rgba(253, 185, 19, 0.8)',
-                    'rgba(16, 185, 129, 0.8)',
-                    'rgba(239, 68, 68, 0.8)',
-                    'rgba(139, 92, 246, 0.8)'
-                ],
-                borderColor: [
-                    'rgb(15, 117, 188)',
-                    'rgb(253, 185, 19)',
-                    'rgb(16, 185, 129)',
-                    'rgb(239, 68, 68)',
-                    'rgb(139, 92, 246)'
-                ],
-                borderWidth: 2,
-                borderRadius: 8
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: {
-                    display: false
-                }
-            },
-            scales: {
-                y: {
-                    beginAtZero: true,
-                    ticks: {
-                        color: 'rgba(255, 255, 255, 0.7)',
-                        stepSize: 1
-                    },
-                    grid: {
-                        color: 'rgba(255, 255, 255, 0.1)'
-                    }
-                },
-                x: {
-                    ticks: {
-                        color: 'rgba(255, 255, 255, 0.7)',
-                        maxRotation: 45,
-                        minRotation: 45
-                    },
-                    grid: {
-                        display: false
-                    }
-                }
-            }
-        }
-    });
-});
-<?php endif; ?>
+const chartLabels = <?= json_encode($chartLabels) ?>;
+const chartData = <?= json_encode($chartData) ?>;
 </script>
+<?php endif; ?>

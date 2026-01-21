@@ -19,7 +19,7 @@ CREATE TABLE inventories (
   id INT AUTO_INCREMENT PRIMARY KEY,
   name VARCHAR(255) NOT NULL,
   code VARCHAR(100) NOT NULL UNIQUE,
-  description TEXT,
+  description TEXT, 
   stock_total INT DEFAULT 0,
   stock_available INT DEFAULT 0,
   unit VARCHAR(50),

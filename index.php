@@ -9,7 +9,14 @@ session_start();
 define('APP_PATH', __DIR__ . '/app/');
 
 function view($file) {
-    // wrapper: include header, content, footer (header/footer may require session)
+    // wrapper: include modern header, content, footer
+    require APP_PATH . 'includes/modern_header.php';
+    require APP_PATH . $file;
+    require APP_PATH . 'includes/modern_footer.php';
+}
+
+// Legacy view function (if needed)
+function view_legacy($file) {
     require APP_PATH . 'includes/header.php';
     require APP_PATH . $file;
     require APP_PATH . 'includes/footer.php';
@@ -106,6 +113,7 @@ switch ($page) {
         break;
 
     // ----- Dashboard / home -----
+    case 'admin_dashboard':
     case 'home':
     default:
         // show dashboard based on role

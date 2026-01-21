@@ -1,5 +1,5 @@
 <?php
-// app/user/catalog.php
+// app/user/catalog.php - Modern Style
 // Halaman katalog barang untuk karyawan dan admin
 
 if (!isset($_SESSION['user'])) {
@@ -7,6 +7,7 @@ if (!isset($_SESSION['user'])) {
     exit;
 }
 
+$pageTitle = 'Katalog Barang';
 $pdo = require __DIR__ . '/../config/database.php';
 
 // Get search query and category filter
@@ -56,41 +57,41 @@ foreach ($items as $item) {
 }
 ?>
 
-<!-- Header -->
-<div class="dashboard-header mb-4">
-    <div class="d-flex justify-content-between align-items-center flex-wrap">
-        <div>
-            <h3 class="mb-1"><i class="bi bi-grid me-2"></i>Katalog Barang</h3>
-            <p class="mb-0 opacity-75">Lihat semua barang inventaris yang tersedia untuk dipinjam</p>
-        </div>
-        <a href="/index.php?page=user_request_loan" class="btn btn-warning mt-2 mt-md-0">
+<!-- Page Header -->
+<div class="page-header">
+    <div class="page-header-left">
+        <h3><i class="bi bi-grid-3x3-gap-fill"></i> Katalog Barang</h3>
+        <p>Lihat semua barang inventaris yang tersedia untuk dipinjam</p>
+    </div>
+    <div class="page-header-actions">
+        <a href="/index.php?page=user_request_loan" class="btn btn-primary">
             <i class="bi bi-plus-lg me-1"></i> Ajukan Peminjaman
         </a>
     </div>
 </div>
 
-<!-- Search Bar -->
-<div class="card mb-4">
-    <div class="card-body">
-        <form method="GET" action="/index.php" class="row g-3">
+<!-- Search & Filter -->
+<div class="modern-card" style="margin-bottom: 24px;">
+    <div class="card-body" style="padding: 20px;">
+        <form method="GET" action="/index.php" class="row g-3 align-items-end">
             <input type="hidden" name="page" value="catalog">
             <div class="col-md-5">
-                <div class="input-group">
-                    <span class="input-group-text" style="background: rgba(15, 117, 188, 0.2); border-color: rgba(255,255,255,0.1);">
-                        <i class="bi bi-search text-pln-blue"></i>
-                    </span>
-                    <input type="text" name="search" class="form-control" 
-                           placeholder="Cari barang berdasarkan nama, kode, atau deskripsi..."
+                <label class="form-label">Cari Barang</label>
+                <div class="topbar-search" style="max-width: 100%;">
+                    <i class="bi bi-search"></i>
+                    <input type="text" name="search" 
+                           placeholder="Nama, kode, atau deskripsi..."
                            value="<?= htmlspecialchars($search) ?>">
                 </div>
             </div>
             <div class="col-md-4">
+                <label class="form-label">Kategori</label>
                 <select name="category" class="form-select">
                     <option value="0">-- Semua Kategori --</option>
                     <?php foreach($categories as $cat): ?>
-                        <option value="<?= $cat['id'] ?>" <?= $categoryFilter == $cat['id'] ? 'selected' : '' ?>>
-                            <?= htmlspecialchars($cat['name']) ?>
-                        </option>
+                    <option value="<?= $cat['id'] ?>" <?= $categoryFilter == $cat['id'] ? 'selected' : '' ?>>
+                        <?= htmlspecialchars($cat['name']) ?>
+                    </option>
                     <?php endforeach; ?>
                 </select>
             </div>
@@ -103,142 +104,135 @@ foreach ($items as $item) {
     </div>
 </div>
 
-<!-- Category Pills -->
-<?php if (!empty($categories)): ?>
-<div class="mb-4">
-    <div class="d-flex flex-wrap gap-2">
-        <a href="/index.php?page=catalog" class="btn btn-sm <?= !$categoryFilter ? 'btn-warning' : 'btn-outline-secondary' ?>">
-            Semua
-        </a>
-        <?php foreach($categories as $cat): ?>
-            <a href="/index.php?page=catalog&category=<?= $cat['id'] ?>" 
-               class="btn btn-sm <?= $categoryFilter == $cat['id'] ? '' : 'btn-outline-secondary' ?>"
-               style="<?= $categoryFilter == $cat['id'] ? 'background: '.$cat['color'].'; border-color: '.$cat['color'].'; color: white;' : '' ?>">
-                <?= htmlspecialchars($cat['name']) ?>
-            </a>
-        <?php endforeach; ?>
-    </div>
+<!-- Result Info -->
+<?php if ($search || $categoryFilter): ?>
+<div class="alert alert-info" style="margin-bottom: 24px;">
+    <i class="bi bi-info-circle me-2"></i>
+    Menampilkan <strong><?= count($items) ?></strong> barang
+    <?php if ($search): ?> dengan kata kunci "<strong><?= htmlspecialchars($search) ?></strong>"<?php endif; ?>
+    <?php if ($categoryFilter): 
+        $selectedCat = array_filter($categories, fn($c) => $c['id'] == $categoryFilter);
+        $selectedCat = reset($selectedCat);
+    ?>
+        dalam kategori "<strong><?= htmlspecialchars($selectedCat['name'] ?? '') ?></strong>"
+    <?php endif; ?>
+    <a href="/index.php?page=catalog" class="ms-2">Reset Filter</a>
 </div>
 <?php endif; ?>
 
-<?php if ($search || $categoryFilter): ?>
-    <div class="mb-3">
-        <?php if ($search): ?>
-            <span class="text-secondary">Hasil pencarian untuk "</span>
-            <span class="text-pln-yellow fw-bold"><?= htmlspecialchars($search) ?></span>
-            <span class="text-secondary">"</span>
-        <?php endif; ?>
-        <?php if ($categoryFilter): 
-            $selectedCat = array_filter($categories, fn($c) => $c['id'] == $categoryFilter);
-            $selectedCat = reset($selectedCat);
-        ?>
-            <?php if ($search): ?><span class="text-secondary"> dalam kategori </span><?php endif; ?>
-            <span class="badge" style="background: <?= htmlspecialchars($selectedCat['color'] ?? '#6B7280') ?>;"><?= htmlspecialchars($selectedCat['name'] ?? 'Unknown') ?></span>
-        <?php endif; ?>
-        <span class="text-secondary"> - <?= count($items) ?> barang ditemukan</span>
-        <a href="/index.php?page=catalog" class="ms-2 text-danger"><i class="bi bi-x-circle"></i> Reset</a>
-    </div>
-<?php endif; ?>
-
-<!-- Catalog Grid -->
+<!-- Items Grid -->
 <div class="row g-4">
     <?php if (empty($items)): ?>
-        <div class="col-12">
-            <div class="card">
-                <div class="card-body text-center py-5">
-                    <i class="bi bi-search text-secondary" style="font-size: 4rem;"></i>
-                    <h5 class="mt-3 text-secondary">Tidak Ada Barang Ditemukan</h5>
-                    <p class="text-secondary">
-                        <?php if ($search): ?>
-                            Coba gunakan kata kunci lain untuk mencari barang.
+    <div class="col-12">
+        <div class="modern-card">
+            <div class="card-body">
+                <div class="empty-state">
+                    <div class="empty-state-icon">
+                        <i class="bi bi-search"></i>
+                    </div>
+                    <h5 class="empty-state-title">Tidak Ada Barang Ditemukan</h5>
+                    <p class="empty-state-text">
+                        <?php if ($search || $categoryFilter): ?>
+                        Coba ubah kata kunci pencarian atau filter kategori
                         <?php else: ?>
-                            Belum ada barang dalam inventaris.
+                        Belum ada barang dalam inventaris
                         <?php endif; ?>
                     </p>
+                    <?php if ($search || $categoryFilter): ?>
+                    <a href="/index.php?page=catalog" class="btn btn-primary">
+                        <i class="bi bi-arrow-counterclockwise me-1"></i> Reset Filter
+                    </a>
+                    <?php endif; ?>
                 </div>
             </div>
         </div>
+    </div>
     <?php else: ?>
-        <?php foreach($items as $it): ?>
-            <div class="col-md-6 col-lg-4 col-xl-3">
-                <div class="card h-100 catalog-card">
-                    <!-- Image -->
-                    <div class="catalog-image-container">
-                        <?php if ($it['image']): ?>
-                            <img src="/public/assets/uploads/<?= htmlspecialchars($it['image']) ?>" 
-                                 alt="<?= htmlspecialchars($it['name']) ?>" 
-                                 class="card-img-top catalog-image">
-                        <?php else: ?>
-                            <div class="no-image-placeholder">
-                                <i class="bi bi-box-seam"></i>
-                            </div>
-                        <?php endif; ?>
-                        
-                        <!-- Availability Badge -->
-                        <?php if ($it['stock_available'] > 0): ?>
-                            <span class="availability-badge available">
-                                <i class="bi bi-check-circle me-1"></i>Tersedia
-                            </span>
-                        <?php else: ?>
-                            <span class="availability-badge unavailable">
-                                <i class="bi bi-x-circle me-1"></i>Habis
-                            </span>
-                        <?php endif; ?>
+    <?php foreach($items as $item): ?>
+    <div class="col-md-6 col-lg-4">
+        <div class="modern-card catalog-card h-100">
+            <!-- Image -->
+            <div class="catalog-image-container">
+                <?php if ($item['image']): ?>
+                <img src="/public/assets/uploads/<?= htmlspecialchars($item['image']) ?>" 
+                     alt="<?= htmlspecialchars($item['name']) ?>" 
+                     class="catalog-image">
+                <?php else: ?>
+                <div class="catalog-placeholder">
+                    <i class="bi bi-box-seam"></i>
+                </div>
+                <?php endif; ?>
+                
+                <!-- Stock Badge -->
+                <?php 
+                $stockPercent = $item['stock_total'] > 0 ? ($item['stock_available'] / $item['stock_total']) * 100 : 0;
+                if ($item['stock_available'] <= 0) {
+                    $stockClass = 'danger';
+                    $stockText = 'Habis';
+                } elseif ($stockPercent <= 20) {
+                    $stockClass = 'warning';
+                    $stockText = $item['stock_available'] . ' tersisa';
+                } else {
+                    $stockClass = 'success';
+                    $stockText = $item['stock_available'] . ' tersedia';
+                }
+                ?>
+                <span class="catalog-stock-badge <?= $stockClass ?>">
+                    <?= $stockText ?>
+                </span>
+            </div>
+            
+            <div class="card-body" style="padding: 20px;">
+                <!-- Categories -->
+                <?php if (!empty($itemCategories[$item['id']])): ?>
+                <div style="margin-bottom: 12px;">
+                    <?php foreach($itemCategories[$item['id']] as $cat): ?>
+                    <span class="badge" style="background: <?= htmlspecialchars($cat['color']) ?>20; color: <?= htmlspecialchars($cat['color']) ?>; font-size: 11px; margin-right: 4px;">
+                        <?= htmlspecialchars($cat['name']) ?>
+                    </span>
+                    <?php endforeach; ?>
+                </div>
+                <?php endif; ?>
+                
+                <h5 style="font-weight: 600; color: var(--text-dark); margin: 0 0 4px 0;">
+                    <?= htmlspecialchars($item['name']) ?>
+                </h5>
+                <p style="color: var(--text-muted); font-size: 13px; margin: 0 0 12px 0;">
+                    <i class="bi bi-upc-scan me-1"></i><?= htmlspecialchars($item['code']) ?>
+                </p>
+                
+                <?php if ($item['description']): ?>
+                <p style="color: var(--text-muted); font-size: 14px; margin: 0 0 16px 0; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">
+                    <?= htmlspecialchars($item['description']) ?>
+                </p>
+                <?php endif; ?>
+                
+                <!-- Stock Progress -->
+                <div style="margin-bottom: 16px;">
+                    <div class="d-flex justify-content-between" style="font-size: 12px; margin-bottom: 6px;">
+                        <span style="color: var(--text-muted);">Ketersediaan</span>
+                        <span style="font-weight: 600;"><?= $item['stock_available'] ?> / <?= $item['stock_total'] ?> <?= htmlspecialchars($item['unit'] ?? 'unit') ?></span>
                     </div>
-                    
-                    <div class="card-body">
-                        <h5 class="card-title text-pln-yellow mb-1"><?= htmlspecialchars($it['name']) ?></h5>
-                        <p class="text-secondary small mb-2">
-                            <i class="bi bi-upc-scan me-1"></i><?= htmlspecialchars($it['code']) ?>
-                        </p>
-                        
-                        <?php if (!empty($itemCategories[$it['id']])): ?>
-                            <div class="mb-2">
-                                <?php foreach($itemCategories[$it['id']] as $cat): ?>
-                                    <span class="badge me-1" style="background: <?= htmlspecialchars($cat['color']) ?>; font-size: 0.7rem;">
-                                        <?= htmlspecialchars($cat['name']) ?>
-                                    </span>
-                                <?php endforeach; ?>
-                            </div>
-                        <?php endif; ?>
-                        
-                        <?php if ($it['description']): ?>
-                            <p class="card-text small text-secondary mb-3" style="display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">
-                                <?= htmlspecialchars($it['description']) ?>
-                            </p>
-                        <?php endif; ?>
-                        
-                        <!-- Stock Info -->
-                        <div class="stock-info-box">
-                            <div class="row g-0 text-center">
-                                <div class="col-6" style="border-right: 1px solid rgba(255,255,255,0.1);">
-                                    <small class="text-secondary d-block">Stok Total</small>
-                                    <span class="fw-bold text-pln-yellow"><?= $it['stock_total'] ?></span>
-                                    <small class="text-secondary"><?= htmlspecialchars($it['unit'] ?? 'unit') ?></small>
-                                </div>
-                                <div class="col-6">
-                                    <small class="text-secondary d-block">Tersedia</small>
-                                    <span class="fw-bold text-pln-yellow"><?= $it['stock_available'] ?></span>
-                                    <small class="text-secondary"><?= htmlspecialchars($it['unit'] ?? 'unit') ?></small>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="card-footer bg-transparent border-top" style="border-color: rgba(255,255,255,0.1) !important;">
-                        <?php if ($it['stock_available'] > 0): ?>
-                            <a href="/index.php?page=user_request_loan&item=<?= $it['id'] ?>" class="btn btn-warning w-100">
-                                <i class="bi bi-plus-circle me-1"></i> Ajukan Peminjaman
-                            </a>
-                        <?php else: ?>
-                            <button class="btn btn-secondary w-100" disabled>
-                                <i class="bi bi-x-circle me-1"></i> Stok Habis
-                            </button>
-                        <?php endif; ?>
+                    <div style="height: 6px; background: var(--bg-main); border-radius: 3px; overflow: hidden;">
+                        <div style="height: 100%; width: <?= $stockPercent ?>%; background: var(--<?= $stockClass ?>); border-radius: 3px;"></div>
                     </div>
                 </div>
             </div>
-        <?php endforeach; ?>
+            
+            <div style="padding: 16px 20px; border-top: 1px solid var(--border-color);">
+                <?php if ($item['stock_available'] > 0): ?>
+                <a href="/index.php?page=user_request_loan&item_id=<?= $item['id'] ?>" class="btn btn-primary w-100">
+                    <i class="bi bi-hand-index me-1"></i> Ajukan Peminjaman
+                </a>
+                <?php else: ?>
+                <button class="btn btn-secondary w-100" disabled>
+                    <i class="bi bi-x-circle me-1"></i> Stok Habis
+                </button>
+                <?php endif; ?>
+            </div>
+        </div>
+    </div>
+    <?php endforeach; ?>
     <?php endif; ?>
 </div>
 
@@ -249,13 +243,13 @@ foreach ($items as $item) {
 }
 .catalog-card:hover {
     transform: translateY(-5px);
-    box-shadow: 0 10px 30px rgba(15, 117, 188, 0.3);
+    box-shadow: var(--shadow-lg);
 }
 .catalog-image-container {
     position: relative;
     height: 180px;
     overflow: hidden;
-    background: linear-gradient(135deg, #0D1E36 0%, #122640 100%);
+    background: linear-gradient(135deg, var(--bg-main) 0%, var(--border-color) 100%);
 }
 .catalog-image {
     width: 100%;
@@ -266,35 +260,25 @@ foreach ($items as $item) {
 .catalog-card:hover .catalog-image {
     transform: scale(1.05);
 }
-.no-image-placeholder {
+.catalog-placeholder {
     height: 100%;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 3.5rem;
-    color: rgba(255,255,255,0.1);
+    font-size: 4rem;
+    color: var(--border-color);
 }
-.availability-badge {
+.catalog-stock-badge {
     position: absolute;
-    top: 10px;
-    left: 10px;
-    padding: 5px 12px;
-    border-radius: 20px;
-    font-size: 0.75rem;
+    top: 12px;
+    right: 12px;
+    padding: 6px 12px;
+    border-radius: var(--radius-lg);
+    font-size: 12px;
     font-weight: 600;
+    color: #fff;
 }
-.availability-badge.available {
-    background: rgba(16, 185, 129, 0.9);
-    color: white;
-}
-.availability-badge.unavailable {
-    background: rgba(220, 53, 69, 0.9);
-    color: white;
-}
-.stock-info-box {
-    background: rgba(15, 117, 188, 0.1);
-    border-radius: 10px;
-    padding: 12px;
-    margin-top: auto;
-}
+.catalog-stock-badge.success { background: var(--success); }
+.catalog-stock-badge.warning { background: var(--warning); }
+.catalog-stock-badge.danger { background: var(--danger); }
 </style>
