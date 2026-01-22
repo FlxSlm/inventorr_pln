@@ -175,16 +175,75 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 </div>
 
 <script>
-document.getElementById('imageInput').addEventListener('change', function(e) {
+document.addEventListener('DOMContentLoaded', function() {
     const container = document.getElementById('imagePreviewContainer');
-    const file = e.target.files[0];
-    
-    if (file) {
-        const reader = new FileReader();
-        reader.onload = function(e) {
-            container.innerHTML = '<img src="' + e.target.result + '" alt="Preview" style="max-height: 200px; max-width: 100%; border-radius: 10px;">';
-        };
-        reader.readAsDataURL(file);
+    const input = document.getElementById('imageInput');
+
+    if (!container || !input) return;
+
+    function preventDefaults(e) {
+        e.preventDefault();
+        e.stopPropagation();
     }
+
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+        container.addEventListener(eventName, preventDefaults, false);
+    });
+
+    function highlight() {
+        container.classList.add('drag-over');
+        container.style.borderColor = 'rgba(255,255,255,0.4)';
+        container.style.background = 'rgba(255,255,255,0.02)';
+    }
+
+    function unhighlight() {
+        container.classList.remove('drag-over');
+        container.style.borderColor = 'rgba(255,255,255,0.2)';
+        container.style.background = '';
+    }
+
+    ['dragenter', 'dragover'].forEach(evt => container.addEventListener(evt, highlight, false));
+    ['dragleave', 'drop'].forEach(evt => container.addEventListener(evt, unhighlight, false));
+
+    container.addEventListener('drop', function(e) {
+        const dt = e.dataTransfer;
+        const files = dt && dt.files;
+        if (files && files.length) {
+            const file = files[0];
+
+            // 5MB limit
+            if (file.size > 5 * 1024 * 1024) {
+                alert('File terlalu besar. Maks 5MB.');
+                return;
+            }
+
+            // Put file into the input so form submission works
+            try {
+                const dataTransfer = new DataTransfer();
+                dataTransfer.items.add(file);
+                input.files = dataTransfer.files;
+            } catch (err) {
+                // older browsers: fallback to not setting input.files
+            }
+
+            // show preview
+            const reader = new FileReader();
+            reader.onload = function(ev) {
+                container.innerHTML = '<img src="' + ev.target.result + '" alt="Preview" style="max-height: 200px; max-width: 100%; border-radius: 10px;">';
+            };
+            reader.readAsDataURL(file);
+        }
+    });
+
+    input.addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = function(ev) {
+                container.innerHTML = '<img src="' + ev.target.result + '" alt="Preview" style="max-height: 200px; max-width: 100%; border-radius: 10px;">';
+            };
+            reader.readAsDataURL(file);
+        }
+    });
 });
 </script>
