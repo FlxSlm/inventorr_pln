@@ -18,8 +18,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (empty($code)) $errors[] = 'Kode barang wajib diisi.';
     
     // Check duplicate code
-    $stmt = $pdo->prepare('SELECT id FROM inventories WHERE code = ? AND deleted_at IS NULL');
+// Check duplicate code
+    // HAPUS "AND deleted_at IS NULL" agar pengecekan mencakup barang yang sudah dihapus juga
+    $stmt = $pdo->prepare('SELECT id FROM inventories WHERE code = ?');
     $stmt->execute([$code]);
+    if ($stmt->fetch()) {
+        $errors[] = 'Kode barang sudah digunakan (mungkin ada di data sampah/deleted).';
+    }    $stmt->execute([$code]);
     if ($stmt->fetch()) {
         $errors[] = 'Kode barang sudah digunakan.';
     }
@@ -69,7 +74,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
         
-        header('Location: /index.php?page=admin_inventory_list&msg=added');
+        // ... kode simpan kategori ...
+
+        // GANTI INI: Gunakan JavaScript untuk redirect karena Header sudah ter-load
+        echo "<script>
+            window.location.href = '/index.php?page=admin_inventory_list&msg=added';
+        </script>";
         exit;
     }
 }
