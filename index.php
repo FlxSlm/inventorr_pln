@@ -168,6 +168,10 @@ switch ($page) {
         view('user/notifications.php');
         break;
 
+    case 'admin_settings':
+        view('admin/settings.php');
+        break;
+
 
 }
 ?>

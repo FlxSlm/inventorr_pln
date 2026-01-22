@@ -4,9 +4,21 @@
 $pageTitle = 'Dashboard';
 $pdo = require __DIR__ . '/../config/database.php';
 
+// Get low stock threshold from settings
+$lowStockThreshold = 5; // default
+try {
+    $thresholdStmt = $pdo->query("SELECT setting_value FROM settings WHERE setting_key = 'low_stock_threshold'");
+    $thresholdResult = $thresholdStmt->fetch();
+    if ($thresholdResult) {
+        $lowStockThreshold = (int)$thresholdResult['setting_value'];
+    }
+} catch (Exception $e) {
+    // Table might not exist yet, use default
+}
+
 // Quick stats
 $totalItems = $pdo->query('SELECT COUNT(*) FROM inventories WHERE deleted_at IS NULL')->fetchColumn();
-$lowStock = $pdo->query('SELECT COUNT(*) FROM inventories WHERE stock_available <= 2 AND deleted_at IS NULL')->fetchColumn();
+$lowStock = $pdo->query("SELECT COUNT(*) FROM inventories WHERE stock_available <= $lowStockThreshold AND deleted_at IS NULL")->fetchColumn();
 $totalPendingLoans = $pdo->query("SELECT COUNT(*) FROM loans WHERE status = 'pending'")->fetchColumn();
 $totalPendingReturns = $pdo->query("SELECT COUNT(*) FROM loans WHERE return_stage = 'pending_return' OR return_stage = 'return_submitted'")->fetchColumn();
 $totalUsers = $pdo->query('SELECT COUNT(*) FROM users')->fetchColumn();
@@ -44,7 +56,7 @@ foreach ($topBorrowed as $item) {
 $lowStockItems = $pdo->query("
   SELECT name, stock_available, stock_total, image 
   FROM inventories 
-  WHERE stock_available <= 5 AND deleted_at IS NULL 
+  WHERE stock_available <= $lowStockThreshold AND deleted_at IS NULL 
   ORDER BY stock_available ASC 
   LIMIT 5
 ")->fetchAll();

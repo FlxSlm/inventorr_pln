@@ -2,6 +2,18 @@
 // app/includes/modern_header.php
 // Modern dashboard header with new teal/cyan theme
 
+// Session timeout check (30 minutes = 1800 seconds)
+$sessionTimeout = 30 * 60; // 30 minutes in seconds
+if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity'] > $sessionTimeout)) {
+    // Session expired, destroy and redirect
+    session_unset();
+    session_destroy();
+    header('Location: /index.php?page=login&msg=session_expired');
+    exit;
+}
+// Update last activity time
+$_SESSION['last_activity'] = time();
+
 // Initialize database connection once at the top
 $pdo_temp = require __DIR__ . '/../config/database.php';
 ?>
@@ -114,6 +126,12 @@ $pdo_temp = require __DIR__ . '/../config/database.php';
                                 ?>
                                 <span class="sidebar-menu-badge"><?= $unreadSuggestionsCount ?></span>
                                 <?php endif; ?>
+                            </a>
+                        </li>
+                        <li class="sidebar-menu-item">
+                            <a href="/index.php?page=admin_settings" class="sidebar-menu-link <?= (isset($_GET['page']) && $_GET['page'] === 'admin_settings') ? 'active' : '' ?>">
+                                <i class="bi bi-gear-fill"></i>
+                                <span>Pengaturan</span>
                             </a>
                         </li>
                     </ul>

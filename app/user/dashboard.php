@@ -306,9 +306,20 @@ foreach ($topBorrowed as $item) {
             <h3 class="card-title">
                 <i class="bi bi-bar-chart-fill"></i> Barang Paling Sering Dipinjam
             </h3>
+            <div class="card-actions">
+                <button class="chart-type-btn active" data-type="bar" title="Bar Chart">
+                    <i class="bi bi-bar-chart"></i>
+                </button>
+                <button class="chart-type-btn" data-type="doughnut" title="Doughnut Chart">
+                    <i class="bi bi-pie-chart"></i>
+                </button>
+                <button class="chart-type-btn" data-type="polarArea" title="Polar Area">
+                    <i class="bi bi-bullseye"></i>
+                </button>
+            </div>
         </div>
         <div class="card-body">
-            <div class="chart-container" style="height: 250px;">
+            <div class="chart-container" style="height: 300px;">
                 <canvas id="topBorrowedChart"></canvas>
             </div>
         </div>
@@ -318,5 +329,124 @@ foreach ($topBorrowed as $item) {
 <script>
 const chartLabels = <?= json_encode($chartLabels) ?>;
 const chartData = <?= json_encode($chartData) ?>;
+
+// Chart colors
+const chartColors = [
+    'rgba(10, 107, 124, 0.85)',
+    'rgba(26, 154, 170, 0.85)',
+    'rgba(45, 212, 191, 0.85)',
+    'rgba(20, 184, 166, 0.85)',
+    'rgba(13, 148, 136, 0.85)',
+    'rgba(6, 95, 70, 0.85)',
+    'rgba(4, 120, 87, 0.85)'
+];
+
+const chartBorderColors = [
+    'rgba(10, 107, 124, 1)',
+    'rgba(26, 154, 170, 1)',
+    'rgba(45, 212, 191, 1)',
+    'rgba(20, 184, 166, 1)',
+    'rgba(13, 148, 136, 1)',
+    'rgba(6, 95, 70, 1)',
+    'rgba(4, 120, 87, 1)'
+];
+
+let topBorrowedChart = null;
+
+function createChart(type = 'bar') {
+    const ctx = document.getElementById('topBorrowedChart');
+    if (!ctx) return;
+    
+    // Destroy existing chart
+    if (topBorrowedChart) {
+        topBorrowedChart.destroy();
+    }
+    
+    const commonOptions = {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: {
+                display: type !== 'bar',
+                position: 'right',
+                labels: {
+                    padding: 15,
+                    usePointStyle: true,
+                    pointStyle: 'circle',
+                    font: {
+                        size: 11,
+                        family: "'Inter', sans-serif"
+                    }
+                }
+            },
+            tooltip: {
+                backgroundColor: 'rgba(13, 79, 92, 0.95)',
+                padding: 12,
+                titleFont: { size: 13, weight: '600' },
+                bodyFont: { size: 12 },
+                borderColor: 'rgba(45, 212, 191, 0.3)',
+                borderWidth: 1,
+                cornerRadius: 8,
+                displayColors: true,
+                callbacks: {
+                    label: function(context) {
+                        return ` ${context.parsed.r || context.parsed.y || context.parsed} kali dipinjam`;
+                    }
+                }
+            }
+        }
+    };
+    
+    let config = {
+        type: type,
+        data: {
+            labels: chartLabels,
+            datasets: [{
+                label: 'Jumlah Peminjaman',
+                data: chartData,
+                backgroundColor: type === 'bar' ? 'rgba(26, 154, 170, 0.85)' : chartColors,
+                borderColor: type === 'bar' ? 'rgba(10, 107, 124, 1)' : chartBorderColors,
+                borderWidth: type === 'bar' ? 0 : 2,
+                borderRadius: type === 'bar' ? 8 : 0,
+                hoverBackgroundColor: type === 'bar' ? 'rgba(45, 212, 191, 0.95)' : undefined
+            }]
+        },
+        options: commonOptions
+    };
+    
+    // Type specific options
+    if (type === 'bar') {
+        config.options.scales = {
+            y: {
+                beginAtZero: true,
+                grid: { color: 'rgba(0, 0, 0, 0.05)', drawBorder: false },
+                ticks: { font: { size: 11 } }
+            },
+            x: {
+                grid: { display: false },
+                ticks: { font: { size: 11 } }
+            }
+        };
+        config.options.plugins.legend.display = false;
+    } else if (type === 'doughnut') {
+        config.options.cutout = '60%';
+    }
+    
+    topBorrowedChart = new Chart(ctx, config);
+}
+
+// Initialize chart when DOM is ready
+document.addEventListener('DOMContentLoaded', function() {
+    createChart('bar');
+    
+    // Chart type toggle buttons
+    document.querySelectorAll('.chart-type-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            document.querySelectorAll('.chart-type-btn').forEach(b => b.classList.remove('active'));
+            this.classList.add('active');
+            createChart(this.dataset.type);
+        });
+    });
+});
 </script>
 <?php endif; ?>

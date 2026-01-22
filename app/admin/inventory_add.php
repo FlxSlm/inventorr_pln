@@ -11,22 +11,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $description = trim($_POST['description'] ?? '');
     $stock_total = (int)($_POST['stock_total'] ?? 0);
     $unit = trim($_POST['unit'] ?? '');
+    $year_acquired = trim($_POST['year_acquired'] ?? '');
     $selectedCategories = $_POST['categories'] ?? [];
     
     // Validation
     if (empty($name)) $errors[] = 'Nama barang wajib diisi.';
-    if (empty($code)) $errors[] = 'Kode barang wajib diisi.';
+    if (empty($code)) $errors[] = 'Nomor Seri barang wajib diisi.';
+    
+    // Require at least one category if categories exist
+    if (!empty($categories) && empty($selectedCategories)) {
+        $errors[] = 'Pilih minimal satu kategori untuk barang ini.';
+    }
+    
+    // Validate year if provided
+    if (!empty($year_acquired)) {
+        if (!preg_match('/^\d{4}$/', $year_acquired) || (int)$year_acquired < 1900 || (int)$year_acquired > (int)date('Y') + 1) {
+            $errors[] = 'Tahun tidak valid.';
+        }
+    }
     
     // Check duplicate code
-// Check duplicate code
-    // HAPUS "AND deleted_at IS NULL" agar pengecekan mencakup barang yang sudah dihapus juga
     $stmt = $pdo->prepare('SELECT id FROM inventories WHERE code = ?');
     $stmt->execute([$code]);
     if ($stmt->fetch()) {
-        $errors[] = 'Kode barang sudah digunakan (mungkin ada di data sampah/deleted).';
-    }    $stmt->execute([$code]);
-    if ($stmt->fetch()) {
-        $errors[] = 'Kode barang sudah digunakan.';
+        $errors[] = 'Nomor Seri barang sudah digunakan (mungkin ada di data sampah/deleted).';
     }
     
     // Handle image upload
@@ -62,8 +70,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     
     if (empty($errors)) {
-        $stmt = $pdo->prepare('INSERT INTO inventories (name, code, description, stock_total, stock_available, unit, image) VALUES (?, ?, ?, ?, ?, ?, ?)');
-        $stmt->execute([$name, $code, $description, $stock_total, $stock_total, $unit, $imageName]);
+        $stmt = $pdo->prepare('INSERT INTO inventories (name, code, description, stock_total, stock_available, unit, year_acquired, image) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+        $stmt->execute([$name, $code, $description, $stock_total, $stock_total, $unit, $year_acquired ?: null, $imageName]);
         $inventoryId = $pdo->lastInsertId();
         
         // Save categories
@@ -73,10 +81,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $catStmt->execute([$inventoryId, (int)$catId]);
             }
         }
-        
-        // ... kode simpan kategori ...
 
-        // GANTI INI: Gunakan JavaScript untuk redirect karena Header sudah ter-load
+        // Redirect using JavaScript since Header might already be sent
         echo "<script>
             window.location.href = '/index.php?page=admin_inventory_list&msg=added';
         </script>";
@@ -103,7 +109,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <input name="name" class="form-control" required placeholder="Contoh: Laptop Dell Latitude">
                         </div>
                         <div class="col-md-6 mb-3">
-                            <label class="form-label"><i class="bi bi-upc-scan me-1"></i> Kode/Serial <span class="text-danger">*</span></label>
+                            <label class="form-label"><i class="bi bi-upc-scan me-1"></i> Nomor Seri <span class="text-danger">*</span></label>
                             <input name="code" class="form-control" required placeholder="Contoh: LPT-001">
                         </div>
                     </div>
@@ -124,13 +130,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         </div>
                     </div>
                     
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label"><i class="bi bi-calendar me-1"></i> Tahun Perolehan</label>
+                            <input type="number" name="year_acquired" class="form-control" placeholder="Contoh: 2024" min="1900" max="<?= date('Y') + 1 ?>">
+                            <small class="text-muted">Tahun barang diperoleh/dibeli</small>
+                        </div>
+                    </div>
+                    
                     <div class="mb-3">
-                        <label class="form-label"><i class="bi bi-tags me-1"></i> Kategori</label>
+                        <label class="form-label"><i class="bi bi-tags me-1"></i> Kategori <span class="text-danger">*</span></label>
                         <div class="row g-2">
                             <?php foreach($categories as $cat): ?>
                             <div class="col-auto">
                                 <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" name="categories[]" value="<?= $cat['id'] ?>" id="cat<?= $cat['id'] ?>">
+                                    <input class="form-check-input category-checkbox" type="checkbox" name="categories[]" value="<?= $cat['id'] ?>" id="cat<?= $cat['id'] ?>">
                                     <label class="form-check-label" for="cat<?= $cat['id'] ?>">
                                         <span class="badge" style="background: <?= htmlspecialchars($cat['color']) ?>;"><?= htmlspecialchars($cat['name']) ?></span>
                                     </label>
@@ -143,6 +157,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             </div>
                             <?php endif; ?>
                         </div>
+                        <?php if(!empty($categories)): ?>
+                        <small class="text-muted d-block mt-2"><i class="bi bi-info-circle me-1"></i>Pilih minimal satu kategori</small>
+                        <?php endif; ?>
                     </div>
                     </div>
                 </div>

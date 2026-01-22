@@ -12,20 +12,24 @@ $pdo = require __DIR__ . '/../config/database.php';
 
 $userId = $_SESSION['user']['id'];
 
-// Mark as read if requested
+// Mark as read if requested - use JavaScript redirect since headers are already sent
+$redirectNeeded = false;
 if (isset($_GET['mark_read'])) {
     $notifId = (int)$_GET['mark_read'];
     $pdo->prepare("UPDATE notifications SET is_read = 1 WHERE id = ? AND user_id = ?")->execute([$notifId, $userId]);
-    
-    // Redirect to remove query param
-    header('Location: /index.php?page=user_notifications');
-    exit;
+    $redirectNeeded = true;
 }
 
 // Mark all as read
 if (isset($_GET['mark_all_read'])) {
     $pdo->prepare("UPDATE notifications SET is_read = 1 WHERE user_id = ?")->execute([$userId]);
-    header('Location: /index.php?page=user_notifications');
+    $redirectNeeded = true;
+}
+
+// Use JavaScript redirect if needed (since headers are already sent by modern_header.php)
+if ($redirectNeeded) {
+    echo '<script>window.location.href = "/index.php?page=user_notifications";</script>';
+    echo '<noscript><meta http-equiv="refresh" content="0;url=/index.php?page=user_notifications"></noscript>';
     exit;
 }
 

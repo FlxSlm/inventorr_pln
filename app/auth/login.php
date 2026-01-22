@@ -4,6 +4,12 @@ $pdo = require __DIR__ . '/../config/database.php';
 $errors = [];
 $msg = $_GET['msg'] ?? '';
 
+// Handle session expired message
+$sessionExpiredMsg = '';
+if ($msg === 'session_expired') {
+    $sessionExpiredMsg = 'Sesi Anda telah berakhir karena tidak aktif selama 30 menit. Silakan login kembali.';
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $email = trim($_POST['email'] ?? '');
     $password = $_POST['password'] ?? '';
@@ -26,6 +32,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'role' => $user['role'],
                     'is_blacklisted' => (int)$user['is_blacklisted']
                 ];
+                $_SESSION['last_activity'] = time(); // Initialize session timeout tracker
                 header('Location: /index.php');
                 exit;
             }
@@ -462,7 +469,13 @@ body::before {
                 <h3>Selamat Datang!</h3>
                 <p class="subtitle">Masuk ke akun Anda untuk melanjutkan</p>
 
-                <?php if($msg): ?>
+                <?php if($sessionExpiredMsg): ?>
+                <div class="alert alert-warning">
+                    <i class="bi bi-clock-history me-2"></i><?= htmlspecialchars($sessionExpiredMsg) ?>
+                </div>
+                <?php endif; ?>
+
+                <?php if($msg && $msg !== 'session_expired'): ?>
                 <div class="alert alert-success">
                     <i class="bi bi-check-circle me-2"></i><?= htmlspecialchars($msg) ?>
                 </div>

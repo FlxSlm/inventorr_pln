@@ -100,23 +100,29 @@ if ($preSelectedItem) {
                 <?php endforeach; ?>
 
                 <form method="POST" id="loanForm">
-                    <!-- Item Selection -->
+                    <!-- Item Selection with Search -->
                     <div class="mb-4">
                         <label class="form-label fw-semibold">
                             <i class="bi bi-box-seam me-1"></i>Pilih Barang <span class="text-danger">*</span>
                         </label>
-                        <select name="inventory_id" class="form-select form-select-lg" required id="itemSelect">
-                            <option value="">-- Pilih Barang --</option>
-                            <?php foreach($items as $it): ?>
-                            <option value="<?= $it['id'] ?>" 
-                                    data-stock="<?= $it['stock_available'] ?>"
-                                    data-image="<?= htmlspecialchars($it['image'] ?? '') ?>"
-                                    data-code="<?= htmlspecialchars($it['code'] ?? '') ?>"
-                                    <?= $preSelectedItem == $it['id'] ? 'selected' : '' ?>>
-                                <?= htmlspecialchars($it['name']) ?> (<?= htmlspecialchars($it['code']) ?>) - Tersedia: <?= $it['stock_available'] ?>
-                            </option>
-                            <?php endforeach; ?>
-                        </select>
+                        <div class="position-relative">
+                            <input type="text" class="form-control form-control-lg mb-2" id="itemSearchInput" 
+                                   placeholder="Ketik untuk mencari barang..." autocomplete="off">
+                            <select name="inventory_id" class="form-select form-select-lg" required id="itemSelect" size="1">
+                                <option value="">-- Pilih Barang --</option>
+                                <?php foreach($items as $it): ?>
+                                <option value="<?= $it['id'] ?>" 
+                                        data-stock="<?= $it['stock_available'] ?>"
+                                        data-image="<?= htmlspecialchars($it['image'] ?? '') ?>"
+                                        data-code="<?= htmlspecialchars($it['code'] ?? '') ?>"
+                                        data-name="<?= htmlspecialchars($it['name']) ?>"
+                                        <?= $preSelectedItem == $it['id'] ? 'selected' : '' ?>>
+                                    <?= htmlspecialchars($it['name']) ?> (<?= htmlspecialchars($it['code']) ?>) - Tersedia: <?= $it['stock_available'] ?>
+                                </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <small class="text-muted"><i class="bi bi-info-circle me-1"></i>Ketik nama atau kode barang untuk mencari</small>
                     </div>
 
                     <!-- Item Preview -->
@@ -455,6 +461,48 @@ document.addEventListener('DOMContentLoaded', function() {
     // Trigger change on page load if pre-selected
     if (itemSelect.value) {
         itemSelect.dispatchEvent(new Event('change'));
+    }
+
+    // Searchable dropdown functionality
+    const searchInput = document.getElementById('itemSearchInput');
+    if (searchInput) {
+        const options = Array.from(itemSelect.options);
+        
+        searchInput.addEventListener('input', function() {
+            const searchTerm = this.value.toLowerCase().trim();
+            
+            // Clear current options except the first placeholder
+            while (itemSelect.options.length > 1) {
+                itemSelect.remove(1);
+            }
+            
+            // Filter and add matching options
+            options.forEach((option, index) => {
+                if (index === 0) return; // Skip placeholder
+                
+                const name = (option.dataset.name || '').toLowerCase();
+                const code = (option.dataset.code || '').toLowerCase();
+                const text = option.text.toLowerCase();
+                
+                if (searchTerm === '' || name.includes(searchTerm) || code.includes(searchTerm) || text.includes(searchTerm)) {
+                    const newOption = option.cloneNode(true);
+                    itemSelect.appendChild(newOption);
+                }
+            });
+            
+            // Show message if no results
+            if (itemSelect.options.length === 1 && searchTerm !== '') {
+                const noResult = document.createElement('option');
+                noResult.text = 'Tidak ada barang ditemukan';
+                noResult.disabled = true;
+                itemSelect.appendChild(noResult);
+            }
+        });
+        
+        // Focus search on click
+        searchInput.addEventListener('focus', function() {
+            this.select();
+        });
     }
 });
 </script>

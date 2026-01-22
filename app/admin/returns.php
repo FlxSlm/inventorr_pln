@@ -184,46 +184,54 @@ $returnStageLabels = [
 <!-- Stats Cards -->
 <div class="row g-3 mb-4">
     <div class="col-6 col-lg-3">
-        <div class="stat-card">
-            <div class="stat-icon" style="background: linear-gradient(135deg, #f59e0b, #fbbf24);">
-                <i class="bi bi-hourglass-split"></i>
-            </div>
-            <div class="stat-details">
-                <div class="stat-number"><?= $pendingCount ?></div>
-                <div class="stat-label">Pending Review</div>
-            </div>
-        </div>
-    </div>
-    <div class="col-6 col-lg-3">
-        <div class="stat-card">
-            <div class="stat-icon" style="background: linear-gradient(135deg, #06b6d4, #22d3ee);">
-                <i class="bi bi-file-earmark"></i>
-            </div>
-            <div class="stat-details">
-                <div class="stat-number"><?= $awaitingDocCount ?></div>
-                <div class="stat-label">Menunggu Dokumen</div>
+        <div class="modern-card" style="padding: 20px;">
+            <div class="d-flex align-items-center gap-3">
+                <div style="width: 48px; height: 48px; background: linear-gradient(135deg, #f59e0b, #fbbf24); border-radius: var(--radius); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                    <i class="bi bi-hourglass-split" style="color: #fff; font-size: 20px;"></i>
+                </div>
+                <div>
+                    <div style="font-size: 24px; font-weight: 700; color: var(--text-dark);"><?= $pendingCount ?></div>
+                    <div style="font-size: 13px; color: var(--text-muted);">Pending Review</div>
+                </div>
             </div>
         </div>
     </div>
     <div class="col-6 col-lg-3">
-        <div class="stat-card">
-            <div class="stat-icon" style="background: linear-gradient(135deg, var(--primary), var(--primary-light));">
-                <i class="bi bi-clock"></i>
-            </div>
-            <div class="stat-details">
-                <div class="stat-number"><?= $submittedCount ?></div>
-                <div class="stat-label">Validasi Final</div>
+        <div class="modern-card" style="padding: 20px;">
+            <div class="d-flex align-items-center gap-3">
+                <div style="width: 48px; height: 48px; background: linear-gradient(135deg, #06b6d4, #22d3ee); border-radius: var(--radius); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                    <i class="bi bi-file-earmark" style="color: #fff; font-size: 20px;"></i>
+                </div>
+                <div>
+                    <div style="font-size: 24px; font-weight: 700; color: var(--text-dark);"><?= $awaitingDocCount ?></div>
+                    <div style="font-size: 13px; color: var(--text-muted);">Menunggu Dokumen</div>
+                </div>
             </div>
         </div>
     </div>
     <div class="col-6 col-lg-3">
-        <div class="stat-card">
-            <div class="stat-icon" style="background: linear-gradient(135deg, #10b981, #34d399);">
-                <i class="bi bi-check-circle"></i>
+        <div class="modern-card" style="padding: 20px;">
+            <div class="d-flex align-items-center gap-3">
+                <div style="width: 48px; height: 48px; background: linear-gradient(135deg, var(--primary), var(--primary-light)); border-radius: var(--radius); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                    <i class="bi bi-clock" style="color: #fff; font-size: 20px;"></i>
+                </div>
+                <div>
+                    <div style="font-size: 24px; font-weight: 700; color: var(--text-dark);"><?= $submittedCount ?></div>
+                    <div style="font-size: 13px; color: var(--text-muted);">Validasi Final</div>
+                </div>
             </div>
-            <div class="stat-details">
-                <div class="stat-number"><?= $approvedCount ?></div>
-                <div class="stat-label">Selesai</div>
+        </div>
+    </div>
+    <div class="col-6 col-lg-3">
+        <div class="modern-card" style="padding: 20px;">
+            <div class="d-flex align-items-center gap-3">
+                <div style="width: 48px; height: 48px; background: linear-gradient(135deg, #10b981, #34d399); border-radius: var(--radius); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                    <i class="bi bi-check-circle" style="color: #fff; font-size: 20px;"></i>
+                </div>
+                <div>
+                    <div style="font-size: 24px; font-weight: 700; color: var(--text-dark);"><?= $approvedCount ?></div>
+                    <div style="font-size: 13px; color: var(--text-muted);">Selesai</div>
+                </div>
             </div>
         </div>
     </div>

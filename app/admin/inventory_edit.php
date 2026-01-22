@@ -47,7 +47,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $stock_total = (int)($_POST['stock_total'] ?? 0);
     $stock_available = (int)($_POST['stock_available'] ?? 0);
     $unit = trim($_POST['unit'] ?? '');
+    $year_acquired = trim($_POST['year_acquired'] ?? '');
     $selectedCategories = $_POST['categories'] ?? [];
+    
+    // Validate year if provided
+    if (!empty($year_acquired)) {
+        if (!preg_match('/^\d{4}$/', $year_acquired) || (int)$year_acquired < 1900 || (int)$year_acquired > (int)date('Y') + 1) {
+            $errors[] = 'Tahun tidak valid.';
+        }
+    }
     
     // Handle image upload
     $imageName = $item['image'];
@@ -84,8 +92,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     
     if (empty($errors)) {
-        $stmt = $pdo->prepare('UPDATE inventories SET name=?, code=?, description=?, stock_total=?, stock_available=?, unit=?, image=?, updated_at=NOW() WHERE id=?');
-        $stmt->execute([$name, $code, $description, $stock_total, $stock_available, $unit, $imageName, $id]);
+        $stmt = $pdo->prepare('UPDATE inventories SET name=?, code=?, description=?, stock_total=?, stock_available=?, unit=?, year_acquired=?, image=?, updated_at=NOW() WHERE id=?');
+        $stmt->execute([$name, $code, $description, $stock_total, $stock_available, $unit, $year_acquired ?: null, $imageName, $id]);
         
         $pdo->prepare('DELETE FROM inventory_categories WHERE inventory_id = ?')->execute([$id]);
         if (!empty($selectedCategories)) {
@@ -212,6 +220,14 @@ $imageDeleted = isset($_GET['msg']) && $_GET['msg'] === 'image_deleted';
                             <input name="unit" class="form-control" 
                                    value="<?= htmlspecialchars($item['unit'] ?? '') ?>" 
                                    placeholder="unit, pcs, kg, dll">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">
+                                <i class="bi bi-calendar me-1"></i>Tahun Perolehan
+                            </label>
+                            <input type="number" name="year_acquired" class="form-control" 
+                                   value="<?= htmlspecialchars($item['year_acquired'] ?? '') ?>" 
+                                   placeholder="Contoh: 2024" min="1900" max="<?= date('Y') + 1 ?>">
                         </div>
                     </div>
                     

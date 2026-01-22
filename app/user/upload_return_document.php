@@ -119,11 +119,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     </tr>
                     <tr>
                         <td style="color: var(--text-muted);">Tgl Pinjam</td>
-                        <td style="color: var(--text-dark);"><?= $loan['loan_date'] ? date('d M Y', strtotime($loan['loan_date'])) : '-' ?></td>
+                        <td style="color: var(--text-dark);"><?= isset($loan['loan_date']) && $loan['loan_date'] ? date('d M Y', strtotime($loan['loan_date'])) : (isset($loan['approved_at']) && $loan['approved_at'] ? date('d M Y', strtotime($loan['approved_at'])) : '-') ?></td>
                     </tr>
                     <tr>
-                        <td style="color: var(--text-muted);">Tgl Kembali</td>
-                        <td style="color: var(--text-dark);"><?= $loan['return_date'] ? date('d M Y', strtotime($loan['return_date'])) : '-' ?></td>
+                        <td style="color: var(--text-muted);">Tgl Pengajuan Kembali</td>
+                        <td style="color: var(--text-dark);"><?= isset($loan['return_requested_at']) && $loan['return_requested_at'] ? date('d M Y', strtotime($loan['return_requested_at'])) : '-' ?></td>
                     </tr>
                     <tr>
                         <td style="color: var(--text-muted);">Status</td>
