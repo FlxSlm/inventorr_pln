@@ -93,6 +93,18 @@ $pdo_temp = require __DIR__ . '/../config/database.php';
                             </a>
                         </li>
                         <li class="sidebar-menu-item">
+                            <a href="/index.php?page=admin_requests" class="sidebar-menu-link <?= (isset($_GET['page']) && $_GET['page'] === 'admin_requests') ? 'active' : '' ?>">
+                                <i class="bi bi-cart-check-fill"></i>
+                                <span>Permintaan</span>
+                                <?php 
+                                $pendingRequestsCount = $pdo_temp->query("SELECT COUNT(*) FROM requests WHERE stage IN ('pending', 'submitted')")->fetchColumn();
+                                if ($pendingRequestsCount > 0): 
+                                ?>
+                                <span class="sidebar-menu-badge"><?= $pendingRequestsCount ?></span>
+                                <?php endif; ?>
+                            </a>
+                        </li>
+                        <li class="sidebar-menu-item">
                             <a href="/index.php?page=admin_returns" class="sidebar-menu-link <?= (isset($_GET['page']) && $_GET['page'] === 'admin_returns') ? 'active' : '' ?>">
                                 <i class="bi bi-box-arrow-in-left"></i>
                                 <span>Pengembalian</span>
@@ -129,9 +141,9 @@ $pdo_temp = require __DIR__ . '/../config/database.php';
                             </a>
                         </li>
                         <li class="sidebar-menu-item">
-                            <a href="/index.php?page=admin_settings" class="sidebar-menu-link <?= (isset($_GET['page']) && $_GET['page'] === 'admin_settings') ? 'active' : '' ?>">
-                                <i class="bi bi-gear-fill"></i>
-                                <span>Pengaturan</span>
+                            <a href="/index.php?page=admin_templates" class="sidebar-menu-link <?= (isset($_GET['page']) && $_GET['page'] === 'admin_templates') ? 'active' : '' ?>">
+                                <i class="bi bi-file-earmark-text-fill"></i>
+                                <span>Template Dokumen</span>
                             </a>
                         </li>
                     </ul>
@@ -170,6 +182,24 @@ $pdo_temp = require __DIR__ . '/../config/database.php';
                             <a href="/index.php?page=history" class="sidebar-menu-link <?= (isset($_GET['page']) && $_GET['page'] === 'history') ? 'active' : '' ?>">
                                 <i class="bi bi-clock-history"></i>
                                 <span>Riwayat Saya</span>
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+                
+                <div class="sidebar-menu-section">
+                    <p class="sidebar-menu-title">Permintaan Barang</p>
+                    <ul class="sidebar-menu">
+                        <li class="sidebar-menu-item">
+                            <a href="/index.php?page=user_request_item" class="sidebar-menu-link <?= (isset($_GET['page']) && $_GET['page'] === 'user_request_item') ? 'active' : '' ?>">
+                                <i class="bi bi-cart-plus-fill"></i>
+                                <span>Ajukan Permintaan</span>
+                            </a>
+                        </li>
+                        <li class="sidebar-menu-item">
+                            <a href="/index.php?page=user_request_history" class="sidebar-menu-link <?= (isset($_GET['page']) && $_GET['page'] === 'user_request_history') ? 'active' : '' ?>">
+                                <i class="bi bi-clock-history"></i>
+                                <span>Riwayat Permintaan</span>
                             </a>
                         </li>
                     </ul>

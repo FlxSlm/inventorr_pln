@@ -329,6 +329,11 @@ $returnStageLabels = [
                         <td>
                             <?php if ($rs === 'pending_return'): ?>
                             <div class="btn-group btn-group-sm">
+                                <?php if (!empty($l['return_note'])): ?>
+                                <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#viewReturnNoteModal<?= $l['id'] ?>" title="Lihat Catatan">
+                                    <i class="bi bi-eye"></i>
+                                </button>
+                                <?php endif; ?>
                                 <form method="POST" class="d-inline" onsubmit="return confirm('Setujui pengembalian tahap 1 dan minta dokumen?');">
                                     <input type="hidden" name="action" value="approve_return_stage1">
                                     <input type="hidden" name="loan_id" value="<?= $l['id'] ?>">
@@ -340,12 +345,24 @@ $returnStageLabels = [
                             </div>
                             
                             <?php elseif ($rs === 'awaiting_return_doc'): ?>
-                            <span class="badge bg-info">
-                                <i class="bi bi-hourglass me-1"></i>Menunggu Dokumen
-                            </span>
+                            <div class="d-flex gap-1">
+                                <?php if (!empty($l['return_note'])): ?>
+                                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#viewReturnNoteModal<?= $l['id'] ?>" title="Lihat Catatan">
+                                    <i class="bi bi-eye"></i>
+                                </button>
+                                <?php endif; ?>
+                                <span class="badge bg-info">
+                                    <i class="bi bi-hourglass me-1"></i>Menunggu Dokumen
+                                </span>
+                            </div>
                             
                             <?php elseif ($rs === 'return_submitted'): ?>
                             <div class="btn-group btn-group-sm">
+                                <?php if (!empty($l['return_note'])): ?>
+                                <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#viewReturnNoteModal<?= $l['id'] ?>" title="Lihat Catatan">
+                                    <i class="bi bi-eye"></i>
+                                </button>
+                                <?php endif; ?>
                                 <?php if ($l['return_document_path']): ?>
                                 <a class="btn btn-outline-info" href="/public/<?= htmlspecialchars($l['return_document_path']) ?>" target="_blank" title="Download">
                                     <i class="bi bi-download"></i>
@@ -362,17 +379,31 @@ $returnStageLabels = [
                             </div>
                             
                             <?php elseif ($rs === 'return_approved'): ?>
-                            <span class="badge bg-success">
-                                <i class="bi bi-check-circle me-1"></i>Selesai
-                            </span>
-                            <?php if ($l['returned_at']): ?>
-                            <small class="d-block text-muted"><?= date('d M Y', strtotime($l['returned_at'])) ?></small>
-                            <?php endif; ?>
+                            <div class="d-flex flex-column align-items-start gap-1">
+                                <?php if (!empty($l['return_note'])): ?>
+                                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#viewReturnNoteModal<?= $l['id'] ?>" title="Lihat Catatan">
+                                    <i class="bi bi-eye me-1"></i>Catatan
+                                </button>
+                                <?php endif; ?>
+                                <span class="badge bg-success">
+                                    <i class="bi bi-check-circle me-1"></i>Selesai
+                                </span>
+                                <?php if ($l['returned_at']): ?>
+                                <small class="text-muted"><?= date('d M Y', strtotime($l['returned_at'])) ?></small>
+                                <?php endif; ?>
+                            </div>
                             
                             <?php elseif ($rs === 'return_rejected'): ?>
-                            <span class="badge bg-danger">
-                                <i class="bi bi-x-circle me-1"></i>Ditolak
-                            </span>
+                            <div class="d-flex flex-column align-items-start gap-1">
+                                <?php if (!empty($l['return_note'])): ?>
+                                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#viewReturnNoteModal<?= $l['id'] ?>" title="Lihat Catatan">
+                                    <i class="bi bi-eye me-1"></i>Catatan
+                                </button>
+                                <?php endif; ?>
+                                <span class="badge bg-danger">
+                                    <i class="bi bi-x-circle me-1"></i>Ditolak
+                                </span>
+                            </div>
                             
                             <?php else: ?>
                             <span class="text-muted">—</span>
@@ -431,6 +462,38 @@ document.getElementById('searchReturns')?.addEventListener('input', function(e) 
 
 <!-- Rejection Modals -->
 <?php foreach($returns as $l): ?>
+
+<!-- View Return Note Modal -->
+<div class="modal fade" id="viewReturnNoteModal<?= $l['id'] ?>" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-chat-left-text me-2"></i>Catatan Pengembalian #<?= $l['id'] ?></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Peminjam</label>
+                    <p class="mb-0"><?= htmlspecialchars($l['user_name']) ?> (<?= htmlspecialchars($l['user_email']) ?>)</p>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Barang</label>
+                    <p class="mb-0"><?= htmlspecialchars($l['inventory_name']) ?> (<?= htmlspecialchars($l['inventory_code']) ?>)</p>
+                </div>
+                <div class="mb-0">
+                    <label class="form-label fw-semibold">Catatan dari Peminjam</label>
+                    <div class="p-3 rounded" style="background: var(--bg-main); border: 1px solid var(--border-color);">
+                        <?= !empty($l['return_note']) ? nl2br(htmlspecialchars($l['return_note'])) : '<span class="text-muted">Tidak ada catatan</span>' ?>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Tutup</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <?php if ($l['return_stage'] === 'pending_return'): ?>
 <div class="modal fade" id="rejectReturnModal<?= $l['id'] ?>" tabindex="-1">
     <div class="modal-dialog">

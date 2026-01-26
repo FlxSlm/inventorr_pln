@@ -61,6 +61,24 @@ foreach ($topBorrowed as $item) {
     $chartLabels[] = $item['name'];
     $chartData[] = (int)$item['borrow_count'];
 }
+
+// Top requested items (for chart)
+$topRequested = $pdo->query("
+  SELECT i.name, COUNT(r.id) as request_count
+  FROM requests r
+  JOIN inventories i ON i.id = r.inventory_id
+  GROUP BY r.inventory_id
+  ORDER BY request_count DESC
+  LIMIT 5
+")->fetchAll();
+
+$requestChartLabels = [];
+$requestChartData = [];
+foreach ($topRequested as $item) {
+    $requestChartLabels[] = $item['name'];
+    $requestChartData[] = (int)$item['request_count'];
+}
+
 ?>
 
 <!-- Notification Badge Alert -->
@@ -299,22 +317,19 @@ foreach ($topBorrowed as $item) {
 </div>
 
 <!-- Chart Section -->
-<?php if (!empty($chartLabels)): ?>
-<div class="content-grid full" style="margin-top: 24px;">
+<div class="charts-vertical" style="margin-top: 24px;">
+    <?php if (!empty($chartLabels)): ?>
     <div class="modern-card">
         <div class="card-header">
             <h3 class="card-title">
                 <i class="bi bi-bar-chart-fill"></i> Barang Paling Sering Dipinjam
             </h3>
             <div class="card-actions">
-                <button class="chart-type-btn active" data-type="bar" title="Bar Chart">
+                <button class="chart-type-btn active" data-chart="borrow" data-type="bar" title="Bar Chart">
                     <i class="bi bi-bar-chart"></i>
                 </button>
-                <button class="chart-type-btn" data-type="doughnut" title="Doughnut Chart">
+                <button class="chart-type-btn" data-chart="borrow" data-type="doughnut" title="Doughnut Chart">
                     <i class="bi bi-pie-chart"></i>
-                </button>
-                <button class="chart-type-btn" data-type="polarArea" title="Polar Area">
-                    <i class="bi bi-bullseye"></i>
                 </button>
             </div>
         </div>
@@ -324,11 +339,38 @@ foreach ($topBorrowed as $item) {
             </div>
         </div>
     </div>
+    <?php endif; ?>
+    
+    <?php if (!empty($requestChartLabels)): ?>
+    <div class="modern-card">
+        <div class="card-header">
+            <h3 class="card-title">
+                <i class="bi bi-cart-check-fill"></i> Barang Paling Sering Diminta
+            </h3>
+            <div class="card-actions">
+                <button class="chart-type-btn active" data-chart="request" data-type="bar" title="Bar Chart">
+                    <i class="bi bi-bar-chart"></i>
+                </button>
+                <button class="chart-type-btn" data-chart="request" data-type="doughnut" title="Doughnut Chart">
+                    <i class="bi bi-pie-chart"></i>
+                </button>
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="chart-container" style="height: 300px;">
+                <canvas id="topRequestedChart"></canvas>
+            </div>
+        </div>
+    </div>
+    <?php endif; ?>
 </div>
+
 
 <script>
 const chartLabels = <?= json_encode($chartLabels) ?>;
 const chartData = <?= json_encode($chartData) ?>;
+const requestChartLabels = <?= json_encode($requestChartLabels) ?>;
+const requestChartData = <?= json_encode($requestChartData) ?>;
 
 // Chart colors
 const chartColors = [
@@ -352,15 +394,11 @@ const chartBorderColors = [
 ];
 
 let topBorrowedChart = null;
+let topRequestedChart = null;
 
-function createChart(type = 'bar') {
-    const ctx = document.getElementById('topBorrowedChart');
-    if (!ctx) return;
-    
-    // Destroy existing chart
-    if (topBorrowedChart) {
-        topBorrowedChart.destroy();
-    }
+function createChart(chartId, labels, data, type = 'bar') {
+    const ctx = document.getElementById(chartId);
+    if (!ctx) return null;
     
     const commonOptions = {
         responsive: true,
@@ -390,7 +428,8 @@ function createChart(type = 'bar') {
                 displayColors: true,
                 callbacks: {
                     label: function(context) {
-                        return ` ${context.parsed.r || context.parsed.y || context.parsed} kali dipinjam`;
+                        const labelText = chartId.includes('Borrowed') ? 'kali dipinjam' : 'kali diminta';
+                        return ` ${context.parsed.r || context.parsed.y || context.parsed} ${labelText}`;
                     }
                 }
             }
@@ -400,10 +439,10 @@ function createChart(type = 'bar') {
     let config = {
         type: type,
         data: {
-            labels: chartLabels,
+            labels: labels,
             datasets: [{
-                label: 'Jumlah Peminjaman',
-                data: chartData,
+                label: chartId.includes('Borrowed') ? 'Jumlah Peminjaman' : 'Jumlah Permintaan',
+                data: data,
                 backgroundColor: type === 'bar' ? 'rgba(26, 154, 170, 0.85)' : chartColors,
                 borderColor: type === 'bar' ? 'rgba(10, 107, 124, 1)' : chartBorderColors,
                 borderWidth: type === 'bar' ? 0 : 2,
@@ -432,21 +471,36 @@ function createChart(type = 'bar') {
         config.options.cutout = '60%';
     }
     
-    topBorrowedChart = new Chart(ctx, config);
+    return new Chart(ctx, config);
 }
 
-// Initialize chart when DOM is ready
+// Initialize charts when DOM is ready
 document.addEventListener('DOMContentLoaded', function() {
-    createChart('bar');
+    if (chartLabels.length > 0) {
+        topBorrowedChart = createChart('topBorrowedChart', chartLabels, chartData, 'bar');
+    }
+    if (requestChartLabels.length > 0) {
+        topRequestedChart = createChart('topRequestedChart', requestChartLabels, requestChartData, 'bar');
+    }
     
     // Chart type toggle buttons
     document.querySelectorAll('.chart-type-btn').forEach(btn => {
         btn.addEventListener('click', function() {
-            document.querySelectorAll('.chart-type-btn').forEach(b => b.classList.remove('active'));
+            const chartType = this.dataset.chart;
+            const type = this.dataset.type;
+            
+            // Toggle active class within same chart group
+            this.closest('.card-actions').querySelectorAll('.chart-type-btn').forEach(b => b.classList.remove('active'));
             this.classList.add('active');
-            createChart(this.dataset.type);
+            
+            if (chartType === 'borrow') {
+                if (topBorrowedChart) topBorrowedChart.destroy();
+                topBorrowedChart = createChart('topBorrowedChart', chartLabels, chartData, type);
+            } else if (chartType === 'request') {
+                if (topRequestedChart) topRequestedChart.destroy();
+                topRequestedChart = createChart('topRequestedChart', requestChartLabels, requestChartData, type);
+            }
         });
     });
 });
 </script>
-<?php endif; ?>

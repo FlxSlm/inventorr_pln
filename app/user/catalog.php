@@ -220,15 +220,134 @@ foreach ($items as $item) {
             </div>
             
             <div style="padding: 16px 20px; border-top: 1px solid var(--border-color);">
-                <?php if ($item['stock_available'] > 0): ?>
-                <a href="/index.php?page=user_request_loan&item=<?= $item['id'] ?>" class="btn btn-primary w-100">
-                    <i class="bi bi-hand-index me-1"></i> Ajukan Peminjaman
-                </a>
-                <?php else: ?>
-                <button class="btn btn-secondary w-100" disabled>
-                    <i class="bi bi-x-circle me-1"></i> Stok Habis
-                </button>
-                <?php endif; ?>
+                <div class="d-flex gap-2">
+                    <button type="button" class="btn btn-outline-secondary flex-shrink-0" 
+                            data-bs-toggle="modal" data-bs-target="#detailModal<?= $item['id'] ?>" title="Lihat Detail">
+                        <i class="bi bi-eye"></i>
+                    </button>
+                    <?php if ($item['stock_available'] > 0): ?>
+                    <a href="/index.php?page=user_request_loan&item=<?= $item['id'] ?>" class="btn btn-primary flex-grow-1">
+                        <i class="bi bi-hand-index me-1"></i> Pinjam
+                    </a>
+                    <a href="/index.php?page=request_item&item=<?= $item['id'] ?>" class="btn btn-success flex-grow-1">
+                        <i class="bi bi-bag-plus me-1"></i> Minta
+                    </a>
+                    <?php else: ?>
+                    <button class="btn btn-secondary flex-grow-1" disabled>
+                        <i class="bi bi-x-circle me-1"></i> Stok Habis
+                    </button>
+                    <?php endif; ?>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Detail Modal -->
+    <div class="modal fade" id="detailModal<?= $item['id'] ?>" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-info-circle me-2"></i>Detail Barang</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-5">
+                            <?php if ($item['image']): ?>
+                            <img src="/public/assets/uploads/<?= htmlspecialchars($item['image']) ?>" 
+                                 alt="<?= htmlspecialchars($item['name']) ?>" 
+                                 class="img-fluid rounded" style="width: 100%; max-height: 300px; object-fit: cover;">
+                            <?php else: ?>
+                            <div class="d-flex align-items-center justify-content-center rounded" 
+                                 style="height: 250px; background: var(--bg-main);">
+                                <i class="bi bi-box-seam" style="font-size: 4rem; color: var(--text-muted);"></i>
+                            </div>
+                            <?php endif; ?>
+                        </div>
+                        <div class="col-md-7">
+                            <h4 style="font-weight: 600; color: var(--text-dark); margin-bottom: 16px;">
+                                <?= htmlspecialchars($item['name']) ?>
+                            </h4>
+                            
+                            <table class="table table-borderless table-sm">
+                                <tr>
+                                    <td style="width: 140px; color: var(--text-muted);"><i class="bi bi-upc-scan me-2"></i>Nomor Seri</td>
+                                    <td><strong><?= htmlspecialchars($item['code'] ?: '-') ?></strong></td>
+                                </tr>
+                                <?php if (!empty($item['item_type'])): ?>
+                                <tr>
+                                    <td style="color: var(--text-muted);"><i class="bi bi-diagram-3 me-2"></i>Tipe Barang</td>
+                                    <td><strong><?= htmlspecialchars($item['item_type']) ?></strong></td>
+                                </tr>
+                                <?php endif; ?>
+                                <tr>
+                                    <td style="color: var(--text-muted);"><i class="bi bi-boxes me-2"></i>Stok Total</td>
+                                    <td><strong><?= $item['stock_total'] ?> <?= htmlspecialchars($item['unit'] ?? 'unit') ?></strong></td>
+                                </tr>
+                                <tr>
+                                    <td style="color: var(--text-muted);"><i class="bi bi-check2-circle me-2"></i>Stok Tersedia</td>
+                                    <td>
+                                        <strong class="text-<?= $stockClass ?>"><?= $item['stock_available'] ?> <?= htmlspecialchars($item['unit'] ?? 'unit') ?></strong>
+                                    </td>
+                                </tr>
+                                <?php if (!empty($item['year_acquired'])): ?>
+                                <tr>
+                                    <td style="color: var(--text-muted);"><i class="bi bi-calendar me-2"></i>Tahun Perolehan</td>
+                                    <td><strong><?= htmlspecialchars($item['year_acquired']) ?></strong></td>
+                                </tr>
+                                <?php endif; ?>
+                                <?php if (!empty($item['item_condition'])): ?>
+                                <tr>
+                                    <td style="color: var(--text-muted);"><i class="bi bi-shield-check me-2"></i>Kondisi</td>
+                                    <td>
+                                        <?php 
+                                        $conditionClass = 'secondary';
+                                        if ($item['item_condition'] === 'Baik') $conditionClass = 'success';
+                                        elseif ($item['item_condition'] === 'Cukup Baik') $conditionClass = 'info';
+                                        elseif ($item['item_condition'] === 'Rusak Ringan') $conditionClass = 'warning';
+                                        elseif ($item['item_condition'] === 'Rusak Berat') $conditionClass = 'danger';
+                                        ?>
+                                        <span class="badge bg-<?= $conditionClass ?>"><?= htmlspecialchars($item['item_condition']) ?></span>
+                                    </td>
+                                </tr>
+                                <?php endif; ?>
+                            </table>
+                            
+                            <?php if (!empty($itemCategories[$item['id']])): ?>
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold">Kategori</label>
+                                <div>
+                                    <?php foreach($itemCategories[$item['id']] as $cat): ?>
+                                    <span class="badge" style="background: <?= htmlspecialchars($cat['color']) ?>; color: #fff; margin-right: 4px;">
+                                        <?= htmlspecialchars($cat['name']) ?>
+                                    </span>
+                                    <?php endforeach; ?>
+                                </div>
+                            </div>
+                            <?php endif; ?>
+                            
+                            <?php if ($item['description']): ?>
+                            <div class="mb-0">
+                                <label class="form-label fw-semibold">Deskripsi</label>
+                                <p class="mb-0" style="color: var(--text-muted);">
+                                    <?= nl2br(htmlspecialchars($item['description'])) ?>
+                                </p>
+                            </div>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Tutup</button>
+                    <?php if ($item['stock_available'] > 0): ?>
+                    <a href="/index.php?page=user_request_loan&item=<?= $item['id'] ?>" class="btn btn-primary">
+                        <i class="bi bi-hand-index me-1"></i> Ajukan Peminjaman
+                    </a>
+                    <a href="/index.php?page=request_item&item=<?= $item['id'] ?>" class="btn btn-success">
+                        <i class="bi bi-bag-plus me-1"></i> Ajukan Permintaan
+                    </a>
+                    <?php endif; ?>
+                </div>
             </div>
         </div>
     </div>

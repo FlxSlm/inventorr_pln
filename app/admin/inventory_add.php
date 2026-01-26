@@ -8,15 +8,17 @@ $categories = $pdo->query('SELECT * FROM categories ORDER BY name ASC')->fetchAl
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $name = trim($_POST['name'] ?? '');
     $code = trim($_POST['code'] ?? '');
+    $item_type = trim($_POST['item_type'] ?? '');
     $description = trim($_POST['description'] ?? '');
     $stock_total = (int)($_POST['stock_total'] ?? 0);
     $unit = trim($_POST['unit'] ?? '');
     $year_acquired = trim($_POST['year_acquired'] ?? '');
+    $item_condition = trim($_POST['item_condition'] ?? '');
+    $low_stock_threshold = (int)($_POST['low_stock_threshold'] ?? 5);
     $selectedCategories = $_POST['categories'] ?? [];
     
     // Validation
     if (empty($name)) $errors[] = 'Nama barang wajib diisi.';
-    if (empty($code)) $errors[] = 'Nomor Seri barang wajib diisi.';
     
     // Require at least one category if categories exist
     if (!empty($categories) && empty($selectedCategories)) {
@@ -30,11 +32,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
     
-    // Check duplicate code
-    $stmt = $pdo->prepare('SELECT id FROM inventories WHERE code = ?');
-    $stmt->execute([$code]);
-    if ($stmt->fetch()) {
-        $errors[] = 'Nomor Seri barang sudah digunakan (mungkin ada di data sampah/deleted).';
+    // Check duplicate code (only if code is provided)
+    if (!empty($code)) {
+        $stmt = $pdo->prepare('SELECT id FROM inventories WHERE code = ?');
+        $stmt->execute([$code]);
+        if ($stmt->fetch()) {
+            $errors[] = 'Nomor Seri barang sudah digunakan (mungkin ada di data sampah/deleted).';
+        }
     }
     
     // Handle image upload
@@ -70,8 +74,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     
     if (empty($errors)) {
-        $stmt = $pdo->prepare('INSERT INTO inventories (name, code, description, stock_total, stock_available, unit, year_acquired, image) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
-        $stmt->execute([$name, $code, $description, $stock_total, $stock_total, $unit, $year_acquired ?: null, $imageName]);
+        $stmt = $pdo->prepare('INSERT INTO inventories (name, code, item_type, description, stock_total, stock_available, unit, year_acquired, item_condition, low_stock_threshold, image) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+        $stmt->execute([$name, $code ?: null, $item_type ?: null, $description, $stock_total, $stock_total, $unit, $year_acquired ?: null, $item_condition ?: null, $low_stock_threshold, $imageName]);
         $inventoryId = $pdo->lastInsertId();
         
         // Save categories
@@ -109,9 +113,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <input name="name" class="form-control" required placeholder="Contoh: Laptop Dell Latitude">
                         </div>
                         <div class="col-md-6 mb-3">
-                            <label class="form-label"><i class="bi bi-upc-scan me-1"></i> Nomor Seri <span class="text-danger">*</span></label>
-                            <input name="code" class="form-control" required placeholder="Contoh: LPT-001">
+                            <label class="form-label"><i class="bi bi-upc-scan me-1"></i> Nomor Seri</label>
+                            <input name="code" class="form-control" placeholder="Contoh: LPT-001 (opsional)">
                         </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label"><i class="bi bi-diagram-3 me-1"></i> Tipe Barang</label>
+                        <input name="item_type" class="form-control" placeholder="Contoh: Elektronik, Furniture, dll (opsional)">
                     </div>
                     
                     <div class="mb-3">
@@ -135,6 +144,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <label class="form-label"><i class="bi bi-calendar me-1"></i> Tahun Perolehan</label>
                             <input type="number" name="year_acquired" class="form-control" placeholder="Contoh: 2024" min="1900" max="<?= date('Y') + 1 ?>">
                             <small class="text-muted">Tahun barang diperoleh/dibeli</small>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label"><i class="bi bi-shield-check me-1"></i> Kondisi Barang</label>
+                            <select name="item_condition" class="form-select">
+                                <option value="">-- Pilih Kondisi --</option>
+                                <option value="Baik">Baik</option>
+                                <option value="Cukup Baik">Cukup Baik</option>
+                                <option value="Rusak Ringan">Rusak Ringan</option>
+                                <option value="Rusak Berat">Rusak Berat</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label"><i class="bi bi-exclamation-triangle me-1"></i> Batas Stok Menipis</label>
+                            <input type="number" name="low_stock_threshold" class="form-control" value="5" min="0">
+                            <small class="text-muted">Notifikasi muncul jika stok &le; nilai ini</small>
                         </div>
                     </div>
                     

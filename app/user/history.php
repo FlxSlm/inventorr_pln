@@ -263,7 +263,7 @@ $completedLoans = count(array_filter($loans, fn($l) => ($l['return_stage'] ?? 'n
 <div class="row g-3 mb-4">
     <div class="col-6 col-lg-3">
         <div class="stat-card">
-            <div class="stat-icon" style="background: linear-gradient(135deg, var(--primary), var(--primary-light));">
+            <div class="stat-icon stat-icon-fixed" style="background: linear-gradient(135deg, var(--primary), var(--primary-light));">
                 <i class="bi bi-collection"></i>
             </div>
             <div class="stat-details">
@@ -274,7 +274,7 @@ $completedLoans = count(array_filter($loans, fn($l) => ($l['return_stage'] ?? 'n
     </div>
     <div class="col-6 col-lg-3">
         <div class="stat-card">
-            <div class="stat-icon" style="background: linear-gradient(135deg, #f59e0b, #fbbf24);">
+            <div class="stat-icon stat-icon-fixed" style="background: linear-gradient(135deg, #f59e0b, #fbbf24);">
                 <i class="bi bi-hourglass-split"></i>
             </div>
             <div class="stat-details">
@@ -285,7 +285,7 @@ $completedLoans = count(array_filter($loans, fn($l) => ($l['return_stage'] ?? 'n
     </div>
     <div class="col-6 col-lg-3">
         <div class="stat-card">
-            <div class="stat-icon" style="background: linear-gradient(135deg, var(--accent), var(--accent-light));">
+            <div class="stat-icon stat-icon-fixed" style="background: linear-gradient(135deg, var(--accent), var(--accent-light));">
                 <i class="bi bi-box-seam"></i>
             </div>
             <div class="stat-details">
@@ -296,7 +296,7 @@ $completedLoans = count(array_filter($loans, fn($l) => ($l['return_stage'] ?? 'n
     </div>
     <div class="col-6 col-lg-3">
         <div class="stat-card">
-            <div class="stat-icon" style="background: linear-gradient(135deg, #10b981, #34d399);">
+            <div class="stat-icon stat-icon-fixed" style="background: linear-gradient(135deg, #10b981, #34d399);">
                 <i class="bi bi-check-circle"></i>
             </div>
             <div class="stat-details">

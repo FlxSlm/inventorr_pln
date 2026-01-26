@@ -43,11 +43,14 @@ if (isset($_GET['delete_image']) && $_GET['delete_image'] == 1) {
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $name = trim($_POST['name'] ?? '');
     $code = trim($_POST['code'] ?? '');
+    $item_type = trim($_POST['item_type'] ?? '');
     $description = trim($_POST['description'] ?? '');
     $stock_total = (int)($_POST['stock_total'] ?? 0);
     $stock_available = (int)($_POST['stock_available'] ?? 0);
     $unit = trim($_POST['unit'] ?? '');
     $year_acquired = trim($_POST['year_acquired'] ?? '');
+    $item_condition = trim($_POST['item_condition'] ?? '');
+    $low_stock_threshold = (int)($_POST['low_stock_threshold'] ?? 5);
     $selectedCategories = $_POST['categories'] ?? [];
     
     // Validate year if provided
@@ -92,8 +95,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     
     if (empty($errors)) {
-        $stmt = $pdo->prepare('UPDATE inventories SET name=?, code=?, description=?, stock_total=?, stock_available=?, unit=?, year_acquired=?, image=?, updated_at=NOW() WHERE id=?');
-        $stmt->execute([$name, $code, $description, $stock_total, $stock_available, $unit, $year_acquired ?: null, $imageName, $id]);
+        $stmt = $pdo->prepare('UPDATE inventories SET name=?, code=?, item_type=?, description=?, stock_total=?, stock_available=?, unit=?, year_acquired=?, item_condition=?, low_stock_threshold=?, image=?, updated_at=NOW() WHERE id=?');
+        $stmt->execute([$name, $code ?: null, $item_type ?: null, $description, $stock_total, $stock_available, $unit, $year_acquired ?: null, $item_condition ?: null, $low_stock_threshold, $imageName, $id]);
         
         $pdo->prepare('DELETE FROM inventory_categories WHERE inventory_id = ?')->execute([$id]);
         if (!empty($selectedCategories)) {
@@ -175,10 +178,18 @@ $imageDeleted = isset($_GET['msg']) && $_GET['msg'] === 'image_deleted';
                         </div>
                         <div class="col-md-6">
                             <label class="form-label fw-semibold">
-                                <i class="bi bi-upc-scan me-1"></i>Kode/Serial <span class="text-danger">*</span>
+                                <i class="bi bi-upc-scan me-1"></i>Nomor Seri
                             </label>
-                            <input name="code" class="form-control" required 
-                                   value="<?= htmlspecialchars($item['code']) ?>">
+                            <input name="code" class="form-control" 
+                                   value="<?= htmlspecialchars($item['code'] ?? '') ?>" placeholder="Opsional">
+                        </div>
+                        <div class="col-md-12">
+                            <label class="form-label fw-semibold">
+                                <i class="bi bi-diagram-3 me-1"></i>Tipe Barang
+                            </label>
+                            <input name="item_type" class="form-control" 
+                                   value="<?= htmlspecialchars($item['item_type'] ?? '') ?>" 
+                                   placeholder="Contoh: Elektronik, Furniture, dll (opsional)">
                         </div>
                         <div class="col-12">
                             <label class="form-label fw-semibold">
@@ -228,6 +239,30 @@ $imageDeleted = isset($_GET['msg']) && $_GET['msg'] === 'image_deleted';
                             <input type="number" name="year_acquired" class="form-control" 
                                    value="<?= htmlspecialchars($item['year_acquired'] ?? '') ?>" 
                                    placeholder="Contoh: 2024" min="1900" max="<?= date('Y') + 1 ?>">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">
+                                <i class="bi bi-shield-check me-1"></i>Kondisi Barang
+                            </label>
+                            <select name="item_condition" class="form-select">
+                                <option value="">-- Pilih Kondisi --</option>
+                                <option value="Baik" <?= ($item['item_condition'] ?? '') === 'Baik' ? 'selected' : '' ?>>Baik</option>
+                                <option value="Cukup Baik" <?= ($item['item_condition'] ?? '') === 'Cukup Baik' ? 'selected' : '' ?>>Cukup Baik</option>
+                                <option value="Rusak Ringan" <?= ($item['item_condition'] ?? '') === 'Rusak Ringan' ? 'selected' : '' ?>>Rusak Ringan</option>
+                                <option value="Rusak Berat" <?= ($item['item_condition'] ?? '') === 'Rusak Berat' ? 'selected' : '' ?>>Rusak Berat</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="row mt-3">
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">
+                                <i class="bi bi-exclamation-triangle me-1"></i>Batas Stok Menipis
+                            </label>
+                            <input type="number" name="low_stock_threshold" class="form-control" 
+                                   value="<?= htmlspecialchars($item['low_stock_threshold'] ?? 5) ?>" 
+                                   min="0">
+                            <small class="text-muted">Notifikasi muncul jika stok &le; nilai ini</small>
                         </div>
                     </div>
                     

@@ -4,25 +4,27 @@
 $pageTitle = 'Dashboard';
 $pdo = require __DIR__ . '/../config/database.php';
 
-// Get low stock threshold from settings
-$lowStockThreshold = 5; // default
-try {
-    $thresholdStmt = $pdo->query("SELECT setting_value FROM settings WHERE setting_key = 'low_stock_threshold'");
-    $thresholdResult = $thresholdStmt->fetch();
-    if ($thresholdResult) {
-        $lowStockThreshold = (int)$thresholdResult['setting_value'];
-    }
-} catch (Exception $e) {
-    // Table might not exist yet, use default
-}
+// Low stock now uses per-item threshold
+$lowStockThreshold = 5; // default fallback for items without threshold
 
-// Quick stats
+// Quick stats - using per-item threshold
 $totalItems = $pdo->query('SELECT COUNT(*) FROM inventories WHERE deleted_at IS NULL')->fetchColumn();
-$lowStock = $pdo->query("SELECT COUNT(*) FROM inventories WHERE stock_available <= $lowStockThreshold AND deleted_at IS NULL")->fetchColumn();
+$lowStock = $pdo->query("SELECT COUNT(*) FROM inventories WHERE stock_available <= COALESCE(low_stock_threshold, 5) AND deleted_at IS NULL")->fetchColumn();
 $totalPendingLoans = $pdo->query("SELECT COUNT(*) FROM loans WHERE status = 'pending'")->fetchColumn();
 $totalPendingReturns = $pdo->query("SELECT COUNT(*) FROM loans WHERE return_stage = 'pending_return' OR return_stage = 'return_submitted'")->fetchColumn();
 $totalUsers = $pdo->query('SELECT COUNT(*) FROM users')->fetchColumn();
 $totalLoans = $pdo->query('SELECT COUNT(*) FROM loans')->fetchColumn();
+
+// Request stats
+$totalPendingRequests = 0;
+try {
+    $totalPendingRequests = $pdo->query("SELECT COUNT(*) FROM requests WHERE stage IN ('pending', 'submitted')")->fetchColumn();
+} catch (Exception $e) {}
+
+$totalRequests = 0;
+try {
+    $totalRequests = $pdo->query("SELECT COUNT(*) FROM requests")->fetchColumn();
+} catch (Exception $e) {}
 
 // Recent loans
 $stmt = $pdo->query("
@@ -52,11 +54,31 @@ foreach ($topBorrowed as $item) {
     $chartData[] = (int)$item['borrow_count'];
 }
 
-// Low stock items
+// Top requested items (permanent requests)
+$topRequested = [];
+try {
+    $topRequested = $pdo->query("
+      SELECT i.name, COUNT(r.id) as request_count, SUM(r.quantity) as total_qty
+      FROM requests r
+      JOIN inventories i ON i.id = r.inventory_id
+      GROUP BY r.inventory_id
+      ORDER BY request_count DESC
+      LIMIT 7
+    ")->fetchAll();
+} catch (Exception $e) {}
+
+$requestChartLabels = [];
+$requestChartData = [];
+foreach ($topRequested as $item) {
+    $requestChartLabels[] = $item['name'];
+    $requestChartData[] = (int)$item['request_count'];
+}
+
+// Low stock items - using per-item threshold
 $lowStockItems = $pdo->query("
-  SELECT name, stock_available, stock_total, image 
+  SELECT name, stock_available, stock_total, image, COALESCE(low_stock_threshold, 5) as threshold
   FROM inventories 
-  WHERE stock_available <= $lowStockThreshold AND deleted_at IS NULL 
+  WHERE stock_available <= COALESCE(low_stock_threshold, 5) AND deleted_at IS NULL 
   ORDER BY stock_available ASC 
   LIMIT 5
 ")->fetchAll();
@@ -169,23 +191,20 @@ $lowStockItems = $pdo->query("
     </div>
 </div>
 
-<!-- Charts Row -->
-<div class="content-grid">
-    <!-- Chart Card -->
+<!-- Charts Row - Vertical Layout -->
+<div class="charts-vertical">
+    <!-- Chart Card - Most Borrowed -->
     <div class="modern-card">
         <div class="card-header">
             <h3 class="card-title">
                 <i class="bi bi-bar-chart-fill"></i> Barang Paling Sering Dipinjam
             </h3>
             <div class="card-actions">
-                <button class="chart-type-btn active" data-type="bar" title="Bar Chart">
+                <button class="chart-type-btn active" data-chart="borrow" data-type="bar" title="Bar Chart">
                     <i class="bi bi-bar-chart"></i>
                 </button>
-                <button class="chart-type-btn" data-type="doughnut" title="Doughnut Chart">
+                <button class="chart-type-btn" data-chart="borrow" data-type="doughnut" title="Doughnut Chart">
                     <i class="bi bi-pie-chart"></i>
-                </button>
-                <button class="chart-type-btn" data-type="polarArea" title="Polar Area">
-                    <i class="bi bi-bullseye"></i>
                 </button>
             </div>
         </div>
@@ -199,13 +218,48 @@ $lowStockItems = $pdo->query("
                 <p class="empty-state-text">Data peminjaman akan muncul di sini</p>
             </div>
             <?php else: ?>
-            <div class="chart-container">
+            <div class="chart-container" style="height: 300px;">
                 <canvas id="topBorrowedChart"></canvas>
             </div>
             <?php endif; ?>
         </div>
     </div>
     
+    <!-- Chart Card - Most Requested -->
+    <div class="modern-card">
+        <div class="card-header">
+            <h3 class="card-title">
+                <i class="bi bi-cart-check-fill"></i> Barang Paling Sering Diminta
+            </h3>
+            <div class="card-actions">
+                <button class="chart-type-btn active" data-chart="request" data-type="bar" title="Bar Chart">
+                    <i class="bi bi-bar-chart"></i>
+                </button>
+                <button class="chart-type-btn" data-chart="request" data-type="doughnut" title="Doughnut Chart">
+                    <i class="bi bi-pie-chart"></i>
+                </button>
+            </div>
+        </div>
+        <div class="card-body">
+            <?php if (empty($topRequested)): ?>
+            <div class="empty-state">
+                <div class="empty-state-icon">
+                    <i class="bi bi-cart-check"></i>
+                </div>
+                <h5 class="empty-state-title">Belum Ada Data</h5>
+                <p class="empty-state-text">Data permintaan akan muncul di sini</p>
+            </div>
+            <?php else: ?>
+            <div class="chart-container" style="height: 300px;">
+                <canvas id="topRequestedChart"></canvas>
+            </div>
+            <?php endif; ?>
+        </div>
+    </div>
+</div>
+
+<!-- Info Stats Row -->
+<div class="content-grid">
     <!-- Info Card -->
     <div class="modern-card">
         <div class="card-header">
@@ -415,126 +469,132 @@ $lowStockItems = $pdo->query("
     </div>
 </div>
 
-<?php if (!empty($topBorrowed)): ?>
+<?php if (!empty($topBorrowed) || !empty($topRequested)): ?>
 <script>
-// Chart data for top borrowed items
-const chartLabels = <?= json_encode($chartLabels) ?>;
-const chartData = <?= json_encode($chartData) ?>;
-
-// Chart colors
-const chartColors = [
-    'rgba(10, 107, 124, 0.85)',
-    'rgba(26, 154, 170, 0.85)',
-    'rgba(45, 212, 191, 0.85)',
-    'rgba(20, 184, 166, 0.85)',
-    'rgba(13, 148, 136, 0.85)',
-    'rgba(6, 95, 70, 0.85)',
-    'rgba(4, 120, 87, 0.85)'
-];
-
-const chartBorderColors = [
-    'rgba(10, 107, 124, 1)',
-    'rgba(26, 154, 170, 1)',
-    'rgba(45, 212, 191, 1)',
-    'rgba(20, 184, 166, 1)',
-    'rgba(13, 148, 136, 1)',
-    'rgba(6, 95, 70, 1)',
-    'rgba(4, 120, 87, 1)'
-];
-
-let topBorrowedChart = null;
-
-function createChart(type = 'bar') {
-    const ctx = document.getElementById('topBorrowedChart');
-    if (!ctx) return;
+document.addEventListener('DOMContentLoaded', function() {
+    // Chart data for top borrowed items
+    const borrowLabels = <?= json_encode($chartLabels) ?>;
+    const borrowData = <?= json_encode($chartData) ?>;
     
-    // Destroy existing chart
-    if (topBorrowedChart) {
-        topBorrowedChart.destroy();
-    }
+    // Chart data for top requested items
+    const requestLabels = <?= json_encode($requestChartLabels) ?>;
+    const requestData = <?= json_encode($requestChartData) ?>;
+
+    // Chart colors
+    const borrowColors = [
+        'rgba(10, 107, 124, 0.85)',
+        'rgba(26, 154, 170, 0.85)',
+        'rgba(45, 212, 191, 0.85)',
+        'rgba(20, 184, 166, 0.85)',
+        'rgba(13, 148, 136, 0.85)',
+        'rgba(6, 95, 70, 0.85)',
+        'rgba(4, 120, 87, 0.85)'
+    ];
     
-    const commonOptions = {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-            legend: {
-                display: type !== 'bar',
-                position: 'right',
-                labels: {
-                    padding: 15,
-                    usePointStyle: true,
-                    pointStyle: 'circle',
-                    font: {
-                        size: 11,
-                        family: "'Inter', sans-serif"
-                    }
-                }
-            },
-            tooltip: {
-                backgroundColor: 'rgba(13, 79, 92, 0.95)',
-                padding: 12,
-                titleFont: { size: 13, weight: '600' },
-                bodyFont: { size: 12 },
-                borderColor: 'rgba(45, 212, 191, 0.3)',
-                borderWidth: 1,
-                cornerRadius: 8,
-                displayColors: true,
-                callbacks: {
-                    label: function(context) {
-                        return ` ${context.parsed.r || context.parsed.y || context.parsed} kali dipinjam`;
-                    }
-                }
-            }
+    const requestColors = [
+        'rgba(245, 158, 11, 0.85)',
+        'rgba(251, 191, 36, 0.85)',
+        'rgba(252, 211, 77, 0.85)',
+        'rgba(234, 179, 8, 0.85)',
+        'rgba(202, 138, 4, 0.85)',
+        'rgba(161, 98, 7, 0.85)',
+        'rgba(133, 77, 14, 0.85)'
+    ];
+
+    let topBorrowedChart = null;
+    let topRequestedChart = null;
+
+    function createBorrowChart(type = 'bar') {
+        const ctx = document.getElementById('topBorrowedChart');
+        if (!ctx || borrowLabels.length === 0) return;
+        
+        if (topBorrowedChart) {
+            topBorrowedChart.destroy();
         }
-    };
-    
-    let config = {
-        type: type,
-        data: {
-            labels: chartLabels,
-            datasets: [{
-                label: 'Jumlah Peminjaman',
-                data: chartData,
-                backgroundColor: type === 'bar' ? 'rgba(26, 154, 170, 0.85)' : chartColors,
-                borderColor: type === 'bar' ? 'rgba(10, 107, 124, 1)' : chartBorderColors,
-                borderWidth: type === 'bar' ? 0 : 2,
-                borderRadius: type === 'bar' ? 8 : 0,
-                hoverBackgroundColor: type === 'bar' ? 'rgba(45, 212, 191, 0.95)' : undefined
-            }]
-        },
-        options: commonOptions
-    };
-    
-    // Type specific options
-    if (type === 'bar') {
-        config.options.scales = {
-            y: {
-                beginAtZero: true,
-                grid: { color: 'rgba(0, 0, 0, 0.05)', drawBorder: false },
-                ticks: { font: { size: 11 } }
+        
+        topBorrowedChart = new Chart(ctx, {
+            type: type,
+            data: {
+                labels: borrowLabels,
+                datasets: [{
+                    label: 'Jumlah Peminjaman',
+                    data: borrowData,
+                    backgroundColor: type === 'bar' ? 'rgba(26, 154, 170, 0.85)' : borrowColors,
+                    borderColor: type === 'bar' ? 'rgba(10, 107, 124, 1)' : borrowColors.map(c => c.replace('0.85', '1')),
+                    borderWidth: type === 'bar' ? 0 : 2,
+                    borderRadius: type === 'bar' ? 8 : 0
+                }]
             },
-            x: {
-                grid: { display: false },
-                ticks: { font: { size: 11 } }
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: type !== 'bar', position: 'right' },
+                    tooltip: { backgroundColor: 'rgba(13, 79, 92, 0.95)', padding: 12, cornerRadius: 8 }
+                },
+                scales: type === 'bar' ? {
+                    y: { beginAtZero: true, grid: { color: 'rgba(0, 0, 0, 0.05)' } },
+                    x: { grid: { display: false } }
+                } : {},
+                cutout: type === 'doughnut' ? '60%' : undefined
             }
-        };
-        config.options.plugins.legend.display = false;
-    } else if (type === 'doughnut') {
-        config.options.cutout = '60%';
+        });
     }
-    
-    topBorrowedChart = new Chart(ctx, config);
-}
 
-// Initialize chart
-createChart('bar');
+    function createRequestChart(type = 'bar') {
+        const ctx = document.getElementById('topRequestedChart');
+        if (!ctx || requestLabels.length === 0) return;
+        
+        if (topRequestedChart) {
+            topRequestedChart.destroy();
+        }
+        
+        topRequestedChart = new Chart(ctx, {
+            type: type,
+            data: {
+                labels: requestLabels,
+                datasets: [{
+                    label: 'Jumlah Permintaan',
+                    data: requestData,
+                    backgroundColor: type === 'bar' ? 'rgba(245, 158, 11, 0.85)' : requestColors,
+                    borderColor: type === 'bar' ? 'rgba(202, 138, 4, 1)' : requestColors.map(c => c.replace('0.85', '1')),
+                    borderWidth: type === 'bar' ? 0 : 2,
+                    borderRadius: type === 'bar' ? 8 : 0
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: type !== 'bar', position: 'right' },
+                    tooltip: { backgroundColor: 'rgba(133, 77, 14, 0.95)', padding: 12, cornerRadius: 8 }
+                },
+                scales: type === 'bar' ? {
+                    y: { beginAtZero: true, grid: { color: 'rgba(0, 0, 0, 0.05)' } },
+                    x: { grid: { display: false } }
+                } : {},
+                cutout: type === 'doughnut' ? '60%' : undefined
+            }
+        });
+    }
 
-// Chart type toggle buttons
-document.querySelectorAll('.chart-type-btn').forEach(btn => {
-    btn.addEventListener('click', function() {
-        document.querySelectorAll('.chart-type-btn').forEach(b => b.classList.remove('active'));
-        this.classList.add('active');
-        createChart(this.dataset.type);
+    // Initialize charts
+    if (borrowLabels.length > 0) createBorrowChart('bar');
+    if (requestLabels.length > 0) createRequestChart('bar');
+
+    // Chart type toggle buttons
+    document.querySelectorAll('.chart-type-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const chart = this.dataset.chart;
+            this.closest('.card-actions').querySelectorAll('.chart-type-btn').forEach(b => b.classList.remove('active'));
+            this.classList.add('active');
+            
+            if (chart === 'borrow') {
+                createBorrowChart(this.dataset.type);
+            } else if (chart === 'request') {
+                createRequestChart(this.dataset.type);
+            }
+        });
     });
 });
 </script>

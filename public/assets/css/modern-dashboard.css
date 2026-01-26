@@ -2052,3 +2052,74 @@ textarea.form-control {
 .shadow-none { box-shadow: none !important; }
 
 .rounded-lg { border-radius: var(--radius-lg) !important; }
+
+/* ===== VERTICAL CHART LAYOUT ===== */
+.charts-vertical {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    margin-bottom: 24px;
+}
+
+.charts-vertical .modern-card {
+    width: 100%;
+}
+
+.charts-vertical .chart-container {
+    height: 350px !important;
+}
+
+/* ===== CUSTOM SCROLLBAR ===== */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--bg-main);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: linear-gradient(180deg, var(--primary-light), var(--primary));
+    border-radius: 4px;
+    border: 2px solid var(--bg-main);
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(180deg, var(--primary), var(--primary-dark));
+}
+
+/* Firefox scrollbar */
+* {
+    scrollbar-width: thin;
+    scrollbar-color: var(--primary-light) var(--bg-main);
+}
+
+/* Main content scrollbar - Full height */
+.main-content {
+    scrollbar-width: thin;
+    scrollbar-color: var(--primary-light) transparent;
+}
+
+/* ===== STAT CARD ICON FIX ===== */
+.stat-card .stat-icon,
+.stat-icon-fixed {
+    width: 48px !important;
+    height: 48px !important;
+    min-width: 48px !important;
+    min-height: 48px !important;
+    max-width: 48px !important;
+    max-height: 48px !important;
+    border-radius: var(--radius) !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    flex-shrink: 0 !important;
+}
+
+.stat-card .stat-icon i,
+.stat-icon-fixed i {
+    font-size: 20px !important;
+    color: #fff !important;
+}

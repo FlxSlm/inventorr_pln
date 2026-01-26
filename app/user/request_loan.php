@@ -100,29 +100,25 @@ if ($preSelectedItem) {
                 <?php endforeach; ?>
 
                 <form method="POST" id="loanForm">
-                    <!-- Item Selection with Search -->
+                    <!-- Single Searchable Item Selection -->
                     <div class="mb-4">
                         <label class="form-label fw-semibold">
                             <i class="bi bi-box-seam me-1"></i>Pilih Barang <span class="text-danger">*</span>
                         </label>
-                        <div class="position-relative">
-                            <input type="text" class="form-control form-control-lg mb-2" id="itemSearchInput" 
-                                   placeholder="Ketik untuk mencari barang..." autocomplete="off">
-                            <select name="inventory_id" class="form-select form-select-lg" required id="itemSelect" size="1">
-                                <option value="">-- Pilih Barang --</option>
-                                <?php foreach($items as $it): ?>
-                                <option value="<?= $it['id'] ?>" 
-                                        data-stock="<?= $it['stock_available'] ?>"
-                                        data-image="<?= htmlspecialchars($it['image'] ?? '') ?>"
-                                        data-code="<?= htmlspecialchars($it['code'] ?? '') ?>"
-                                        data-name="<?= htmlspecialchars($it['name']) ?>"
-                                        <?= $preSelectedItem == $it['id'] ? 'selected' : '' ?>>
-                                    <?= htmlspecialchars($it['name']) ?> (<?= htmlspecialchars($it['code']) ?>) - Tersedia: <?= $it['stock_available'] ?>
-                                </option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
-                        <small class="text-muted"><i class="bi bi-info-circle me-1"></i>Ketik nama atau kode barang untuk mencari</small>
+                        <select name="inventory_id" class="form-select form-select-lg" required id="itemSelect">
+                            <option value="">Ketik untuk mencari barang...</option>
+                            <?php foreach($items as $it): ?>
+                            <option value="<?= $it['id'] ?>" 
+                                    data-stock="<?= $it['stock_available'] ?>"
+                                    data-image="<?= htmlspecialchars($it['image'] ?? '') ?>"
+                                    data-code="<?= htmlspecialchars($it['code'] ?? '') ?>"
+                                    data-name="<?= htmlspecialchars($it['name']) ?>"
+                                    <?= $preSelectedItem == $it['id'] ? 'selected' : '' ?>>
+                                <?= htmlspecialchars($it['name']) ?> (<?= htmlspecialchars($it['code']) ?>) - Tersedia: <?= $it['stock_available'] ?>
+                            </option>
+                            <?php endforeach; ?>
+                        </select>
+                        <small class="text-muted"><i class="bi bi-info-circle me-1"></i>Klik dan ketik nama atau kode barang untuk mencari</small>
                     </div>
 
                     <!-- Item Preview -->
@@ -288,6 +284,7 @@ if ($preSelectedItem) {
     </div>
 </div>
 
+<link href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.bootstrap5.min.css" rel="stylesheet">
 <style>
 .item-preview-card {
     background: linear-gradient(135deg, var(--bg-tertiary) 0%, var(--bg-secondary) 100%);
@@ -382,6 +379,7 @@ if ($preSelectedItem) {
 }
 </style>
 
+<script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const itemSelect = document.getElementById('itemSelect');
@@ -398,10 +396,41 @@ document.addEventListener('DOMContentLoaded', function() {
     
     let maxStock = <?= $preSelectedDetails ? $preSelectedDetails['stock_available'] : 0 ?>;
 
-    itemSelect.addEventListener('change', function() {
-        const selected = this.options[this.selectedIndex];
-        
-        if (this.value) {
+    // Initialize Tom Select for searchable dropdown
+    const tomSelect = new TomSelect('#itemSelect', {
+        placeholder: 'Ketik untuk mencari barang...',
+        searchField: ['text'],
+        sortField: { field: 'text', direction: 'asc' },
+        maxOptions: 100,
+        render: {
+            option: function(data, escape) {
+                const stock = data.$option?.dataset?.stock || '';
+                const code = data.$option?.dataset?.code || '';
+                const image = data.$option?.dataset?.image || '';
+                return `<div class="d-flex align-items-center py-2">
+                    ${image ? `<img src="/public/assets/uploads/${escape(image)}" class="rounded me-2" style="width:40px;height:40px;object-fit:cover;">` : 
+                             `<div class="rounded me-2 d-flex align-items-center justify-content-center bg-light" style="width:40px;height:40px;"><i class="bi bi-box-seam text-muted"></i></div>`}
+                    <div>
+                        <div class="fw-semibold">${escape(data.text.split(' (')[0])}</div>
+                        <small class="text-muted">${escape(code)} | Stok: ${escape(stock)}</small>
+                    </div>
+                </div>`;
+            },
+            item: function(data, escape) {
+                return `<div>${escape(data.text)}</div>`;
+            }
+        },
+        onChange: function(value) {
+            if (!value) return;
+            const option = itemSelect.querySelector(`option[value="${value}"]`);
+            if (option) {
+                updatePreview(option);
+            }
+        }
+    });
+
+    function updatePreview(selected) {
+        if (selected && selected.value) {
             const stock = parseInt(selected.dataset.stock);
             const image = selected.dataset.image;
             const code = selected.dataset.code;
@@ -430,7 +459,7 @@ document.addEventListener('DOMContentLoaded', function() {
             quantityInput.removeAttribute('max');
             maxStock = 0;
         }
-    });
+    }
 
     // Quantity buttons
     decreaseBtn.addEventListener('click', function() {
@@ -458,51 +487,10 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // Trigger change on page load if pre-selected
-    if (itemSelect.value) {
-        itemSelect.dispatchEvent(new Event('change'));
-    }
-
-    // Searchable dropdown functionality
-    const searchInput = document.getElementById('itemSearchInput');
-    if (searchInput) {
-        const options = Array.from(itemSelect.options);
-        
-        searchInput.addEventListener('input', function() {
-            const searchTerm = this.value.toLowerCase().trim();
-            
-            // Clear current options except the first placeholder
-            while (itemSelect.options.length > 1) {
-                itemSelect.remove(1);
-            }
-            
-            // Filter and add matching options
-            options.forEach((option, index) => {
-                if (index === 0) return; // Skip placeholder
-                
-                const name = (option.dataset.name || '').toLowerCase();
-                const code = (option.dataset.code || '').toLowerCase();
-                const text = option.text.toLowerCase();
-                
-                if (searchTerm === '' || name.includes(searchTerm) || code.includes(searchTerm) || text.includes(searchTerm)) {
-                    const newOption = option.cloneNode(true);
-                    itemSelect.appendChild(newOption);
-                }
-            });
-            
-            // Show message if no results
-            if (itemSelect.options.length === 1 && searchTerm !== '') {
-                const noResult = document.createElement('option');
-                noResult.text = 'Tidak ada barang ditemukan';
-                noResult.disabled = true;
-                itemSelect.appendChild(noResult);
-            }
-        });
-        
-        // Focus search on click
-        searchInput.addEventListener('focus', function() {
-            this.select();
-        });
-    }
+    // Trigger preview on page load if pre-selected
+    <?php if ($preSelectedItem && $preSelectedDetails): ?>
+    const preSelected = itemSelect.querySelector('option[value="<?= $preSelectedItem ?>"]');
+    if (preSelected) updatePreview(preSelected);
+    <?php endif; ?>
 });
 </script>

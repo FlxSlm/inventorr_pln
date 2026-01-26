@@ -168,8 +168,27 @@ switch ($page) {
         view('user/notifications.php');
         break;
 
-    case 'admin_settings':
-        view('admin/settings.php');
+    // ----- Request Feature (Employee) -----
+    case 'user_request_item':
+        view('user/request_item.php');
+        break;
+
+    case 'user_request_history':
+        view('user/request_history.php');
+        break;
+
+    case 'upload_request_document':
+        view('user/upload_request_document.php');
+        break;
+
+    // ----- Request Feature (Admin) -----
+    case 'admin_requests':
+        view('admin/requests.php');
+        break;
+
+    // ----- Template Management (Admin) -----
+    case 'admin_templates':
+        view('admin/templates.php');
         break;
 
 
