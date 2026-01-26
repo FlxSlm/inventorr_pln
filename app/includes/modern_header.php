@@ -32,7 +32,12 @@ $pdo_temp = require __DIR__ . '/../config/database.php';
     <!-- Modern Dashboard CSS -->
     <link href="/public/assets/css/modern-dashboard.css" rel="stylesheet">
     <!-- Favicon -->
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>">
+    <link rel="icon" href="/public/assets/img/logopln.png">
+    <style>
+        .brand-icons{display:flex;align-items:center;gap:0.5rem}
+        .brand-icons img{width: 48px;height: 48px;object-fit:contain}
+        .sidebar-logo-text{margin-left:0.25rem}
+    </style>
 </head>
 <body>
     <div class="app-wrapper">
@@ -43,8 +48,8 @@ $pdo_temp = require __DIR__ . '/../config/database.php';
         <aside class="sidebar">
             <div class="sidebar-header">
                 <a href="/index.php" class="sidebar-logo">
-                    <div class="sidebar-logo-icon">
-                        <i class="bi bi-lightning-charge-fill"></i>
+                    <div class="brand-icons">
+                        <img src="/public/assets/img/logopln.png" alt="PLN Logo">
                     </div>
                     <span class="sidebar-logo-text">PLN Inventory</span>
                 </a>

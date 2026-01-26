@@ -11,7 +11,12 @@
 <!-- Custom PLN Theme -->
 <link href="/public/assets/css/custom.css" rel="stylesheet">
 <!-- Favicon PLN -->
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>">
+<link rel="icon" href="/public/assets/img/logopln.png">
+<style>
+	.brand-icons{display:flex;align-items:center;gap:0.5rem}
+	.brand-icons img{width:28px;height:28px;object-fit:contain}
+	.brand-icons img.danantara{width:36px;height:36px}
+</style>
 </head>
 <body>
 <?php require __DIR__ . '/navbar.php'; ?>

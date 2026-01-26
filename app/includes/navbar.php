@@ -1,7 +1,11 @@
 <nav class="navbar navbar-expand-lg navbar-dark">
   <div class="container-fluid">
     <a class="navbar-brand" href="/index.php">
-      <span class="brand-icon">⚡</span> PLN Inventory
+      <span class="brand-icons">
+        <img src="/public/assets/img/logopln.png" alt="PLN Logo" />
+        <img src="/public/assets/img/danantara.png" alt="Danantara Logo" class="danantara" />
+      </span>
+      &nbsp;PLN Inventory
     </a>
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarMain">
       <span class="navbar-toggler-icon"></span>
