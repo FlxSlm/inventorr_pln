@@ -40,7 +40,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <title>Daftar - PLN Inventory System</title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>">
+<link rel="icon" href="/public/assets/img/logopln.png">
 <style>
 :root {
     --primary-dark: #0d4f5c;
@@ -156,11 +156,50 @@ body::before {
 }
 
 .brand-icon {
-    font-size: 4rem;
+    font-size: 6rem;
     margin-bottom: 1.5rem;
     position: relative;
     z-index: 1;
     animation: glow 2s ease-in-out infinite;
+}
+
+.brand-icon img {
+    width: 6rem;
+    height: 6rem;
+    object-fit: contain;
+}
+
+.mobile-brand .brand-icon img {
+    width: 4rem;
+    height: 4rem;
+}
+
+.brand-icons {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
+}
+
+.brand-icons .brand-icon img {
+    width: 6rem;
+    height: 6rem;
+}
+
+.mobile-brand .brand-icons .brand-icon img {
+    width: 4rem;
+    height: 4rem;
+}
+
+/* Larger Danantara logo */
+.brand-icon.danantara img {
+    width: 10rem;
+    height: 10rem;
+}
+
+.mobile-brand .brand-icon.danantara img {
+    width: 6rem;
+    height: 6rem;
 }
 
 @keyframes glow {
@@ -406,7 +445,10 @@ body::before {
     <div class="register-card">
         <div class="row g-0">
             <div class="col-md-5 register-left">
-                <div class="brand-icon">⚡</div>
+                <div class="brand-icons">
+                    <div class="brand-icon"><img src="/public/assets/img/logopln.png" alt="PLN Logo"></div>
+                    <div class="brand-icon danantara"><img src="/public/assets/img/danantara.png" alt="Danantara Logo"></div>
+                </div>
                 <h2>PLN Inventory</h2>
                 <p>Bergabung dengan sistem manajemen inventaris terpadu</p>
                 
@@ -440,7 +482,10 @@ body::before {
             
             <div class="col-md-7 register-right">
                 <div class="mobile-brand">
-                    <div class="brand-icon">⚡</div>
+                    <div class="brand-icons">
+                        <div class="brand-icon"><img src="/public/assets/img/logopln.png" alt="PLN Logo"></div>
+                        <div class="brand-icon danantara"><img src="/public/assets/img/danantara.png" alt="Danantara Logo"></div>
+                    </div>
                     <h4>PLN Inventory</h4>
                 </div>
                 
