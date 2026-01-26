@@ -243,8 +243,8 @@ foreach ($loans as $l) {
                         <?php elseif($l['stage'] === 'submitted'): ?>
                         <div class="d-flex gap-1 flex-wrap">
                             <?php if(!empty($l['document_path'])): ?>
-                            <a class="btn btn-secondary btn-sm" href="/public/<?= htmlspecialchars($l['document_path']) ?>" target="_blank">
-                                <i class="bi bi-download"></i>
+                            <a class="btn-download-doc btn-sm" href="/public/<?= htmlspecialchars($l['document_path']) ?>" target="_blank">
+                                <i class="bi bi-file-earmark-arrow-down"></i> Dokumen
                             </a>
                             <?php endif; ?>
                             <form method="POST" action="/index.php?page=final_approve" style="display:inline;">

@@ -116,8 +116,8 @@ $stageLabels = [
                                 <i class="bi bi-upload me-1"></i>Upload
                             </a>
                             <?php elseif ($stage === 'rejected' && $r['rejection_note']): ?>
-                            <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="tooltip" title="<?= htmlspecialchars($r['rejection_note']) ?>">
-                                <i class="bi bi-info-circle"></i> Alasan
+                            <button type="button" class="btn-alasan" data-bs-toggle="modal" data-bs-target="#rejectionModal<?= $r['id'] ?>">
+                                <i class="bi bi-exclamation-circle"></i> Alasan
                             </button>
                             <?php else: ?>
                             <span class="text-muted">-</span>
@@ -131,6 +131,52 @@ $stageLabels = [
         <?php endif; ?>
     </div>
 </div>
+
+<!-- Rejection Modals -->
+<?php foreach($requests as $r): ?>
+<?php if ($r['stage'] === 'rejected' && !empty($r['rejection_note'])): ?>
+<div class="modal fade" id="rejectionModal<?= $r['id'] ?>" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header border-0">
+        <h5 class="modal-title">
+          <i class="bi bi-x-circle text-danger me-2"></i>Permintaan Ditolak
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="d-flex align-items-center mb-3 p-3 rounded" style="background: var(--bg-main);">
+          <?php if($r['inventory_image']): ?>
+          <img src="/public/assets/uploads/<?= htmlspecialchars($r['inventory_image']) ?>" 
+               class="rounded me-3" style="width: 50px; height: 50px; object-fit: cover;">
+          <?php else: ?>
+          <div class="rounded me-3 d-flex align-items-center justify-content-center" 
+               style="width: 50px; height: 50px; background: var(--bg-tertiary);">
+              <i class="bi bi-box-seam text-muted"></i>
+          </div>
+          <?php endif; ?>
+          <div>
+              <div class="fw-semibold"><?= htmlspecialchars($r['inventory_name']) ?></div>
+              <small class="text-muted"><?= (int)$r['quantity'] ?> unit</small>
+          </div>
+        </div>
+        
+        <div class="rejection-reason-box">
+          <div class="reason-label"><i class="bi bi-exclamation-triangle me-1"></i>Alasan Penolakan</div>
+          <p class="reason-text"><?= nl2br(htmlspecialchars($r['rejection_note'])) ?></p>
+        </div>
+      </div>
+      <div class="modal-footer border-0">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Tutup</button>
+        <a href="/index.php?page=user_request_item" class="btn btn-primary">
+          <i class="bi bi-plus-lg me-1"></i>Ajukan Baru
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+<?php endif; ?>
+<?php endforeach; ?>
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {

@@ -425,7 +425,11 @@ $completedLoans = count(array_filter($loans, fn($l) => ($l['return_stage'] ?? 'n
                             <span class="badge bg-<?= $stageInfo[1] ?>">
                                 <i class="bi bi-<?= $stageInfo[2] ?> me-1"></i><?= $stageInfo[0] ?>
                             </span>
-                            <?php if ($l['note']): ?>
+                            <?php if ($l['stage'] === 'rejected' && !empty($l['rejection_note'])): ?>
+                            <button type="button" class="btn-alasan ms-1" data-bs-toggle="modal" data-bs-target="#rejectionModal<?= $l['id'] ?>">
+                                <i class="bi bi-exclamation-circle"></i> Alasan
+                            </button>
+                            <?php elseif ($l['note']): ?>
                             <i class="bi bi-info-circle ms-1 text-muted" 
                                data-bs-toggle="tooltip" 
                                title="<?= htmlspecialchars($l['note']) ?>"></i>
@@ -451,8 +455,8 @@ $completedLoans = count(array_filter($loans, fn($l) => ($l['return_stage'] ?? 'n
                             <?php elseif ($l['stage'] === 'submitted' && $isAdmin): ?>
                             <div class="btn-group btn-group-sm">
                                 <?php if ($l['document_path']): ?>
-                                <a class="btn btn-outline-info" href="/public/<?= htmlspecialchars($l['document_path']) ?>" target="_blank" title="Download">
-                                    <i class="bi bi-download"></i>
+                                <a class="btn-download-doc btn-sm" href="/public/<?= htmlspecialchars($l['document_path']) ?>" target="_blank">
+                                    <i class="bi bi-file-earmark-arrow-down"></i>
                                 </a>
                                 <?php endif; ?>
                                 <form method="POST" class="d-inline" onsubmit="return confirm('Setujui peminjaman ini?');">
@@ -682,6 +686,50 @@ $completedLoans = count(array_filter($loans, fn($l) => ($l['return_stage'] ?? 'n
             </button>
           </div>
         </form>
+      </div>
+    </div>
+  </div>
+  <?php endif; ?>
+  
+  <!-- Rejection Reason Modal -->
+  <?php if ($l['stage'] === 'rejected' && !empty($l['rejection_note'])): ?>
+  <div class="modal fade" id="rejectionModal<?= $l['id'] ?>" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header border-0">
+          <h5 class="modal-title">
+            <i class="bi bi-x-circle text-danger me-2"></i>Peminjaman Ditolak
+          </h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="d-flex align-items-center mb-3 p-3 rounded" style="background: var(--bg-main);">
+            <?php if($l['inventory_image']): ?>
+            <img src="/public/assets/uploads/<?= htmlspecialchars($l['inventory_image']) ?>" 
+                 class="rounded me-3" style="width: 50px; height: 50px; object-fit: cover;">
+            <?php else: ?>
+            <div class="rounded me-3 d-flex align-items-center justify-content-center" 
+                 style="width: 50px; height: 50px; background: var(--bg-tertiary);">
+                <i class="bi bi-box-seam text-muted"></i>
+            </div>
+            <?php endif; ?>
+            <div>
+                <div class="fw-semibold"><?= htmlspecialchars($l['inventory_name']) ?></div>
+                <small class="text-muted"><?= (int)$l['quantity'] ?> unit</small>
+            </div>
+          </div>
+          
+          <div class="rejection-reason-box">
+            <div class="reason-label"><i class="bi bi-exclamation-triangle me-1"></i>Alasan Penolakan</div>
+            <p class="reason-text"><?= nl2br(htmlspecialchars($l['rejection_note'])) ?></p>
+          </div>
+        </div>
+        <div class="modal-footer border-0">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Tutup</button>
+          <a href="/index.php?page=user_request_loan" class="btn btn-primary">
+            <i class="bi bi-plus-lg me-1"></i>Ajukan Baru
+          </a>
+        </div>
       </div>
     </div>
   </div>

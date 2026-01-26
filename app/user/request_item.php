@@ -109,8 +109,9 @@ if ($preSelectedItem) {
                     <div id="itemPreview" class="mb-4" style="display: <?= $preSelectedDetails ? 'block' : 'none' ?>;">
                         <div class="p-3 rounded" style="background: var(--bg-main); border: 1px solid var(--border-color);">
                             <div class="d-flex align-items-center">
-                                <div id="previewPlaceholder" class="me-3" style="width: 60px; height: 60px; background: rgba(26, 154, 170, 0.1); border-radius: var(--radius); display: flex; align-items: center; justify-content: center;">
-                                    <i class="bi bi-box-seam" style="font-size: 24px; color: var(--primary-light);"></i>
+                                <div id="previewPlaceholder" class="me-3" style="width: 80px; height: 80px; background: rgba(26, 154, 170, 0.1); border-radius: var(--radius); display: flex; align-items: center; justify-content: center; overflow: hidden;">
+                                    <i class="bi bi-box-seam" style="font-size: 32px; color: var(--primary-light);" id="previewIcon"></i>
+                                    <img id="previewImage" src="" alt="" style="width: 100%; height: 100%; object-fit: cover; display: none; border-radius: var(--radius);">
                                 </div>
                                 <div>
                                     <div class="text-muted small">Barang yang dipilih:</div>
@@ -281,6 +282,7 @@ document.addEventListener('DOMContentLoaded', function() {
     function updatePreview(selected) {
         if (selected && selected.value) {
             const stock = parseInt(selected.dataset.stock);
+            const image = selected.dataset.image;
             maxStock = stock;
             preview.style.display = 'block';
             previewName.textContent = selected.text.split(' (')[0];
@@ -288,6 +290,18 @@ document.addEventListener('DOMContentLoaded', function() {
             previewStock.innerHTML = '<span class="badge bg-info">Total: ' + stock + ' unit</span>';
             stockHint.textContent = 'Maksimal permintaan: ' + stock + ' unit';
             quantityInput.max = stock;
+            
+            // Show image or icon
+            const previewIcon = document.getElementById('previewIcon');
+            const previewImage = document.getElementById('previewImage');
+            if (image && image.trim() !== '') {
+                previewIcon.style.display = 'none';
+                previewImage.src = '/public/assets/uploads/' + image;
+                previewImage.style.display = 'block';
+            } else {
+                previewIcon.style.display = 'block';
+                previewImage.style.display = 'none';
+            }
         } else {
             preview.style.display = 'none';
             stockHint.textContent = 'Pilih barang terlebih dahulu';

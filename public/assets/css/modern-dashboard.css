@@ -2123,3 +2123,88 @@ textarea.form-control {
     font-size: 20px !important;
     color: #fff !important;
 }
+
+/* ===== DOCUMENT DOWNLOAD BUTTON ===== */
+.btn-download-doc {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    background: linear-gradient(135deg, var(--info) 0%, #2563eb 100%);
+    color: #fff !important;
+    border: none;
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    font-weight: 500;
+    text-decoration: none;
+    transition: var(--transition);
+    box-shadow: 0 2px 4px rgba(59, 130, 246, 0.3);
+}
+
+.btn-download-doc:hover {
+    background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(59, 130, 246, 0.4);
+    color: #fff !important;
+}
+
+.btn-download-doc i {
+    font-size: 14px;
+}
+
+.btn-download-doc.btn-sm {
+    padding: 4px 10px;
+    font-size: 12px;
+}
+
+.btn-download-doc.btn-sm i {
+    font-size: 12px;
+}
+
+/* ===== REJECTION REASON MODAL ===== */
+.rejection-reason-box {
+    background: linear-gradient(135deg, var(--danger-light) 0%, #fff5f5 100%);
+    border: 1px solid rgba(239, 68, 68, 0.2);
+    border-left: 4px solid var(--danger);
+    border-radius: var(--radius);
+    padding: 16px;
+    margin-top: 12px;
+}
+
+.rejection-reason-box .reason-label {
+    font-size: 12px;
+    color: var(--danger);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 8px;
+}
+
+.rejection-reason-box .reason-text {
+    color: var(--text-dark);
+    font-size: 14px;
+    line-height: 1.6;
+    margin: 0;
+}
+
+/* Alasan Button for rejected items */
+.btn-alasan {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    background: var(--danger-light);
+    color: var(--danger) !important;
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    border-radius: var(--radius-sm);
+    font-size: 12px;
+    font-weight: 500;
+    text-decoration: none;
+    transition: var(--transition);
+}
+
+.btn-alasan:hover {
+    background: var(--danger);
+    color: #fff !important;
+    border-color: var(--danger);
+}

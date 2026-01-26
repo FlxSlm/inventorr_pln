@@ -329,8 +329,8 @@ $stageLabels = [
                                 </button>
                                 <?php endif; ?>
                                 <?php if ($r['document_path']): ?>
-                                <a class="btn btn-outline-info" href="/public/assets/<?= htmlspecialchars($r['document_path']) ?>" target="_blank" title="Lihat Dokumen">
-                                    <i class="bi bi-download"></i>
+                                <a class="btn-download-doc btn-sm" href="/public/assets/<?= htmlspecialchars($r['document_path']) ?>" target="_blank">
+                                    <i class="bi bi-file-earmark-arrow-down"></i> Dokumen
                                 </a>
                                 <?php endif; ?>
                                 <form method="POST" class="d-inline" onsubmit="return confirm('Setujui final dan kurangi stok?');">

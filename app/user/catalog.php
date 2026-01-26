@@ -229,7 +229,7 @@ foreach ($items as $item) {
                     <a href="/index.php?page=user_request_loan&item=<?= $item['id'] ?>" class="btn btn-primary flex-grow-1">
                         <i class="bi bi-hand-index me-1"></i> Pinjam
                     </a>
-                    <a href="/index.php?page=request_item&item=<?= $item['id'] ?>" class="btn btn-success flex-grow-1">
+                    <a href="/index.php?page=user_request_item&item=<?= $item['id'] ?>" class="btn btn-success flex-grow-1">
                         <i class="bi bi-bag-plus me-1"></i> Minta
                     </a>
                     <?php else: ?>
@@ -296,19 +296,10 @@ foreach ($items as $item) {
                                     <td><strong><?= htmlspecialchars($item['year_acquired']) ?></strong></td>
                                 </tr>
                                 <?php endif; ?>
-                                <?php if (!empty($item['item_condition'])): ?>
+                                <?php if (!empty($item['year_manufactured'])): ?>
                                 <tr>
-                                    <td style="color: var(--text-muted);"><i class="bi bi-shield-check me-2"></i>Kondisi</td>
-                                    <td>
-                                        <?php 
-                                        $conditionClass = 'secondary';
-                                        if ($item['item_condition'] === 'Baik') $conditionClass = 'success';
-                                        elseif ($item['item_condition'] === 'Cukup Baik') $conditionClass = 'info';
-                                        elseif ($item['item_condition'] === 'Rusak Ringan') $conditionClass = 'warning';
-                                        elseif ($item['item_condition'] === 'Rusak Berat') $conditionClass = 'danger';
-                                        ?>
-                                        <span class="badge bg-<?= $conditionClass ?>"><?= htmlspecialchars($item['item_condition']) ?></span>
-                                    </td>
+                                    <td style="color: var(--text-muted);"><i class="bi bi-wrench me-2"></i>Tahun Pembuatan</td>
+                                    <td><strong><?= htmlspecialchars($item['year_manufactured']) ?></strong></td>
                                 </tr>
                                 <?php endif; ?>
                             </table>
@@ -343,7 +334,7 @@ foreach ($items as $item) {
                     <a href="/index.php?page=user_request_loan&item=<?= $item['id'] ?>" class="btn btn-primary">
                         <i class="bi bi-hand-index me-1"></i> Ajukan Peminjaman
                     </a>
-                    <a href="/index.php?page=request_item&item=<?= $item['id'] ?>" class="btn btn-success">
+                    <a href="/index.php?page=user_request_item&item=<?= $item['id'] ?>" class="btn btn-success">
                         <i class="bi bi-bag-plus me-1"></i> Ajukan Permintaan
                     </a>
                     <?php endif; ?>

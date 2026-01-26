@@ -49,14 +49,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $stock_available = (int)($_POST['stock_available'] ?? 0);
     $unit = trim($_POST['unit'] ?? '');
     $year_acquired = trim($_POST['year_acquired'] ?? '');
-    $item_condition = trim($_POST['item_condition'] ?? '');
+    $year_manufactured = trim($_POST['year_manufactured'] ?? '');
     $low_stock_threshold = (int)($_POST['low_stock_threshold'] ?? 5);
     $selectedCategories = $_POST['categories'] ?? [];
     
-    // Validate year if provided
-    if (!empty($year_acquired)) {
-        if (!preg_match('/^\d{4}$/', $year_acquired) || (int)$year_acquired < 1900 || (int)$year_acquired > (int)date('Y') + 1) {
-            $errors[] = 'Tahun tidak valid.';
+    // Validate year_acquired (now required)
+    if (empty($year_acquired)) {
+        $errors[] = 'Tahun perolehan wajib diisi.';
+    } elseif (!preg_match('/^\d{4}$/', $year_acquired) || (int)$year_acquired < 1900 || (int)$year_acquired > (int)date('Y') + 1) {
+        $errors[] = 'Tahun perolehan tidak valid.';
+    }
+    
+    // Validate year_manufactured if provided
+    if (!empty($year_manufactured)) {
+        if (!preg_match('/^\d{4}$/', $year_manufactured) || (int)$year_manufactured < 1900 || (int)$year_manufactured > (int)date('Y') + 1) {
+            $errors[] = 'Tahun pembuatan tidak valid.';
         }
     }
     
@@ -95,8 +102,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     
     if (empty($errors)) {
-        $stmt = $pdo->prepare('UPDATE inventories SET name=?, code=?, item_type=?, description=?, stock_total=?, stock_available=?, unit=?, year_acquired=?, item_condition=?, low_stock_threshold=?, image=?, updated_at=NOW() WHERE id=?');
-        $stmt->execute([$name, $code ?: null, $item_type ?: null, $description, $stock_total, $stock_available, $unit, $year_acquired ?: null, $item_condition ?: null, $low_stock_threshold, $imageName, $id]);
+        $stmt = $pdo->prepare('UPDATE inventories SET name=?, code=?, item_type=?, description=?, stock_total=?, stock_available=?, unit=?, year_acquired=?, year_manufactured=?, low_stock_threshold=?, image=?, updated_at=NOW() WHERE id=?');
+        $stmt->execute([$name, $code ?: null, $item_type ?: null, $description, $stock_total, $stock_available, $unit, $year_acquired ?: null, $year_manufactured ?: null, $low_stock_threshold, $imageName, $id]);
         
         $pdo->prepare('DELETE FROM inventory_categories WHERE inventory_id = ?')->execute([$id]);
         if (!empty($selectedCategories)) {
@@ -234,23 +241,20 @@ $imageDeleted = isset($_GET['msg']) && $_GET['msg'] === 'image_deleted';
                         </div>
                         <div class="col-md-4">
                             <label class="form-label fw-semibold">
-                                <i class="bi bi-calendar me-1"></i>Tahun Perolehan
+                                <i class="bi bi-calendar me-1"></i>Tahun Perolehan <span class="text-danger">*</span>
                             </label>
                             <input type="number" name="year_acquired" class="form-control" 
                                    value="<?= htmlspecialchars($item['year_acquired'] ?? '') ?>" 
-                                   placeholder="Contoh: 2024" min="1900" max="<?= date('Y') + 1 ?>">
+                                   placeholder="Contoh: 2024" min="1900" max="<?= date('Y') + 1 ?>" required>
                         </div>
                         <div class="col-md-4">
                             <label class="form-label fw-semibold">
-                                <i class="bi bi-shield-check me-1"></i>Kondisi Barang
+                                <i class="bi bi-wrench me-1"></i>Tahun Pembuatan
                             </label>
-                            <select name="item_condition" class="form-select">
-                                <option value="">-- Pilih Kondisi --</option>
-                                <option value="Baik" <?= ($item['item_condition'] ?? '') === 'Baik' ? 'selected' : '' ?>>Baik</option>
-                                <option value="Cukup Baik" <?= ($item['item_condition'] ?? '') === 'Cukup Baik' ? 'selected' : '' ?>>Cukup Baik</option>
-                                <option value="Rusak Ringan" <?= ($item['item_condition'] ?? '') === 'Rusak Ringan' ? 'selected' : '' ?>>Rusak Ringan</option>
-                                <option value="Rusak Berat" <?= ($item['item_condition'] ?? '') === 'Rusak Berat' ? 'selected' : '' ?>>Rusak Berat</option>
-                            </select>
+                            <input type="number" name="year_manufactured" class="form-control" 
+                                   value="<?= htmlspecialchars($item['year_manufactured'] ?? '') ?>" 
+                                   placeholder="Contoh: 2023" min="1900" max="<?= date('Y') + 1 ?>">
+                            <small class="text-muted">Tahun barang diproduksi (opsional)</small>
                         </div>
                     </div>
                     

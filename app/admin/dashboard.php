@@ -37,11 +37,16 @@ $stmt = $pdo->query("
 ");
 $recentLoans = $stmt->fetchAll();
 
-// Top borrowed items (for chart)
+// Top borrowed items (for chart) - Only count approved loans (stage 2 validation completed)
+// Also fetch category color for each item
 $topBorrowed = $pdo->query("
-  SELECT i.name, COUNT(l.id) as borrow_count, SUM(l.quantity) as total_qty
+  SELECT i.name, i.id as inventory_id, COUNT(l.id) as borrow_count, SUM(l.quantity) as total_qty,
+         (SELECT c.color FROM inventory_categories ic 
+          JOIN categories c ON c.id = ic.category_id 
+          WHERE ic.inventory_id = i.id LIMIT 1) as category_color
   FROM loans l
   JOIN inventories i ON i.id = l.inventory_id
+  WHERE l.stage = 'approved' OR l.status = 'returned'
   GROUP BY l.inventory_id
   ORDER BY borrow_count DESC
   LIMIT 7
@@ -49,18 +54,24 @@ $topBorrowed = $pdo->query("
 
 $chartLabels = [];
 $chartData = [];
+$chartColors = [];
 foreach ($topBorrowed as $item) {
     $chartLabels[] = $item['name'];
     $chartData[] = (int)$item['borrow_count'];
+    $chartColors[] = $item['category_color'] ?: '#1a9aaa'; // Default teal if no category
 }
 
-// Top requested items (permanent requests)
+// Top requested items (permanent requests) - Only count approved requests
 $topRequested = [];
 try {
     $topRequested = $pdo->query("
-      SELECT i.name, COUNT(r.id) as request_count, SUM(r.quantity) as total_qty
+      SELECT i.name, i.id as inventory_id, COUNT(r.id) as request_count, SUM(r.quantity) as total_qty,
+             (SELECT c.color FROM inventory_categories ic 
+              JOIN categories c ON c.id = ic.category_id 
+              WHERE ic.inventory_id = i.id LIMIT 1) as category_color
       FROM requests r
       JOIN inventories i ON i.id = r.inventory_id
+      WHERE r.stage = 'approved'
       GROUP BY r.inventory_id
       ORDER BY request_count DESC
       LIMIT 7
@@ -69,9 +80,11 @@ try {
 
 $requestChartLabels = [];
 $requestChartData = [];
+$requestChartColors = [];
 foreach ($topRequested as $item) {
     $requestChartLabels[] = $item['name'];
     $requestChartData[] = (int)$item['request_count'];
+    $requestChartColors[] = $item['category_color'] ?: '#f59e0b'; // Default amber if no category
 }
 
 // Low stock items - using per-item threshold
@@ -480,26 +493,23 @@ document.addEventListener('DOMContentLoaded', function() {
     const requestLabels = <?= json_encode($requestChartLabels) ?>;
     const requestData = <?= json_encode($requestChartData) ?>;
 
-    // Chart colors
-    const borrowColors = [
-        'rgba(10, 107, 124, 0.85)',
-        'rgba(26, 154, 170, 0.85)',
-        'rgba(45, 212, 191, 0.85)',
-        'rgba(20, 184, 166, 0.85)',
-        'rgba(13, 148, 136, 0.85)',
-        'rgba(6, 95, 70, 0.85)',
-        'rgba(4, 120, 87, 0.85)'
-    ];
+    // Chart colors from category colors
+    const borrowColors = <?= json_encode($chartColors) ?>.map(c => {
+        // Convert hex to rgba with opacity
+        const hex = c.replace('#', '');
+        const r = parseInt(hex.substring(0, 2), 16);
+        const g = parseInt(hex.substring(2, 4), 16);
+        const b = parseInt(hex.substring(4, 6), 16);
+        return `rgba(${r}, ${g}, ${b}, 0.85)`;
+    });
     
-    const requestColors = [
-        'rgba(245, 158, 11, 0.85)',
-        'rgba(251, 191, 36, 0.85)',
-        'rgba(252, 211, 77, 0.85)',
-        'rgba(234, 179, 8, 0.85)',
-        'rgba(202, 138, 4, 0.85)',
-        'rgba(161, 98, 7, 0.85)',
-        'rgba(133, 77, 14, 0.85)'
-    ];
+    const requestColors = <?= json_encode($requestChartColors) ?>.map(c => {
+        const hex = c.replace('#', '');
+        const r = parseInt(hex.substring(0, 2), 16);
+        const g = parseInt(hex.substring(2, 4), 16);
+        const b = parseInt(hex.substring(4, 6), 16);
+        return `rgba(${r}, ${g}, ${b}, 0.85)`;
+    });
 
     let topBorrowedChart = null;
     let topRequestedChart = null;
@@ -519,8 +529,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 datasets: [{
                     label: 'Jumlah Peminjaman',
                     data: borrowData,
-                    backgroundColor: type === 'bar' ? 'rgba(26, 154, 170, 0.85)' : borrowColors,
-                    borderColor: type === 'bar' ? 'rgba(10, 107, 124, 1)' : borrowColors.map(c => c.replace('0.85', '1')),
+                    backgroundColor: borrowColors,
+                    borderColor: borrowColors.map(c => c.replace('0.85', '1')),
                     borderWidth: type === 'bar' ? 0 : 2,
                     borderRadius: type === 'bar' ? 8 : 0
                 }]
@@ -556,8 +566,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 datasets: [{
                     label: 'Jumlah Permintaan',
                     data: requestData,
-                    backgroundColor: type === 'bar' ? 'rgba(245, 158, 11, 0.85)' : requestColors,
-                    borderColor: type === 'bar' ? 'rgba(202, 138, 4, 1)' : requestColors.map(c => c.replace('0.85', '1')),
+                    backgroundColor: requestColors,
+                    borderColor: requestColors.map(c => c.replace('0.85', '1')),
                     borderWidth: type === 'bar' ? 0 : 2,
                     borderRadius: type === 'bar' ? 8 : 0
                 }]

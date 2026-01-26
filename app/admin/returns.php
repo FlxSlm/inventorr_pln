@@ -364,8 +364,8 @@ $returnStageLabels = [
                                 </button>
                                 <?php endif; ?>
                                 <?php if ($l['return_document_path']): ?>
-                                <a class="btn btn-outline-info" href="/public/<?= htmlspecialchars($l['return_document_path']) ?>" target="_blank" title="Download">
-                                    <i class="bi bi-download"></i>
+                                <a class="btn-download-doc btn-sm" href="/public/<?= htmlspecialchars($l['return_document_path']) ?>" target="_blank">
+                                    <i class="bi bi-file-earmark-arrow-down"></i> Dokumen
                                 </a>
                                 <?php endif; ?>
                                 <form method="POST" class="d-inline" onsubmit="return confirm('Setujui pengembalian final dan kembalikan stok?');">

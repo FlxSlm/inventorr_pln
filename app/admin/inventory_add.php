@@ -13,22 +13,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $stock_total = (int)($_POST['stock_total'] ?? 0);
     $unit = trim($_POST['unit'] ?? '');
     $year_acquired = trim($_POST['year_acquired'] ?? '');
-    $item_condition = trim($_POST['item_condition'] ?? '');
+    $year_manufactured = trim($_POST['year_manufactured'] ?? '');
     $low_stock_threshold = (int)($_POST['low_stock_threshold'] ?? 5);
     $selectedCategories = $_POST['categories'] ?? [];
     
     // Validation
     if (empty($name)) $errors[] = 'Nama barang wajib diisi.';
+    if (empty($year_acquired)) $errors[] = 'Tahun perolehan wajib diisi.';
     
     // Require at least one category if categories exist
     if (!empty($categories) && empty($selectedCategories)) {
         $errors[] = 'Pilih minimal satu kategori untuk barang ini.';
     }
     
-    // Validate year if provided
+    // Validate year_acquired
     if (!empty($year_acquired)) {
         if (!preg_match('/^\d{4}$/', $year_acquired) || (int)$year_acquired < 1900 || (int)$year_acquired > (int)date('Y') + 1) {
-            $errors[] = 'Tahun tidak valid.';
+            $errors[] = 'Tahun perolehan tidak valid.';
+        }
+    }
+    
+    // Validate year_manufactured if provided
+    if (!empty($year_manufactured)) {
+        if (!preg_match('/^\d{4}$/', $year_manufactured) || (int)$year_manufactured < 1900 || (int)$year_manufactured > (int)date('Y') + 1) {
+            $errors[] = 'Tahun pembuatan tidak valid.';
         }
     }
     
@@ -74,8 +82,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     
     if (empty($errors)) {
-        $stmt = $pdo->prepare('INSERT INTO inventories (name, code, item_type, description, stock_total, stock_available, unit, year_acquired, item_condition, low_stock_threshold, image) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
-        $stmt->execute([$name, $code ?: null, $item_type ?: null, $description, $stock_total, $stock_total, $unit, $year_acquired ?: null, $item_condition ?: null, $low_stock_threshold, $imageName]);
+        $stmt = $pdo->prepare('INSERT INTO inventories (name, code, item_type, description, stock_total, stock_available, unit, year_acquired, year_manufactured, low_stock_threshold, image) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+        $stmt->execute([$name, $code ?: null, $item_type ?: null, $description, $stock_total, $stock_total, $unit, $year_acquired ?: null, $year_manufactured ?: null, $low_stock_threshold, $imageName]);
         $inventoryId = $pdo->lastInsertId();
         
         // Save categories
@@ -141,19 +149,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     
                     <div class="row">
                         <div class="col-md-6 mb-3">
-                            <label class="form-label"><i class="bi bi-calendar me-1"></i> Tahun Perolehan</label>
-                            <input type="number" name="year_acquired" class="form-control" placeholder="Contoh: 2024" min="1900" max="<?= date('Y') + 1 ?>">
+                            <label class="form-label"><i class="bi bi-calendar me-1"></i> Tahun Perolehan <span class="text-danger">*</span></label>
+                            <input type="number" name="year_acquired" class="form-control" placeholder="Contoh: 2024" min="1900" max="<?= date('Y') + 1 ?>" required>
                             <small class="text-muted">Tahun barang diperoleh/dibeli</small>
                         </div>
                         <div class="col-md-6 mb-3">
-                            <label class="form-label"><i class="bi bi-shield-check me-1"></i> Kondisi Barang</label>
-                            <select name="item_condition" class="form-select">
-                                <option value="">-- Pilih Kondisi --</option>
-                                <option value="Baik">Baik</option>
-                                <option value="Cukup Baik">Cukup Baik</option>
-                                <option value="Rusak Ringan">Rusak Ringan</option>
-                                <option value="Rusak Berat">Rusak Berat</option>
-                            </select>
+                            <label class="form-label"><i class="bi bi-wrench me-1"></i> Tahun Pembuatan</label>
+                            <input type="number" name="year_manufactured" class="form-control" placeholder="Contoh: 2023" min="1900" max="<?= date('Y') + 1 ?>">
+                            <small class="text-muted">Tahun barang diproduksi (opsional)</small>
                         </div>
                     </div>
                     

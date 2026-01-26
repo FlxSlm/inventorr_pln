@@ -1,5 +1,5 @@
 <?php
-// app/user/request_loan_new.php - Modern Request Loan Page
+// app/user/request_loan.php - Modern Request Loan Page with Multi-Item Support
 if (!isset($_SESSION['user'])) {
     header('Location: /index.php?page=login');
     exit;
@@ -20,35 +20,59 @@ $errors = [];
 $success = false;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $inventory_id = (int)($_POST['inventory_id'] ?? 0);
-    $quantity = (int)($_POST['quantity'] ?? 0);
+    // Multi-item support
+    $items = $_POST['items'] ?? [];
     $note = trim($_POST['note'] ?? '');
-
-    if ($inventory_id <= 0 || $quantity <= 0) {
-        $errors[] = 'Pilih barang dan masukkan jumlah yang valid.';
+    
+    // Validate items
+    if (empty($items) || !is_array($items)) {
+        $errors[] = 'Pilih minimal satu barang untuk dipinjam.';
     } else {
-        // Check inventory exists
-        $stmt = $pdo->prepare('SELECT * FROM inventories WHERE id = ? AND deleted_at IS NULL');
-        $stmt->execute([$inventory_id]);
-        $inv = $stmt->fetch();
-        if (!$inv) {
-            $errors[] = 'Barang tidak ditemukan.';
-        } elseif ($inv['stock_available'] < $quantity) {
-            $errors[] = 'Stok tidak cukup (tersedia: ' . $inv['stock_available'] . ').';
-        }
-    }
-
-    if (empty($errors)) {
-        $stmt = $pdo->prepare('INSERT INTO loans (inventory_id, user_id, quantity, note) VALUES (?, ?, ?, ?)');
-        $stmt->execute([$inventory_id, $userId, $quantity, $note]);
-        $redirectUrl = '/index.php?page=history&msg=' . urlencode('Request submitted');
-        if (!headers_sent()) {
-            header('Location: ' . $redirectUrl);
-            exit;
-        } else {
-            echo '<script>window.location.href = ' . json_encode($redirectUrl) . ';</script>';
-            echo '<noscript><meta http-equiv="refresh" content="0;url=' . htmlspecialchars($redirectUrl, ENT_QUOTES) . '"></noscript>';
-            exit;
+        // Generate group_id for multi-item transactions
+        $groupId = count($items) > 1 ? bin2hex(random_bytes(16)) : null;
+        
+        $pdo->beginTransaction();
+        try {
+            foreach ($items as $item) {
+                $inventory_id = (int)($item['id'] ?? 0);
+                $quantity = (int)($item['qty'] ?? 0);
+                
+                if ($inventory_id <= 0 || $quantity <= 0) {
+                    throw new Exception('Data barang tidak valid.');
+                }
+                
+                // Check inventory exists
+                $stmt = $pdo->prepare('SELECT * FROM inventories WHERE id = ? AND deleted_at IS NULL FOR UPDATE');
+                $stmt->execute([$inventory_id]);
+                $inv = $stmt->fetch();
+                
+                if (!$inv) {
+                    throw new Exception('Barang "' . ($item['name'] ?? 'Unknown') . '" tidak ditemukan.');
+                }
+                if ($inv['stock_available'] < $quantity) {
+                    throw new Exception('Stok "' . $inv['name'] . '" tidak cukup (tersedia: ' . $inv['stock_available'] . ').');
+                }
+                
+                // Insert loan with group_id
+                $stmt = $pdo->prepare('INSERT INTO loans (group_id, inventory_id, user_id, quantity, note) VALUES (?, ?, ?, ?, ?)');
+                $stmt->execute([$groupId, $inventory_id, $userId, $quantity, $note]);
+            }
+            
+            $pdo->commit();
+            $itemCount = count($items);
+            $msg = $itemCount > 1 ? "Peminjaman $itemCount barang berhasil diajukan" : 'Peminjaman berhasil diajukan';
+            
+            $redirectUrl = '/index.php?page=history&msg=' . urlencode($msg);
+            if (!headers_sent()) {
+                header('Location: ' . $redirectUrl);
+                exit;
+            } else {
+                echo '<script>window.location.href = ' . json_encode($redirectUrl) . ';</script>';
+                exit;
+            }
+        } catch (Exception $e) {
+            $pdo->rollBack();
+            $errors[] = $e->getMessage();
         }
     }
 }
@@ -75,7 +99,7 @@ if ($preSelectedItem) {
         <h1 class="page-title">
             <i class="bi bi-plus-circle me-2"></i>Ajukan Peminjaman
         </h1>
-        <p class="text-muted mb-0">Isi formulir untuk mengajukan peminjaman barang</p>
+        <p class="text-muted mb-0">Tambahkan satu atau lebih barang untuk dipinjam sekaligus</p>
     </div>
     <a href="/index.php?page=catalog" class="btn btn-outline-secondary">
         <i class="bi bi-arrow-left me-2"></i>Kembali
@@ -86,10 +110,11 @@ if ($preSelectedItem) {
     <div class="col-lg-8">
         <!-- Main Form Card -->
         <div class="card">
-            <div class="card-header">
+            <div class="card-header d-flex justify-content-between align-items-center">
                 <h5 class="card-title mb-0">
-                    <i class="bi bi-file-text me-2"></i>Form Peminjaman
+                    <i class="bi bi-cart-plus me-2"></i>Keranjang Peminjaman
                 </h5>
+                <span class="badge bg-primary" id="cartCount">0 barang</span>
             </div>
             <div class="card-body">
                 <?php foreach($errors as $e): ?>
@@ -99,101 +124,64 @@ if ($preSelectedItem) {
                 </div>
                 <?php endforeach; ?>
 
+                <!-- Item Selection -->
+                <div class="mb-4 p-3 rounded" style="background: var(--bg-main); border: 1px solid var(--border-color);">
+                    <h6 class="fw-semibold mb-3"><i class="bi bi-plus-circle me-2"></i>Tambah Barang</h6>
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Pilih Barang</label>
+                            <select id="itemSelect" class="form-select">
+                                <option value="">Ketik untuk mencari barang...</option>
+                                <?php foreach($items as $it): ?>
+                                <option value="<?= $it['id'] ?>" 
+                                        data-stock="<?= $it['stock_available'] ?>"
+                                        data-image="<?= htmlspecialchars($it['image'] ?? '') ?>"
+                                        data-code="<?= htmlspecialchars($it['code'] ?? '') ?>"
+                                        data-name="<?= htmlspecialchars($it['name']) ?>">
+                                    <?= htmlspecialchars($it['name']) ?> (<?= htmlspecialchars($it['code']) ?>) - Stok: <?= $it['stock_available'] ?>
+                                </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Jumlah</label>
+                            <input type="number" id="qtyInput" class="form-control" value="1" min="1">
+                        </div>
+                        <div class="col-md-3 d-flex align-items-end">
+                            <button type="button" id="addToCartBtn" class="btn btn-primary w-100" disabled>
+                                <i class="bi bi-plus-lg me-1"></i>Tambah
+                            </button>
+                        </div>
+                    </div>
+                    <small class="text-muted mt-2 d-block" id="stockHint">Pilih barang untuk melihat stok tersedia</small>
+                </div>
+
+                <!-- Cart Items List -->
+                <div id="cartContainer" style="display: none;">
+                    <h6 class="fw-semibold mb-3"><i class="bi bi-bag me-2"></i>Daftar Barang</h6>
+                    <div id="cartItems" class="mb-4">
+                        <!-- Cart items will be added here dynamically -->
+                    </div>
+                </div>
+
                 <form method="POST" id="loanForm">
-                    <!-- Single Searchable Item Selection -->
-                    <div class="mb-4">
-                        <label class="form-label fw-semibold">
-                            <i class="bi bi-box-seam me-1"></i>Pilih Barang <span class="text-danger">*</span>
-                        </label>
-                        <select name="inventory_id" class="form-select form-select-lg" required id="itemSelect">
-                            <option value="">Ketik untuk mencari barang...</option>
-                            <?php foreach($items as $it): ?>
-                            <option value="<?= $it['id'] ?>" 
-                                    data-stock="<?= $it['stock_available'] ?>"
-                                    data-image="<?= htmlspecialchars($it['image'] ?? '') ?>"
-                                    data-code="<?= htmlspecialchars($it['code'] ?? '') ?>"
-                                    data-name="<?= htmlspecialchars($it['name']) ?>"
-                                    <?= $preSelectedItem == $it['id'] ? 'selected' : '' ?>>
-                                <?= htmlspecialchars($it['name']) ?> (<?= htmlspecialchars($it['code']) ?>) - Tersedia: <?= $it['stock_available'] ?>
-                            </option>
-                            <?php endforeach; ?>
-                        </select>
-                        <small class="text-muted"><i class="bi bi-info-circle me-1"></i>Klik dan ketik nama atau kode barang untuk mencari</small>
-                    </div>
-
-                    <!-- Item Preview -->
-                    <div id="itemPreview" class="mb-4" style="display: <?= $preSelectedDetails ? 'block' : 'none' ?>;">
-                        <div class="item-preview-card">
-                            <div class="d-flex align-items-center">
-                                <?php if($preSelectedDetails && $preSelectedDetails['image']): ?>
-                                <img id="previewImage" 
-                                     src="/public/assets/uploads/<?= htmlspecialchars($preSelectedDetails['image']) ?>" 
-                                     alt="" class="preview-img">
-                                <div id="previewPlaceholder" class="preview-placeholder" style="display: none;">
-                                    <i class="bi bi-box-seam"></i>
-                                </div>
-                                <?php else: ?>
-                                <img id="previewImage" src="" alt="" class="preview-img" style="display: none;">
-                                <div id="previewPlaceholder" class="preview-placeholder">
-                                    <i class="bi bi-box-seam"></i>
-                                </div>
-                                <?php endif; ?>
-                                <div class="preview-info">
-                                    <div class="text-muted small mb-1">Barang yang dipilih:</div>
-                                    <div id="previewName" class="fw-bold text-primary fs-5">
-                                        <?= $preSelectedDetails ? htmlspecialchars($preSelectedDetails['name']) : '' ?>
-                                    </div>
-                                    <div id="previewCode" class="text-muted small">
-                                        <?= $preSelectedDetails ? htmlspecialchars($preSelectedDetails['code']) : '' ?>
-                                    </div>
-                                    <div id="previewStock" class="mt-1">
-                                        <?php if($preSelectedDetails): ?>
-                                        <span class="badge bg-success">
-                                            <i class="bi bi-check-circle me-1"></i>Tersedia: <?= $preSelectedDetails['stock_available'] ?> unit
-                                        </span>
-                                        <?php endif; ?>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Quantity -->
-                    <div class="mb-4">
-                        <label class="form-label fw-semibold">
-                            <i class="bi bi-123 me-1"></i>Jumlah yang Dipinjam <span class="text-danger">*</span>
-                        </label>
-                        <div class="input-group">
-                            <button type="button" class="btn btn-outline-secondary" id="decreaseQty">
-                                <i class="bi bi-dash-lg"></i>
-                            </button>
-                            <input type="number" name="quantity" class="form-control text-center" 
-                                   min="1" required id="quantityInput" placeholder="0"
-                                   <?= $preSelectedDetails ? 'max="'.$preSelectedDetails['stock_available'].'"' : '' ?>>
-                            <button type="button" class="btn btn-outline-secondary" id="increaseQty">
-                                <i class="bi bi-plus-lg"></i>
-                            </button>
-                        </div>
-                        <small class="text-muted" id="stockHint">
-                            <?= $preSelectedDetails ? 'Maksimal peminjaman: '.$preSelectedDetails['stock_available'].' unit' : 'Pilih barang terlebih dahulu' ?>
-                        </small>
-                    </div>
+                    <!-- Hidden inputs for cart items will be added dynamically -->
+                    <div id="hiddenInputs"></div>
 
                     <!-- Note -->
                     <div class="mb-4">
                         <label class="form-label fw-semibold">
                             <i class="bi bi-chat-text me-1"></i>Catatan / Alasan Peminjaman
                         </label>
-                        <textarea name="note" class="form-control" rows="4" 
-                                  placeholder="Jelaskan alasan atau keperluan peminjaman barang ini (opsional, tapi disarankan untuk mempercepat approval)"></textarea>
-                        <small class="text-muted">Catatan ini akan dibaca oleh admin saat mereview permintaan Anda.</small>
+                        <textarea name="note" class="form-control" rows="3" 
+                                  placeholder="Jelaskan alasan atau keperluan peminjaman (opsional)"></textarea>
                     </div>
 
                     <hr class="my-4">
 
                     <!-- Submit Buttons -->
                     <div class="d-flex gap-3">
-                        <button type="submit" class="btn btn-primary btn-lg">
+                        <button type="submit" class="btn btn-primary btn-lg" id="submitBtn" disabled>
                             <i class="bi bi-send me-2"></i>Kirim Permintaan
                         </button>
                         <a href="/index.php?page=catalog" class="btn btn-outline-secondary btn-lg">
@@ -373,9 +361,80 @@ if ($preSelectedItem) {
     flex: 1;
 }
 
-#quantityInput {
-    font-size: 1.25rem;
+/* Cart Item Styles */
+.cart-item {
+    display: flex;
+    align-items: center;
+    padding: 12px 16px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius);
+    margin-bottom: 10px;
+    transition: var(--transition);
+}
+
+.cart-item:hover {
+    border-color: var(--primary-light);
+    box-shadow: var(--shadow-sm);
+}
+
+.cart-item-img {
+    width: 50px;
+    height: 50px;
+    border-radius: var(--radius-sm);
+    object-fit: cover;
+    margin-right: 12px;
+}
+
+.cart-item-placeholder {
+    width: 50px;
+    height: 50px;
+    border-radius: var(--radius-sm);
+    background: var(--bg-main);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 12px;
+    color: var(--text-muted);
+}
+
+.cart-item-info {
+    flex: 1;
+}
+
+.cart-item-name {
     font-weight: 600;
+    color: var(--text-dark);
+}
+
+.cart-item-code {
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.cart-item-qty {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-right: 16px;
+}
+
+.cart-item-qty input {
+    width: 60px;
+    text-align: center;
+    font-weight: 600;
+}
+
+.cart-item-remove {
+    color: var(--danger);
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: var(--radius-sm);
+    transition: var(--transition);
+}
+
+.cart-item-remove:hover {
+    background: var(--danger-light);
 }
 </style>
 
@@ -383,20 +442,20 @@ if ($preSelectedItem) {
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const itemSelect = document.getElementById('itemSelect');
-    const preview = document.getElementById('itemPreview');
-    const previewImage = document.getElementById('previewImage');
-    const previewPlaceholder = document.getElementById('previewPlaceholder');
-    const previewName = document.getElementById('previewName');
-    const previewCode = document.getElementById('previewCode');
-    const previewStock = document.getElementById('previewStock');
+    const qtyInput = document.getElementById('qtyInput');
+    const addToCartBtn = document.getElementById('addToCartBtn');
+    const cartContainer = document.getElementById('cartContainer');
+    const cartItems = document.getElementById('cartItems');
+    const cartCount = document.getElementById('cartCount');
+    const hiddenInputs = document.getElementById('hiddenInputs');
+    const submitBtn = document.getElementById('submitBtn');
     const stockHint = document.getElementById('stockHint');
-    const quantityInput = document.getElementById('quantityInput');
-    const decreaseBtn = document.getElementById('decreaseQty');
-    const increaseBtn = document.getElementById('increaseQty');
     
-    let maxStock = <?= $preSelectedDetails ? $preSelectedDetails['stock_available'] : 0 ?>;
+    let cart = [];
+    let selectedItem = null;
+    let maxStock = 0;
 
-    // Initialize Tom Select for searchable dropdown
+    // Initialize Tom Select
     const tomSelect = new TomSelect('#itemSelect', {
         placeholder: 'Ketik untuk mencari barang...',
         searchField: ['text'],
@@ -421,76 +480,136 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         },
         onChange: function(value) {
-            if (!value) return;
+            if (!value) {
+                selectedItem = null;
+                addToCartBtn.disabled = true;
+                stockHint.textContent = 'Pilih barang untuk melihat stok tersedia';
+                return;
+            }
             const option = itemSelect.querySelector(`option[value="${value}"]`);
             if (option) {
-                updatePreview(option);
+                selectedItem = {
+                    id: value,
+                    name: option.dataset.name,
+                    code: option.dataset.code,
+                    image: option.dataset.image,
+                    stock: parseInt(option.dataset.stock)
+                };
+                maxStock = selectedItem.stock;
+                
+                // Check if already in cart
+                const inCart = cart.find(c => c.id === value);
+                const usedQty = inCart ? inCart.qty : 0;
+                const available = maxStock - usedQty;
+                
+                stockHint.textContent = `Stok tersedia: ${available} unit${usedQty > 0 ? ` (${usedQty} sudah di keranjang)` : ''}`;
+                qtyInput.max = available;
+                qtyInput.value = Math.min(parseInt(qtyInput.value) || 1, available);
+                addToCartBtn.disabled = available <= 0;
             }
         }
     });
 
-    function updatePreview(selected) {
-        if (selected && selected.value) {
-            const stock = parseInt(selected.dataset.stock);
-            const image = selected.dataset.image;
-            const code = selected.dataset.code;
-            const name = selected.text.split(' (')[0];
-            
-            maxStock = stock;
-            
-            preview.style.display = 'block';
-            previewName.textContent = name;
-            previewCode.textContent = code;
-            previewStock.innerHTML = '<span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Tersedia: ' + stock + ' unit</span>';
-            stockHint.textContent = 'Maksimal peminjaman: ' + stock + ' unit';
-            quantityInput.max = stock;
-            
-            if (image) {
-                previewImage.src = '/public/assets/uploads/' + image;
-                previewImage.style.display = 'block';
-                previewPlaceholder.style.display = 'none';
-            } else {
-                previewImage.style.display = 'none';
-                previewPlaceholder.style.display = 'flex';
-            }
+    // Add to cart
+    addToCartBtn.addEventListener('click', function() {
+        if (!selectedItem) return;
+        
+        const qty = parseInt(qtyInput.value) || 0;
+        if (qty <= 0) return;
+        
+        // Check if item already in cart
+        const existingIdx = cart.findIndex(c => c.id === selectedItem.id);
+        if (existingIdx >= 0) {
+            cart[existingIdx].qty += qty;
         } else {
-            preview.style.display = 'none';
-            stockHint.textContent = 'Pilih barang terlebih dahulu';
-            quantityInput.removeAttribute('max');
-            maxStock = 0;
+            cart.push({
+                id: selectedItem.id,
+                name: selectedItem.name,
+                code: selectedItem.code,
+                image: selectedItem.image,
+                qty: qty,
+                maxStock: selectedItem.stock
+            });
         }
+        
+        renderCart();
+        tomSelect.clear();
+        qtyInput.value = 1;
+        selectedItem = null;
+        addToCartBtn.disabled = true;
+        stockHint.textContent = 'Pilih barang untuk melihat stok tersedia';
+    });
+
+    function renderCart() {
+        if (cart.length === 0) {
+            cartContainer.style.display = 'none';
+            submitBtn.disabled = true;
+            cartCount.textContent = '0 barang';
+            hiddenInputs.innerHTML = '';
+            return;
+        }
+        
+        cartContainer.style.display = 'block';
+        submitBtn.disabled = false;
+        cartCount.textContent = `${cart.length} barang`;
+        
+        // Render cart items
+        cartItems.innerHTML = cart.map((item, idx) => `
+            <div class="cart-item" data-idx="${idx}">
+                ${item.image 
+                    ? `<img src="/public/assets/uploads/${item.image}" class="cart-item-img" alt="">` 
+                    : `<div class="cart-item-placeholder"><i class="bi bi-box-seam"></i></div>`}
+                <div class="cart-item-info">
+                    <div class="cart-item-name">${escapeHtml(item.name)}</div>
+                    <div class="cart-item-code">${escapeHtml(item.code)}</div>
+                </div>
+                <div class="cart-item-qty">
+                    <input type="number" class="form-control form-control-sm qty-edit" value="${item.qty}" min="1" max="${item.maxStock}" data-idx="${idx}">
+                    <span class="text-muted">unit</span>
+                </div>
+                <div class="cart-item-remove" data-idx="${idx}" title="Hapus">
+                    <i class="bi bi-trash"></i>
+                </div>
+            </div>
+        `).join('');
+        
+        // Update hidden inputs
+        hiddenInputs.innerHTML = cart.map((item, idx) => `
+            <input type="hidden" name="items[${idx}][id]" value="${item.id}">
+            <input type="hidden" name="items[${idx}][name]" value="${escapeHtml(item.name)}">
+            <input type="hidden" name="items[${idx}][qty]" value="${item.qty}">
+        `).join('');
+        
+        // Bind edit and remove events
+        document.querySelectorAll('.qty-edit').forEach(input => {
+            input.addEventListener('change', function() {
+                const idx = parseInt(this.dataset.idx);
+                const val = parseInt(this.value) || 1;
+                cart[idx].qty = Math.min(Math.max(val, 1), cart[idx].maxStock);
+                renderCart();
+            });
+        });
+        
+        document.querySelectorAll('.cart-item-remove').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const idx = parseInt(this.dataset.idx);
+                cart.splice(idx, 1);
+                renderCart();
+            });
+        });
     }
 
-    // Quantity buttons
-    decreaseBtn.addEventListener('click', function() {
-        let val = parseInt(quantityInput.value) || 0;
-        if (val > 1) {
-            quantityInput.value = val - 1;
-        }
-    });
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
 
-    increaseBtn.addEventListener('click', function() {
-        let val = parseInt(quantityInput.value) || 0;
-        if (maxStock === 0 || val < maxStock) {
-            quantityInput.value = val + 1;
-        }
-    });
-
-    // Validate quantity on input
-    quantityInput.addEventListener('input', function() {
-        let val = parseInt(this.value) || 0;
-        if (maxStock > 0 && val > maxStock) {
-            this.value = maxStock;
-        }
-        if (val < 1 && this.value !== '') {
-            this.value = 1;
-        }
-    });
-
-    // Trigger preview on page load if pre-selected
+    // Pre-select item from catalog
     <?php if ($preSelectedItem && $preSelectedDetails): ?>
-    const preSelected = itemSelect.querySelector('option[value="<?= $preSelectedItem ?>"]');
-    if (preSelected) updatePreview(preSelected);
+    setTimeout(() => {
+        tomSelect.setValue('<?= $preSelectedItem ?>');
+    }, 100);
     <?php endif; ?>
 });
 </script>
