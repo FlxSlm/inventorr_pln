@@ -262,7 +262,7 @@ $returnStageLabels = [
             <table class="table table-hover mb-0" id="returnsTable">
                 <thead>
                     <tr>
-                        <th width="60">ID</th>
+                        <th width="60">No</th>
                         <th>Peminjam</th>
                         <th>Barang</th>
                         <th width="70">Qty</th>
@@ -273,12 +273,15 @@ $returnStageLabels = [
                     </tr>
                 </thead>
                 <tbody>
-                    <?php foreach($returns as $l): 
+                    <?php 
+                    $rowNum = 0;
+                    foreach($returns as $l): 
+                        $rowNum++;
                         $rs = $l['return_stage'] ?? 'none';
                         $stageInfo = $returnStageLabels[$rs] ?? ['Unknown', 'secondary', 'question'];
                     ?>
                     <tr>
-                        <td><span class="badge bg-secondary">#<?= $l['id'] ?></span></td>
+                        <td><span class="badge bg-secondary"><?= $rowNum ?></span></td>
                         <td>
                             <div class="d-flex align-items-center">
                                 <div class="avatar me-2">

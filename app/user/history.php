@@ -206,22 +206,73 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// Fetch user's loans
+// Fetch user's loans with group_id support
 $stmt = $pdo->prepare("
   SELECT l.*, i.name AS inventory_name, i.code AS inventory_code, i.image AS inventory_image
   FROM loans l
   JOIN inventories i ON i.id = l.inventory_id
   WHERE l.user_id = ?
-  ORDER BY l.requested_at DESC
+  ORDER BY l.requested_at DESC, l.group_id, l.id
 ");
 $stmt->execute([$userId]);
-$loans = $stmt->fetchAll();
+$rawLoans = $stmt->fetchAll();
+
+// Group loans by group_id for multi-item transactions
+$loans = [];
+$groupedLoans = [];
+foreach ($rawLoans as $loan) {
+    if (!empty($loan['group_id'])) {
+        if (!isset($groupedLoans[$loan['group_id']])) {
+            $groupedLoans[$loan['group_id']] = [
+                'is_group' => true,
+                'group_id' => $loan['group_id'],
+                'items' => [],
+                'requested_at' => $loan['requested_at'],
+                'stage' => $loan['stage'],
+                'return_stage' => $loan['return_stage'] ?? 'none',
+                'note' => $loan['note'],
+                'rejection_note' => $loan['rejection_note'],
+                'total_quantity' => 0,
+                'first_id' => $loan['id']
+            ];
+        }
+        $groupedLoans[$loan['group_id']]['items'][] = $loan;
+        $groupedLoans[$loan['group_id']]['total_quantity'] += $loan['quantity'];
+        // Update group status based on individual items (use the worst status)
+        if ($loan['stage'] === 'rejected') {
+            $groupedLoans[$loan['group_id']]['stage'] = 'rejected';
+            $groupedLoans[$loan['group_id']]['rejection_note'] = $loan['rejection_note'];
+        }
+    } else {
+        $loan['is_group'] = false;
+        $loans[] = $loan;
+    }
+}
+
+// Merge grouped loans into main array
+foreach ($groupedLoans as $group) {
+    $loans[] = $group;
+}
+
+// Sort by requested_at DESC
+usort($loans, fn($a, $b) => strtotime($b['requested_at'] ?? $b['items'][0]['requested_at'] ?? 'now') - strtotime($a['requested_at'] ?? $a['items'][0]['requested_at'] ?? 'now'));
 
 // Calculate stats
 $totalLoans = count($loans);
-$activeLoans = count(array_filter($loans, fn($l) => $l['stage'] === 'approved' && ($l['return_stage'] ?? 'none') !== 'return_approved'));
-$pendingLoans = count(array_filter($loans, fn($l) => in_array($l['stage'], ['pending', 'awaiting_document', 'submitted'])));
-$completedLoans = count(array_filter($loans, fn($l) => ($l['return_stage'] ?? 'none') === 'return_approved'));
+$activeLoans = 0;
+$pendingLoans = 0;
+$completedLoans = 0;
+foreach ($loans as $l) {
+    $stage = $l['stage'] ?? ($l['items'][0]['stage'] ?? 'pending');
+    $returnStage = $l['return_stage'] ?? ($l['items'][0]['return_stage'] ?? 'none');
+    if (in_array($stage, ['pending', 'awaiting_document', 'submitted'])) {
+        $pendingLoans++;
+    } elseif ($stage === 'approved' && $returnStage !== 'return_approved') {
+        $activeLoans++;
+    } elseif ($returnStage === 'return_approved') {
+        $completedLoans++;
+    }
+}
 ?>
 
 <!-- Page Header -->
@@ -354,7 +405,7 @@ $completedLoans = count(array_filter($loans, fn($l) => ($l['return_stage'] ?? 'n
             <table class="table table-hover mb-0" id="loansTable">
                 <thead>
                     <tr>
-                        <th width="50">#</th>
+                        <th width="50">No</th>
                         <th>Barang</th>
                         <th width="80">Qty</th>
                         <th width="120">Tanggal</th>
@@ -364,7 +415,10 @@ $completedLoans = count(array_filter($loans, fn($l) => ($l['return_stage'] ?? 'n
                     </tr>
                 </thead>
                 <tbody>
-                    <?php foreach($loans as $l): 
+                    <?php 
+                    $rowNumber = 0;
+                    foreach($loans as $l): 
+                        $rowNumber++;
                         $stageLabels = [
                             'pending' => ['Menunggu Validasi 1', 'warning', 'hourglass'],
                             'awaiting_document' => ['Menunggu Dokumen', 'info', 'file-earmark'],
@@ -380,6 +434,141 @@ $completedLoans = count(array_filter($loans, fn($l) => ($l['return_stage'] ?? 'n
                             'return_approved' => ['Dikembalikan', 'success', 'check-circle'],
                             'return_rejected' => ['Ditolak', 'danger', 'x-circle']
                         ];
+                        
+                        // Check if this is a grouped transaction
+                        $isGroup = !empty($l['is_group']);
+                        
+                        if ($isGroup):
+                            // Grouped multi-item transaction
+                            $firstItem = $l['items'][0];
+                            $itemCount = count($l['items']);
+                            $stage = $l['stage'] ?? $firstItem['stage'];
+                            $returnStage = $l['return_stage'] ?? $firstItem['return_stage'] ?? 'none';
+                            $stageInfo = $stageLabels[$stage] ?? [$stage, 'secondary', 'question'];
+                            $returnInfo = $returnStageLabels[$returnStage] ?? ['N/A', 'secondary', 'question'];
+                            
+                            // Filter class
+                            $filterClass = 'all';
+                            if (in_array($stage, ['pending', 'awaiting_document', 'submitted'])) {
+                                $filterClass .= ' pending';
+                            } elseif ($stage === 'approved' && $returnStage !== 'return_approved') {
+                                $filterClass .= ' active';
+                            } elseif ($returnStage === 'return_approved') {
+                                $filterClass .= ' completed';
+                            }
+                    ?>
+                    <tr class="loan-row group-header <?= $filterClass ?>" data-group="<?= $l['group_id'] ?>" style="cursor: pointer;" onclick="toggleGroup('<?= $l['group_id'] ?>')">
+                        <td>
+                            <span class="badge bg-secondary"><?= $rowNumber ?></span>
+                        </td>
+                        <td>
+                            <div class="d-flex align-items-center">
+                                <div class="rounded me-2 d-flex align-items-center justify-content-center" 
+                                     style="width: 40px; height: 40px; background: linear-gradient(135deg, var(--primary), var(--primary-light));">
+                                    <i class="bi bi-stack text-white"></i>
+                                </div>
+                                <div>
+                                    <div class="fw-semibold">
+                                        <i class="bi bi-chevron-right group-chevron me-1" id="chevron-<?= $l['group_id'] ?>"></i>
+                                        <?= $itemCount ?> Barang
+                                    </div>
+                                    <small class="text-muted">Klik untuk lihat detail</small>
+                                </div>
+                            </div>
+                        </td>
+                        <td>
+                            <span class="badge bg-primary"><?= (int)$l['total_quantity'] ?> unit</span>
+                        </td>
+                        <td>
+                            <div><?= date('d M Y', strtotime($firstItem['requested_at'])) ?></div>
+                            <small class="text-muted"><?= date('H:i', strtotime($firstItem['requested_at'])) ?></small>
+                        </td>
+                        <td>
+                            <span class="badge bg-<?= $stageInfo[1] ?>">
+                                <i class="bi bi-<?= $stageInfo[2] ?> me-1"></i><?= $stageInfo[0] ?>
+                            </span>
+                            <?php if ($stage === 'rejected' && !empty($l['rejection_note'])): ?>
+                            <button type="button" class="btn-alasan ms-1" data-bs-toggle="modal" data-bs-target="#rejectionModalGroup<?= $l['group_id'] ?>" onclick="event.stopPropagation();">
+                                <i class="bi bi-exclamation-circle"></i> Alasan
+                            </button>
+                            <?php endif; ?>
+                        </td>
+                        <td>
+                            <?php if ($stage === 'approved'): ?>
+                            <span class="badge bg-<?= $returnInfo[1] ?>">
+                                <i class="bi bi-<?= $returnInfo[2] ?> me-1"></i><?= $returnInfo[0] ?>
+                            </span>
+                            <?php else: ?>
+                            <span class="text-muted">-</span>
+                            <?php endif; ?>
+                        </td>
+                        <td>
+                            <span class="text-muted small"><i class="bi bi-eye"></i> Lihat Detail</span>
+                        </td>
+                    </tr>
+                    
+                    <!-- Expandable detail rows for grouped items -->
+                    <?php foreach($l['items'] as $idx => $item): 
+                        $itemStageInfo = $stageLabels[$item['stage']] ?? [$item['stage'], 'secondary', 'question'];
+                        $itemReturnInfo = $returnStageLabels[$item['return_stage'] ?? 'none'] ?? ['N/A', 'secondary', 'question'];
+                    ?>
+                    <tr class="group-detail-row <?= $filterClass ?>" data-parent="<?= $l['group_id'] ?>" style="display: none; background: var(--bg-secondary);">
+                        <td></td>
+                        <td>
+                            <div class="d-flex align-items-center ps-3">
+                                <div class="border-start border-2 border-primary ps-3">
+                                    <?php if($item['inventory_image']): ?>
+                                    <img src="/public/assets/uploads/<?= htmlspecialchars($item['inventory_image']) ?>" 
+                                         class="rounded me-2" style="width: 36px; height: 36px; object-fit: cover;">
+                                    <?php else: ?>
+                                    <div class="rounded me-2 d-flex align-items-center justify-content-center" 
+                                         style="width: 36px; height: 36px; background: var(--bg-tertiary);">
+                                        <i class="bi bi-box-seam text-muted"></i>
+                                    </div>
+                                    <?php endif; ?>
+                                </div>
+                                <div>
+                                    <div class="fw-semibold"><?= htmlspecialchars($item['inventory_name']) ?></div>
+                                    <small class="text-muted"><?= htmlspecialchars($item['inventory_code'] ?? '') ?></small>
+                                </div>
+                            </div>
+                        </td>
+                        <td><span class="badge bg-secondary"><?= (int)$item['quantity'] ?> unit</span></td>
+                        <td><small class="text-muted"><?= date('d M Y', strtotime($item['requested_at'])) ?></small></td>
+                        <td>
+                            <span class="badge bg-<?= $itemStageInfo[1] ?>" style="font-size: 10px;">
+                                <?= $itemStageInfo[0] ?>
+                            </span>
+                        </td>
+                        <td>
+                            <?php if ($item['stage'] === 'approved'): ?>
+                            <span class="badge bg-<?= $itemReturnInfo[1] ?>" style="font-size: 10px;">
+                                <?= $itemReturnInfo[0] ?>
+                            </span>
+                            <?php else: ?>
+                            <span class="text-muted">-</span>
+                            <?php endif; ?>
+                        </td>
+                        <td>
+                            <?php if ($item['stage'] === 'awaiting_document'): ?>
+                            <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#uploadModal<?= $item['id'] ?>" onclick="event.stopPropagation();">
+                                <i class="bi bi-upload"></i>
+                            </button>
+                            <?php elseif ($item['stage'] === 'approved' && ($item['return_stage'] ?? 'none') === 'none'): ?>
+                            <button class="btn btn-sm btn-warning" data-bs-toggle="modal" data-bs-target="#returnModal<?= $item['id'] ?>" onclick="event.stopPropagation();">
+                                <i class="bi bi-box-arrow-left"></i>
+                            </button>
+                            <?php elseif (($item['return_stage'] ?? 'none') === 'awaiting_return_doc'): ?>
+                            <button class="btn btn-sm btn-info" data-bs-toggle="modal" data-bs-target="#returnDocModal<?= $item['id'] ?>" onclick="event.stopPropagation();">
+                                <i class="bi bi-upload"></i>
+                            </button>
+                            <?php endif; ?>
+                        </td>
+                    </tr>
+                    <?php endforeach; ?>
+                    
+                    <?php else:
+                        // Single item (non-grouped) transaction
                         $stageInfo = $stageLabels[$l['stage']] ?? [$l['stage'], 'secondary', 'question'];
                         $returnInfo = $returnStageLabels[$l['return_stage'] ?? 'none'] ?? ['N/A', 'secondary', 'question'];
                         
@@ -395,7 +584,7 @@ $completedLoans = count(array_filter($loans, fn($l) => ($l['return_stage'] ?? 'n
                     ?>
                     <tr class="loan-row <?= $filterClass ?>">
                         <td>
-                            <span class="badge bg-secondary">#<?= $l['id'] ?></span>
+                            <span class="badge bg-secondary"><?= $rowNumber ?></span>
                         </td>
                         <td>
                             <div class="d-flex align-items-center">
@@ -540,6 +729,7 @@ $completedLoans = count(array_filter($loans, fn($l) => ($l['return_stage'] ?? 'n
                             <?php endif; ?>
                         </td>
                     </tr>
+                    <?php endif; // End of isGroup check ?>
                     <?php endforeach; ?>
                 </tbody>
             </table>
@@ -549,7 +739,53 @@ $completedLoans = count(array_filter($loans, fn($l) => ($l['return_stage'] ?? 'n
 </div>
 
 <!-- MODALS -->
-<?php foreach($loans as $l): ?>
+<?php 
+// Generate modals for all loans (including grouped items)
+$allLoanItems = [];
+foreach($loans as $l) {
+    if (!empty($l['is_group'])) {
+        // Add all items from group
+        foreach($l['items'] as $item) {
+            $allLoanItems[] = $item;
+        }
+        // Also create rejection modal for group
+        if ($l['stage'] === 'rejected' && !empty($l['rejection_note'])) {
+            echo '<div class="modal fade" id="rejectionModalGroup' . $l['group_id'] . '" tabindex="-1">
+            <div class="modal-dialog modal-dialog-centered">
+              <div class="modal-content">
+                <div class="modal-header border-0">
+                  <h5 class="modal-title"><i class="bi bi-x-circle text-danger me-2"></i>Peminjaman Ditolak</h5>
+                  <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                  <div class="mb-3 p-3 rounded" style="background: var(--bg-main);">
+                    <div class="fw-semibold mb-2">' . count($l['items']) . ' Barang:</div>';
+            foreach($l['items'] as $gi) {
+                echo '<div class="d-flex align-items-center mb-2">
+                    <i class="bi bi-box-seam text-muted me-2"></i>
+                    <span>' . htmlspecialchars($gi['inventory_name']) . ' (' . (int)$gi['quantity'] . ' unit)</span>
+                </div>';
+            }
+            echo '</div>
+                  <div class="rejection-reason-box">
+                    <div class="reason-label"><i class="bi bi-exclamation-triangle me-1"></i>Alasan Penolakan</div>
+                    <p class="reason-text">' . nl2br(htmlspecialchars($l['rejection_note'])) . '</p>
+                  </div>
+                </div>
+                <div class="modal-footer border-0">
+                  <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Tutup</button>
+                  <a href="/index.php?page=user_request_loan" class="btn btn-primary"><i class="bi bi-plus-lg me-1"></i>Ajukan Baru</a>
+                </div>
+              </div>
+            </div>
+          </div>';
+        }
+    } else {
+        $allLoanItems[] = $l;
+    }
+}
+
+foreach($allLoanItems as $l): ?>
   <!-- Upload Loan Document Modal -->
   <?php if ($l['stage'] === 'awaiting_document'): ?>
   <div class="modal fade" id="uploadModal<?= $l['id'] ?>" tabindex="-1">
@@ -557,7 +793,7 @@ $completedLoans = count(array_filter($loans, fn($l) => ($l['return_stage'] ?? 'n
       <div class="modal-content">
         <div class="modal-header">
           <h5 class="modal-title">
-            <i class="bi bi-upload me-2"></i>Upload Dokumen Peminjaman #<?= $l['id'] ?>
+            <i class="bi bi-upload me-2"></i>Upload Dokumen Peminjaman
           </h5>
           <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
         </div>
@@ -601,7 +837,7 @@ $completedLoans = count(array_filter($loans, fn($l) => ($l['return_stage'] ?? 'n
       <div class="modal-content">
         <div class="modal-header">
           <h5 class="modal-title">
-            <i class="bi bi-box-arrow-left me-2"></i>Ajukan Pengembalian #<?= $l['id'] ?>
+            <i class="bi bi-box-arrow-left me-2"></i>Ajukan Pengembalian
           </h5>
           <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
         </div>
@@ -654,7 +890,7 @@ $completedLoans = count(array_filter($loans, fn($l) => ($l['return_stage'] ?? 'n
       <div class="modal-content">
         <div class="modal-header">
           <h5 class="modal-title">
-            <i class="bi bi-upload me-2"></i>Upload Dokumen Pengembalian #<?= $l['id'] ?>
+            <i class="bi bi-upload me-2"></i>Upload Dokumen Pengembalian
           </h5>
           <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
         </div>
@@ -737,6 +973,25 @@ $completedLoans = count(array_filter($loans, fn($l) => ($l['return_stage'] ?? 'n
 <?php endforeach; ?>
 
 <script>
+// Toggle group expansion
+function toggleGroup(groupId) {
+    const detailRows = document.querySelectorAll(`tr[data-parent="${groupId}"]`);
+    const chevron = document.getElementById(`chevron-${groupId}`);
+    
+    detailRows.forEach(row => {
+        if (row.style.display === 'none') {
+            row.style.display = '';
+        } else {
+            row.style.display = 'none';
+        }
+    });
+    
+    if (chevron) {
+        chevron.classList.toggle('bi-chevron-right');
+        chevron.classList.toggle('bi-chevron-down');
+    }
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     // Initialize tooltips
     var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
@@ -747,6 +1002,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Filter tabs functionality
     const filterButtons = document.querySelectorAll('[data-filter]');
     const loanRows = document.querySelectorAll('.loan-row');
+    const detailRows = document.querySelectorAll('.group-detail-row');
     
     filterButtons.forEach(btn => {
         btn.addEventListener('click', function() {
@@ -761,6 +1017,15 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (filter === 'all' || row.classList.contains(filter)) {
                     row.style.display = '';
                 } else {
+                    row.style.display = 'none';
+                }
+            });
+            
+            // Also hide detail rows when filtering
+            detailRows.forEach(row => {
+                const parentGroup = row.dataset.parent;
+                const parentRow = document.querySelector(`tr[data-group="${parentGroup}"]`);
+                if (parentRow && parentRow.style.display === 'none') {
                     row.style.display = 'none';
                 }
             });
@@ -799,5 +1064,20 @@ document.addEventListener('DOMContentLoaded', function() {
 
 .loan-row td {
     vertical-align: middle;
+}
+
+.group-header {
+    transition: background 0.2s;
+}
+.group-header:hover {
+    background: var(--bg-tertiary) !important;
+}
+
+.group-detail-row {
+    font-size: 0.9em;
+}
+
+.group-chevron {
+    transition: transform 0.2s;
 }
 </style>

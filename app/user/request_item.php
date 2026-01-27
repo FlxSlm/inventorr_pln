@@ -1,5 +1,5 @@
 <?php
-// app/user/request_item.php - Request Item Page (for permanent requests)
+// app/user/request_item.php - Request Item Page with Multi-Item Support
 if (!isset($_SESSION['user'])) {
     header('Location: /index.php?page=login');
     exit;
@@ -17,29 +17,60 @@ $preSelectedItem = (int)($_GET['item'] ?? 0);
 $errors = [];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $inventory_id = (int)($_POST['inventory_id'] ?? 0);
-    $quantity = (int)($_POST['quantity'] ?? 0);
+    // Multi-item support
+    $items = $_POST['items'] ?? [];
     $note = trim($_POST['note'] ?? '');
-
-    if ($inventory_id <= 0 || $quantity <= 0) {
-        $errors[] = 'Pilih barang dan masukkan jumlah yang valid.';
+    
+    // Validate items
+    if (empty($items) || !is_array($items)) {
+        $errors[] = 'Pilih minimal satu barang untuk diminta.';
     } else {
-        $stmt = $pdo->prepare('SELECT * FROM inventories WHERE id = ? AND deleted_at IS NULL');
-        $stmt->execute([$inventory_id]);
-        $inv = $stmt->fetch();
-        if (!$inv) {
-            $errors[] = 'Barang tidak ditemukan.';
-        } elseif ($inv['stock_total'] < $quantity) {
-            $errors[] = 'Stok total tidak mencukupi (total: ' . $inv['stock_total'] . ').';
-        }
-    }
-
-    if (empty($errors)) {
-        $stmt = $pdo->prepare('INSERT INTO requests (inventory_id, user_id, quantity, note, stage, status) VALUES (?, ?, ?, ?, "pending", "pending")');
-        $stmt->execute([$inventory_id, $userId, $quantity, $note]);
+        // Generate group_id for multi-item transactions
+        $groupId = count($items) > 1 ? bin2hex(random_bytes(16)) : null;
         
-        echo '<script>window.location.href = "/index.php?page=user_request_history&msg=' . urlencode('Permintaan berhasil diajukan') . '";</script>';
-        exit;
+        $pdo->beginTransaction();
+        try {
+            foreach ($items as $item) {
+                $inventory_id = (int)($item['id'] ?? 0);
+                $quantity = (int)($item['qty'] ?? 0);
+                
+                if ($inventory_id <= 0 || $quantity <= 0) {
+                    throw new Exception('Data barang tidak valid.');
+                }
+                
+                // Check inventory exists
+                $stmt = $pdo->prepare('SELECT * FROM inventories WHERE id = ? AND deleted_at IS NULL FOR UPDATE');
+                $stmt->execute([$inventory_id]);
+                $inv = $stmt->fetch();
+                
+                if (!$inv) {
+                    throw new Exception('Barang "' . ($item['name'] ?? 'Unknown') . '" tidak ditemukan.');
+                }
+                if ($inv['stock_total'] < $quantity) {
+                    throw new Exception('Stok "' . $inv['name'] . '" tidak cukup (total: ' . $inv['stock_total'] . ').');
+                }
+                
+                // Insert request with group_id
+                $stmt = $pdo->prepare('INSERT INTO requests (group_id, inventory_id, user_id, quantity, note, stage, status) VALUES (?, ?, ?, ?, ?, "pending", "pending")');
+                $stmt->execute([$groupId, $inventory_id, $userId, $quantity, $note]);
+            }
+            
+            $pdo->commit();
+            $itemCount = count($items);
+            $msg = $itemCount > 1 ? "Permintaan $itemCount barang berhasil diajukan" : 'Permintaan berhasil diajukan';
+            
+            $redirectUrl = '/index.php?page=user_request_history&msg=' . urlencode($msg);
+            if (!headers_sent()) {
+                header('Location: ' . $redirectUrl);
+                exit;
+            } else {
+                echo '<script>window.location.href = ' . json_encode($redirectUrl) . ';</script>';
+                exit;
+            }
+        } catch (Exception $e) {
+            $pdo->rollBack();
+            $errors[] = $e->getMessage();
+        }
     }
 }
 
@@ -63,7 +94,7 @@ if ($preSelectedItem) {
         <h1 class="page-title">
             <i class="bi bi-cart-plus me-2"></i>Ajukan Permintaan
         </h1>
-        <p class="text-muted mb-0">Ajukan permintaan barang untuk diambil secara permanen</p>
+        <p class="text-muted mb-0">Tambahkan satu atau lebih barang untuk diminta sekaligus</p>
     </div>
     <a href="/index.php?page=catalog" class="btn btn-outline-secondary">
         <i class="bi bi-arrow-left me-2"></i>Kembali
@@ -72,11 +103,13 @@ if ($preSelectedItem) {
 
 <div class="row">
     <div class="col-lg-8">
-        <div class="modern-card">
-            <div class="card-header">
+        <!-- Main Form Card -->
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
                 <h5 class="card-title mb-0">
-                    <i class="bi bi-file-text me-2" style="color: var(--primary-light);"></i>Form Permintaan
+                    <i class="bi bi-cart-plus me-2"></i>Keranjang Permintaan
                 </h5>
+                <span class="badge bg-primary" id="cartCount">0 barang</span>
             </div>
             <div class="card-body">
                 <?php foreach($errors as $e): ?>
@@ -86,70 +119,66 @@ if ($preSelectedItem) {
                 </div>
                 <?php endforeach; ?>
 
+                <!-- Item Selection -->
+                <div class="mb-4 p-3 rounded" style="background: var(--bg-main); border: 1px solid var(--border-color);">
+                    <h6 class="fw-semibold mb-3"><i class="bi bi-plus-circle me-2"></i>Tambah Barang</h6>
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Pilih Barang</label>
+                            <select id="itemSelect" class="form-select">
+                                <option value="">Ketik untuk mencari barang...</option>
+                                <?php foreach($items as $it): ?>
+                                <option value="<?= $it['id'] ?>" 
+                                        data-stock="<?= $it['stock_total'] ?>"
+                                        data-image="<?= htmlspecialchars($it['image'] ?? '') ?>"
+                                        data-code="<?= htmlspecialchars($it['code'] ?? '') ?>"
+                                        data-name="<?= htmlspecialchars($it['name']) ?>">
+                                    <?= htmlspecialchars($it['name']) ?> (<?= htmlspecialchars($it['code']) ?>) - Stok: <?= $it['stock_total'] ?>
+                                </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Jumlah</label>
+                            <input type="number" id="qtyInput" class="form-control" value="1" min="1">
+                        </div>
+                        <div class="col-md-3 d-flex align-items-end">
+                            <button type="button" id="addToCartBtn" class="btn btn-primary w-100" disabled>
+                                <i class="bi bi-plus-lg me-1"></i>Tambah
+                            </button>
+                        </div>
+                    </div>
+                    <small class="text-muted mt-2 d-block" id="stockHint">Pilih barang untuk melihat stok tersedia</small>
+                </div>
+
+                <!-- Cart Items List -->
+                <div id="cartContainer" style="display: none;">
+                    <h6 class="fw-semibold mb-3"><i class="bi bi-bag me-2"></i>Daftar Barang</h6>
+                    <div id="cartItems" class="mb-4"></div>
+                </div>
+
                 <form method="POST" id="requestForm">
+                    <div id="hiddenInputs"></div>
+
+                    <!-- Note -->
                     <div class="mb-4">
                         <label class="form-label fw-semibold">
-                            <i class="bi bi-box-seam me-1"></i>Pilih Barang <span class="text-danger">*</span>
+                            <i class="bi bi-chat-text me-1"></i>Catatan / Alasan Permintaan
                         </label>
-                        <select name="inventory_id" class="form-select form-select-lg searchable-select" required id="itemSelect">
-                            <option value="">-- Ketik atau Pilih Barang --</option>
-                            <?php foreach($items as $it): ?>
-                            <option value="<?= $it['id'] ?>" 
-                                    data-stock="<?= $it['stock_total'] ?>"
-                                    data-available="<?= $it['stock_available'] ?>"
-                                    data-image="<?= htmlspecialchars($it['image'] ?? '') ?>"
-                                    data-code="<?= htmlspecialchars($it['code'] ?? '') ?>"
-                                    <?= $preSelectedItem == $it['id'] ? 'selected' : '' ?>>
-                                <?= htmlspecialchars($it['name']) ?> (<?= htmlspecialchars($it['code']) ?>) - Total: <?= $it['stock_total'] ?>
-                            </option>
-                            <?php endforeach; ?>
-                        </select>
+                        <textarea name="note" class="form-control" rows="3" 
+                                  placeholder="Jelaskan alasan atau keperluan permintaan barang (opsional)"></textarea>
                     </div>
 
-                    <div id="itemPreview" class="mb-4" style="display: <?= $preSelectedDetails ? 'block' : 'none' ?>;">
-                        <div class="p-3 rounded" style="background: var(--bg-main); border: 1px solid var(--border-color);">
-                            <div class="d-flex align-items-center">
-                                <div id="previewPlaceholder" class="me-3" style="width: 80px; height: 80px; background: rgba(26, 154, 170, 0.1); border-radius: var(--radius); display: flex; align-items: center; justify-content: center; overflow: hidden;">
-                                    <i class="bi bi-box-seam" style="font-size: 32px; color: var(--primary-light);" id="previewIcon"></i>
-                                    <img id="previewImage" src="" alt="" style="width: 100%; height: 100%; object-fit: cover; display: none; border-radius: var(--radius);">
-                                </div>
-                                <div>
-                                    <div class="text-muted small">Barang yang dipilih:</div>
-                                    <div id="previewName" class="fw-bold" style="color: var(--text-dark); font-size: 1.1rem;"></div>
-                                    <div id="previewCode" class="text-muted small"></div>
-                                    <div id="previewStock" class="mt-1"></div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+                    <hr class="my-4">
 
-                    <div class="mb-4">
-                        <label class="form-label fw-semibold">
-                            <i class="bi bi-123 me-1"></i>Jumlah yang Diminta <span class="text-danger">*</span>
-                        </label>
-                        <div class="input-group" style="max-width: 200px;">
-                            <button type="button" class="btn btn-outline-secondary" id="decreaseBtn">
-                                <i class="bi bi-dash"></i>
-                            </button>
-                            <input type="number" name="quantity" id="quantityInput" class="form-control text-center" value="1" min="1" required>
-                            <button type="button" class="btn btn-outline-secondary" id="increaseBtn">
-                                <i class="bi bi-plus"></i>
-                            </button>
-                        </div>
-                        <small class="text-muted" id="stockHint">Pilih barang terlebih dahulu</small>
-                    </div>
-
-                    <div class="mb-4">
-                        <label class="form-label fw-semibold">
-                            <i class="bi bi-chat-left-text me-1"></i>Catatan (Opsional)
-                        </label>
-                        <textarea name="note" class="form-control" rows="3" placeholder="Alasan permintaan atau catatan tambahan..."></textarea>
-                    </div>
-
-                    <div class="d-grid">
-                        <button type="submit" class="btn btn-primary btn-lg">
-                            <i class="bi bi-send me-2"></i>Ajukan Permintaan
+                    <!-- Submit Buttons -->
+                    <div class="d-flex gap-3">
+                        <button type="submit" class="btn btn-primary btn-lg" id="submitBtn" disabled>
+                            <i class="bi bi-send me-2"></i>Kirim Permintaan
                         </button>
+                        <a href="/index.php?page=catalog" class="btn btn-outline-secondary btn-lg">
+                            <i class="bi bi-x-lg me-2"></i>Batal
+                        </a>
                     </div>
                 </form>
             </div>
@@ -157,64 +186,67 @@ if ($preSelectedItem) {
     </div>
 
     <div class="col-lg-4">
-        <div class="modern-card">
+        <!-- Process Info Card -->
+        <div class="card mb-4">
             <div class="card-header">
                 <h5 class="card-title mb-0">
-                    <i class="bi bi-info-circle me-2" style="color: var(--primary-light);"></i>Proses Permintaan
+                    <i class="bi bi-info-circle me-2"></i>Proses Permintaan
                 </h5>
             </div>
             <div class="card-body">
                 <div class="process-timeline">
                     <div class="process-step">
-                        <div class="step-number">1</div>
+                        <div class="step-icon active"><i class="bi bi-1-circle-fill"></i></div>
                         <div class="step-content">
-                            <strong>Ajukan Permintaan</strong>
-                            <p class="text-muted small mb-0">Isi form dan kirim permintaan</p>
+                            <div class="fw-semibold">Ajukan Permintaan</div>
+                            <small class="text-muted">Isi form dan kirim permintaan</small>
                         </div>
                     </div>
                     <div class="process-step">
-                        <div class="step-number">2</div>
+                        <div class="step-icon"><i class="bi bi-2-circle"></i></div>
                         <div class="step-content">
-                            <strong>Validasi Admin</strong>
-                            <p class="text-muted small mb-0">Admin mereview permintaan</p>
+                            <div class="fw-semibold">Validasi Admin</div>
+                            <small class="text-muted">Admin mereview permintaan</small>
                         </div>
                     </div>
                     <div class="process-step">
-                        <div class="step-number">3</div>
+                        <div class="step-icon"><i class="bi bi-3-circle"></i></div>
                         <div class="step-content">
-                            <strong>Upload Dokumen</strong>
-                            <p class="text-muted small mb-0">Upload dokumen serah terima</p>
+                            <div class="fw-semibold">Upload Dokumen</div>
+                            <small class="text-muted">Upload dokumen serah terima</small>
                         </div>
                     </div>
                     <div class="process-step">
-                        <div class="step-number">4</div>
+                        <div class="step-icon"><i class="bi bi-4-circle"></i></div>
                         <div class="step-content">
-                            <strong>Persetujuan Final</strong>
-                            <p class="text-muted small mb-0">Admin menyetujui permintaan</p>
+                            <div class="fw-semibold">Persetujuan Final</div>
+                            <small class="text-muted">Admin menyetujui permintaan</small>
                         </div>
                     </div>
-                    <div class="process-step completed">
-                        <div class="step-number"><i class="bi bi-check"></i></div>
+                    <div class="process-step">
+                        <div class="step-icon success"><i class="bi bi-check-circle"></i></div>
                         <div class="step-content">
-                            <strong>Selesai</strong>
-                            <p class="text-muted small mb-0">Barang dapat diambil</p>
+                            <div class="fw-semibold">Selesai</div>
+                            <small class="text-muted">Barang dapat diambil</small>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
 
-        <div class="modern-card mt-3">
-            <div class="card-header">
-                <h5 class="card-title mb-0">
-                    <i class="bi bi-exclamation-triangle me-2" style="color: var(--warning);"></i>Perhatian
+        <!-- Info Box -->
+        <div class="card">
+            <div class="card-header bg-warning-subtle">
+                <h5 class="card-title mb-0 text-warning-emphasis">
+                    <i class="bi bi-exclamation-triangle me-2"></i>Perhatian
                 </h5>
             </div>
             <div class="card-body">
-                <ul class="mb-0" style="color: var(--text-muted); font-size: 14px;">
-                    <li>Permintaan bersifat permanen (barang tidak dikembalikan)</li>
-                    <li>Stok barang akan berkurang setelah disetujui</li>
-                    <li>Pastikan jumlah sesuai kebutuhan</li>
+                <ul class="mb-0 ps-3">
+                    <li class="mb-2">Permintaan bersifat <strong>permanen</strong> (barang tidak dikembalikan).</li>
+                    <li class="mb-2">Stok barang akan berkurang setelah disetujui.</li>
+                    <li class="mb-2">Pastikan jumlah sesuai kebutuhan.</li>
+                    <li class="mb-2">Sertakan alasan yang jelas untuk mempercepat approval.</li>
                 </ul>
             </div>
         </div>
@@ -223,30 +255,48 @@ if ($preSelectedItem) {
 
 <link href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.bootstrap5.min.css" rel="stylesheet">
 <style>
-.process-timeline { padding: 0; }
-.process-step { display: flex; align-items: flex-start; margin-bottom: 16px; position: relative; }
-.process-step:not(:last-child)::after { content: ''; position: absolute; left: 15px; top: 32px; width: 2px; height: calc(100% - 8px); background: var(--border-color); }
-.step-number { width: 32px; height: 32px; background: var(--primary-light); color: #fff; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 14px; flex-shrink: 0; margin-right: 12px; }
-.process-step.completed .step-number { background: var(--success); }
+.process-timeline { position: relative; }
+.process-step { display: flex; align-items: flex-start; margin-bottom: 1.25rem; position: relative; }
+.process-step:last-child { margin-bottom: 0; }
+.process-step:not(:last-child)::after { content: ''; position: absolute; left: 11px; top: 28px; width: 2px; height: calc(100% - 8px); background: var(--border-color); }
+.step-icon { width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; margin-right: 0.75rem; color: var(--text-muted); flex-shrink: 0; }
+.step-icon i { font-size: 1.25rem; }
+.step-icon.active { color: var(--primary); }
+.step-icon.success { color: var(--success); }
 .step-content { flex: 1; }
-.step-content strong { color: var(--text-dark); font-size: 14px; }
+
+/* Cart Item Styles */
+.cart-item { display: flex; align-items: center; padding: 12px 16px; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius); margin-bottom: 10px; transition: var(--transition); }
+.cart-item:hover { border-color: var(--primary-light); box-shadow: var(--shadow-sm); }
+.cart-item-img { width: 50px; height: 50px; border-radius: var(--radius-sm); object-fit: cover; margin-right: 12px; }
+.cart-item-placeholder { width: 50px; height: 50px; border-radius: var(--radius-sm); background: var(--bg-main); display: flex; align-items: center; justify-content: center; margin-right: 12px; color: var(--text-muted); }
+.cart-item-info { flex: 1; }
+.cart-item-name { font-weight: 600; color: var(--text-dark); }
+.cart-item-code { font-size: 12px; color: var(--text-muted); }
+.cart-item-qty { display: flex; align-items: center; gap: 8px; margin-right: 16px; }
+.cart-item-qty input { width: 60px; text-align: center; font-weight: 600; }
+.cart-item-remove { color: var(--danger); cursor: pointer; padding: 4px 8px; border-radius: var(--radius-sm); transition: var(--transition); }
+.cart-item-remove:hover { background: var(--danger-light); }
 </style>
 
 <script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const itemSelect = document.getElementById('itemSelect');
-    const preview = document.getElementById('itemPreview');
-    const previewName = document.getElementById('previewName');
-    const previewCode = document.getElementById('previewCode');
-    const previewStock = document.getElementById('previewStock');
-    const quantityInput = document.getElementById('quantityInput');
+    const qtyInput = document.getElementById('qtyInput');
+    const addToCartBtn = document.getElementById('addToCartBtn');
+    const cartContainer = document.getElementById('cartContainer');
+    const cartItems = document.getElementById('cartItems');
+    const cartCount = document.getElementById('cartCount');
+    const hiddenInputs = document.getElementById('hiddenInputs');
+    const submitBtn = document.getElementById('submitBtn');
     const stockHint = document.getElementById('stockHint');
-    const decreaseBtn = document.getElementById('decreaseBtn');
-    const increaseBtn = document.getElementById('increaseBtn');
+    
+    let cart = [];
+    let selectedItem = null;
     let maxStock = 0;
 
-    // Initialize Tom Select for searchable dropdown
+    // Initialize Tom Select
     const tomSelect = new TomSelect('#itemSelect', {
         placeholder: 'Ketik untuk mencari barang...',
         searchField: ['text'],
@@ -262,7 +312,7 @@ document.addEventListener('DOMContentLoaded', function() {
                              `<div class="rounded me-2 d-flex align-items-center justify-content-center bg-light" style="width:40px;height:40px;"><i class="bi bi-box-seam text-muted"></i></div>`}
                     <div>
                         <div class="fw-semibold">${escape(data.text.split(' (')[0])}</div>
-                        <small class="text-muted">${escape(code)} | Total: ${escape(stock)}</small>
+                        <small class="text-muted">${escape(code)} | Stok: ${escape(stock)}</small>
                     </div>
                 </div>`;
             },
@@ -271,61 +321,115 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         },
         onChange: function(value) {
-            if (!value) return;
+            if (!value) {
+                selectedItem = null;
+                addToCartBtn.disabled = true;
+                stockHint.textContent = 'Pilih barang untuk melihat stok tersedia';
+                return;
+            }
             const option = itemSelect.querySelector(`option[value="${value}"]`);
             if (option) {
-                updatePreview(option);
+                selectedItem = {
+                    id: value,
+                    name: option.dataset.name,
+                    code: option.dataset.code,
+                    image: option.dataset.image,
+                    stock: parseInt(option.dataset.stock)
+                };
+                maxStock = selectedItem.stock;
+                
+                const inCart = cart.find(c => c.id === value);
+                const usedQty = inCart ? inCart.qty : 0;
+                const available = maxStock - usedQty;
+                
+                stockHint.textContent = `Stok tersedia: ${available} unit${usedQty > 0 ? ` (${usedQty} sudah di keranjang)` : ''}`;
+                qtyInput.max = available;
+                qtyInput.value = Math.min(parseInt(qtyInput.value) || 1, available);
+                addToCartBtn.disabled = available <= 0;
             }
         }
     });
 
-    function updatePreview(selected) {
-        if (selected && selected.value) {
-            const stock = parseInt(selected.dataset.stock);
-            const image = selected.dataset.image;
-            maxStock = stock;
-            preview.style.display = 'block';
-            previewName.textContent = selected.text.split(' (')[0];
-            previewCode.textContent = selected.dataset.code;
-            previewStock.innerHTML = '<span class="badge bg-info">Total: ' + stock + ' unit</span>';
-            stockHint.textContent = 'Maksimal permintaan: ' + stock + ' unit';
-            quantityInput.max = stock;
-            
-            // Show image or icon
-            const previewIcon = document.getElementById('previewIcon');
-            const previewImage = document.getElementById('previewImage');
-            if (image && image.trim() !== '') {
-                previewIcon.style.display = 'none';
-                previewImage.src = '/public/assets/uploads/' + image;
-                previewImage.style.display = 'block';
-            } else {
-                previewIcon.style.display = 'block';
-                previewImage.style.display = 'none';
-            }
+    addToCartBtn.addEventListener('click', function() {
+        if (!selectedItem) return;
+        const qty = parseInt(qtyInput.value) || 0;
+        if (qty <= 0) return;
+        
+        const existingIdx = cart.findIndex(c => c.id === selectedItem.id);
+        if (existingIdx >= 0) {
+            cart[existingIdx].qty += qty;
         } else {
-            preview.style.display = 'none';
-            stockHint.textContent = 'Pilih barang terlebih dahulu';
-            maxStock = 0;
+            cart.push({ id: selectedItem.id, name: selectedItem.name, code: selectedItem.code, image: selectedItem.image, qty: qty, maxStock: selectedItem.stock });
         }
+        
+        renderCart();
+        tomSelect.clear();
+        qtyInput.value = 1;
+        selectedItem = null;
+        addToCartBtn.disabled = true;
+        stockHint.textContent = 'Pilih barang untuk melihat stok tersedia';
+    });
+
+    function renderCart() {
+        if (cart.length === 0) {
+            cartContainer.style.display = 'none';
+            submitBtn.disabled = true;
+            cartCount.textContent = '0 barang';
+            hiddenInputs.innerHTML = '';
+            return;
+        }
+        
+        cartContainer.style.display = 'block';
+        submitBtn.disabled = false;
+        cartCount.textContent = `${cart.length} barang`;
+        
+        cartItems.innerHTML = cart.map((item, idx) => `
+            <div class="cart-item" data-idx="${idx}">
+                ${item.image ? `<img src="/public/assets/uploads/${item.image}" class="cart-item-img" alt="">` : `<div class="cart-item-placeholder"><i class="bi bi-box-seam"></i></div>`}
+                <div class="cart-item-info">
+                    <div class="cart-item-name">${escapeHtml(item.name)}</div>
+                    <div class="cart-item-code">${escapeHtml(item.code)}</div>
+                </div>
+                <div class="cart-item-qty">
+                    <input type="number" class="form-control form-control-sm qty-edit" value="${item.qty}" min="1" max="${item.maxStock}" data-idx="${idx}">
+                    <span class="text-muted">unit</span>
+                </div>
+                <div class="cart-item-remove" data-idx="${idx}" title="Hapus"><i class="bi bi-trash"></i></div>
+            </div>
+        `).join('');
+        
+        hiddenInputs.innerHTML = cart.map((item, idx) => `
+            <input type="hidden" name="items[${idx}][id]" value="${item.id}">
+            <input type="hidden" name="items[${idx}][name]" value="${escapeHtml(item.name)}">
+            <input type="hidden" name="items[${idx}][qty]" value="${item.qty}">
+        `).join('');
+        
+        document.querySelectorAll('.qty-edit').forEach(input => {
+            input.addEventListener('change', function() {
+                const idx = parseInt(this.dataset.idx);
+                const val = parseInt(this.value) || 1;
+                cart[idx].qty = Math.min(Math.max(val, 1), cart[idx].maxStock);
+                renderCart();
+            });
+        });
+        
+        document.querySelectorAll('.cart-item-remove').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const idx = parseInt(this.dataset.idx);
+                cart.splice(idx, 1);
+                renderCart();
+            });
+        });
     }
 
-    decreaseBtn.addEventListener('click', () => { 
-        let val = parseInt(quantityInput.value) || 0;
-        if (val > 1) quantityInput.value = val - 1;
-    });
-    increaseBtn.addEventListener('click', () => { 
-        let val = parseInt(quantityInput.value) || 0;
-        if (maxStock === 0 || val < maxStock) quantityInput.value = val + 1;
-    });
-    quantityInput.addEventListener('input', function() {
-        let val = parseInt(this.value) || 0;
-        if (maxStock > 0 && val > maxStock) this.value = maxStock;
-        if (val < 1 && this.value !== '') this.value = 1;
-    });
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
 
     <?php if ($preSelectedItem && $preSelectedDetails): ?>
-    const preSelected = itemSelect.querySelector('option[value="<?= $preSelectedItem ?>"]');
-    if (preSelected) updatePreview(preSelected);
+    setTimeout(() => { tomSelect.setValue('<?= $preSelectedItem ?>'); }, 100);
     <?php endif; ?>
 });
 </script>

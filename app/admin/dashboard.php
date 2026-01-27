@@ -37,7 +37,8 @@ $stmt = $pdo->query("
 ");
 $recentLoans = $stmt->fetchAll();
 
-// Top borrowed items (for chart) - Only count approved loans (stage 2 validation completed)
+// Top borrowed items (for chart) - Only count FINAL approved loans (stage 2 validation completed)
+// Loans must have stage='approved' which only happens after admin does final approval
 // Also fetch category color for each item
 $topBorrowed = $pdo->query("
   SELECT i.name, i.id as inventory_id, COUNT(l.id) as borrow_count, SUM(l.quantity) as total_qty,
@@ -46,7 +47,7 @@ $topBorrowed = $pdo->query("
           WHERE ic.inventory_id = i.id LIMIT 1) as category_color
   FROM loans l
   JOIN inventories i ON i.id = l.inventory_id
-  WHERE l.stage = 'approved' OR l.status = 'returned'
+  WHERE l.stage = 'approved'
   GROUP BY l.inventory_id
   ORDER BY borrow_count DESC
   LIMIT 7
@@ -61,7 +62,9 @@ foreach ($topBorrowed as $item) {
     $chartColors[] = $item['category_color'] ?: '#1a9aaa'; // Default teal if no category
 }
 
-// Top requested items (permanent requests) - Only count approved requests
+// Top requested items (permanent requests) - Only count FINAL approved requests
+// Requests must have stage='approved' which only happens after admin does final approval (stage 2)
+// This excludes pending, awaiting_document, and submitted stages
 $topRequested = [];
 try {
     $topRequested = $pdo->query("

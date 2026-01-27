@@ -166,10 +166,13 @@ foreach ($items as $item) {
                 <!-- Stock Badge -->
                 <?php 
                 $stockPercent = $item['stock_total'] > 0 ? ($item['stock_available'] / $item['stock_total']) * 100 : 0;
+                $lowStockThreshold = $item['low_stock_threshold'] ?? 5;
+                $isLowStock = $item['stock_available'] <= $lowStockThreshold;
+                
                 if ($item['stock_available'] <= 0) {
                     $stockClass = 'danger';
                     $stockText = 'Habis';
-                } elseif ($stockPercent <= 20) {
+                } elseif ($isLowStock) {
                     $stockClass = 'warning';
                     $stockText = $item['stock_available'] . ' tersisa';
                 } else {
@@ -180,6 +183,17 @@ foreach ($items as $item) {
                 <span class="catalog-stock-badge <?= $stockClass ?>">
                     <?= $stockText ?>
                 </span>
+                
+                <!-- Low Stock Warning Ribbon -->
+                <?php if ($isLowStock && $item['stock_available'] > 0): ?>
+                <div class="low-stock-ribbon">
+                    <i class="bi bi-exclamation-triangle-fill me-1"></i>Stok Menipis
+                </div>
+                <?php elseif ($item['stock_available'] <= 0): ?>
+                <div class="low-stock-ribbon danger">
+                    <i class="bi bi-x-circle-fill me-1"></i>Stok Habis
+                </div>
+                <?php endif; ?>
             </div>
             
             <div class="card-body" style="padding: 20px;">
@@ -391,4 +405,22 @@ foreach ($items as $item) {
 .catalog-stock-badge.success { background: var(--success); }
 .catalog-stock-badge.warning { background: var(--warning); }
 .catalog-stock-badge.danger { background: var(--danger); }
+.low-stock-ribbon {
+    position: absolute;
+    top: 12px;
+    left: -35px;
+    background: linear-gradient(135deg, #f59e0b, #d97706);
+    color: #fff;
+    padding: 6px 40px;
+    font-size: 11px;
+    font-weight: 600;
+    transform: rotate(-45deg);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    z-index: 10;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+.low-stock-ribbon.danger {
+    background: linear-gradient(135deg, #ef4444, #dc2626);
+}
 </style>

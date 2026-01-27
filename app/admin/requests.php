@@ -243,22 +243,26 @@ $stageLabels = [
             <table class="table table-hover mb-0" id="requestsTable">
                 <thead>
                     <tr>
-                        <th>ID</th>
+                        <th>No</th>
                         <th>Pemohon</th>
                         <th>Barang</th>
                         <th>Qty</th>
+                        <th>Catatan</th>
                         <th>Tanggal</th>
                         <th>Status</th>
                         <th>Aksi</th>
                     </tr>
                 </thead>
                 <tbody>
-                    <?php foreach($requests as $r): 
+                    <?php 
+                    $rowNum = 0;
+                    foreach($requests as $r): 
+                        $rowNum++;
                         $stage = $r['stage'] ?? 'pending';
                         $stageInfo = $stageLabels[$stage] ?? ['Unknown', 'secondary', 'question'];
                     ?>
                     <tr>
-                        <td><span class="badge bg-secondary">#<?= $r['id'] ?></span></td>
+                        <td><span class="badge bg-secondary"><?= $rowNum ?></span></td>
                         <td>
                             <div class="d-flex align-items-center">
                                 <div class="avatar me-2"><?= strtoupper(substr($r['user_name'], 0, 1)) ?></div>
@@ -285,6 +289,15 @@ $stageLabels = [
                         </td>
                         <td><span class="badge bg-primary"><?= $r['quantity'] ?></span></td>
                         <td>
+                            <?php if (!empty($r['note'])): ?>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#noteModal<?= $r['id'] ?>" title="Lihat Catatan">
+                                <i class="bi bi-chat-text me-1"></i>Lihat
+                            </button>
+                            <?php else: ?>
+                            <span class="text-muted">-</span>
+                            <?php endif; ?>
+                        </td>
+                        <td>
                             <div><?= date('d M Y', strtotime($r['requested_at'])) ?></div>
                             <small class="text-muted"><?= date('H:i', strtotime($r['requested_at'])) ?></small>
                         </td>
@@ -296,11 +309,6 @@ $stageLabels = [
                         <td>
                             <?php if ($stage === 'pending'): ?>
                             <div class="btn-group btn-group-sm">
-                                <?php if (!empty($r['notes'])): ?>
-                                <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#viewNoteModal<?= $r['id'] ?>" title="Lihat Catatan">
-                                    <i class="bi bi-eye"></i>
-                                </button>
-                                <?php endif; ?>
                                 <form method="POST" class="d-inline" onsubmit="return confirm('Setujui permintaan ini?');">
                                     <input type="hidden" name="action" value="approve_stage1">
                                     <input type="hidden" name="request_id" value="<?= $r['id'] ?>">
@@ -312,25 +320,13 @@ $stageLabels = [
                             </div>
                             
                             <?php elseif ($stage === 'awaiting_document'): ?>
-                            <div class="d-flex gap-1">
-                                <?php if (!empty($r['notes'])): ?>
-                                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#viewNoteModal<?= $r['id'] ?>" title="Lihat Catatan">
-                                    <i class="bi bi-eye"></i>
-                                </button>
-                                <?php endif; ?>
-                                <span class="badge bg-info"><i class="bi bi-hourglass me-1"></i>Menunggu Dokumen</span>
-                            </div>
+                            <span class="badge bg-info"><i class="bi bi-hourglass me-1"></i>Menunggu Dokumen</span>
                             
                             <?php elseif ($stage === 'submitted'): ?>
                             <div class="btn-group btn-group-sm">
-                                <?php if (!empty($r['notes'])): ?>
-                                <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#viewNoteModal<?= $r['id'] ?>" title="Lihat Catatan">
-                                    <i class="bi bi-eye"></i>
-                                </button>
-                                <?php endif; ?>
                                 <?php if ($r['document_path']): ?>
                                 <a class="btn-download-doc btn-sm" href="/public/assets/<?= htmlspecialchars($r['document_path']) ?>" target="_blank">
-                                    <i class="bi bi-file-earmark-arrow-down"></i> Dokumen
+                                    <i class="bi bi-file-earmark-arrow-down"></i>
                                 </a>
                                 <?php endif; ?>
                                 <form method="POST" class="d-inline" onsubmit="return confirm('Setujui final dan kurangi stok?');">
@@ -344,16 +340,43 @@ $stageLabels = [
                             </div>
                             
                             <?php else: ?>
-                            <?php if (!empty($r['notes'])): ?>
-                            <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#viewNoteModal<?= $r['id'] ?>" title="Lihat Catatan">
-                                <i class="bi bi-eye me-1"></i>Lihat Catatan
-                            </button>
-                            <?php else: ?>
                             <span class="text-muted">-</span>
-                            <?php endif; ?>
                             <?php endif; ?>
                         </td>
                     </tr>
+                    
+                    <!-- Note Modal -->
+                    <?php if (!empty($r['note'])): ?>
+                    <div class="modal fade" id="noteModal<?= $r['id'] ?>" tabindex="-1">
+                        <div class="modal-dialog">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <h5 class="modal-title"><i class="bi bi-chat-left-text me-2"></i>Catatan Permintaan</h5>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                </div>
+                                <div class="modal-body">
+                                    <div class="mb-3">
+                                        <label class="form-label fw-semibold">Pemohon</label>
+                                        <p class="mb-0"><?= htmlspecialchars($r['user_name']) ?> (<?= htmlspecialchars($r['user_email']) ?>)</p>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label fw-semibold">Barang</label>
+                                        <p class="mb-0"><?= htmlspecialchars($r['inventory_name']) ?> (<?= htmlspecialchars($r['inventory_code']) ?>)</p>
+                                    </div>
+                                    <div class="mb-0">
+                                        <label class="form-label fw-semibold">Catatan dari Pemohon</label>
+                                        <div class="p-3 rounded" style="background: var(--bg-main); border: 1px solid var(--border-color);">
+                                            <?= nl2br(htmlspecialchars($r['note'])) ?>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Tutup</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <?php endif; ?>
                     
                     <!-- Reject Modal -->
                     <div class="modal fade" id="rejectModal<?= $r['id'] ?>" tabindex="-1">
@@ -377,37 +400,6 @@ $stageLabels = [
                                         <button type="submit" class="btn btn-danger">Tolak Permintaan</button>
                                     </div>
                                 </form>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- View Note Modal -->
-                    <div class="modal fade" id="viewNoteModal<?= $r['id'] ?>" tabindex="-1">
-                        <div class="modal-dialog">
-                            <div class="modal-content">
-                                <div class="modal-header">
-                                    <h5 class="modal-title"><i class="bi bi-chat-left-text me-2"></i>Catatan Permintaan #<?= $r['id'] ?></h5>
-                                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                                </div>
-                                <div class="modal-body">
-                                    <div class="mb-3">
-                                        <label class="form-label fw-semibold">Pemohon</label>
-                                        <p class="mb-0"><?= htmlspecialchars($r['user_name']) ?> (<?= htmlspecialchars($r['user_email']) ?>)</p>
-                                    </div>
-                                    <div class="mb-3">
-                                        <label class="form-label fw-semibold">Barang</label>
-                                        <p class="mb-0"><?= htmlspecialchars($r['inventory_name']) ?> (<?= htmlspecialchars($r['inventory_code']) ?>)</p>
-                                    </div>
-                                    <div class="mb-0">
-                                        <label class="form-label fw-semibold">Catatan dari Pemohon</label>
-                                        <div class="p-3 rounded" style="background: var(--bg-main); border: 1px solid var(--border-color);">
-                                            <?= !empty($r['notes']) ? nl2br(htmlspecialchars($r['notes'])) : '<span class="text-muted">Tidak ada catatan</span>' ?>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="modal-footer">
-                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Tutup</button>
-                                </div>
                             </div>
                         </div>
                     </div>

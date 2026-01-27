@@ -124,7 +124,7 @@ foreach ($loans as $l) {
         <table class="data-table">
             <thead>
                 <tr>
-                    <th>ID</th>
+                    <th>No</th>
                     <th>Peminjam</th>
                     <th>Barang</th>
                     <th>Qty</th>
@@ -135,7 +135,10 @@ foreach ($loans as $l) {
                 </tr>
             </thead>
             <tbody id="loansTableBody">
-                <?php foreach($loans as $l): 
+                <?php 
+                $rowNum = 0;
+                foreach($loans as $l): 
+                    $rowNum++;
                     $rowStatus = 'all';
                     if ($l['stage'] === 'pending' || $l['stage'] === 'awaiting_document' || $l['stage'] === 'submitted') {
                         $rowStatus = 'pending';
@@ -146,7 +149,7 @@ foreach ($loans as $l) {
                     }
                 ?>
                 <tr data-status="<?= $rowStatus ?>">
-                    <td><span class="badge bg-secondary">#<?= $l['id'] ?></span></td>
+                    <td><span class="badge bg-secondary"><?= $rowNum ?></span></td>
                     <td>
                         <div class="d-flex align-items-center gap-2">
                             <div class="topbar-avatar" style="width: 38px; height: 38px; font-size: 14px;">
