@@ -1,5 +1,6 @@
 <?php
-// app/admin/returns_new.php - Modern Returns Management Page
+// app/admin/returns.php - Simplified Workflow with Grouped Transactions
+// Admin approves return once + uploads BAST return document
 if (!isset($_SESSION['user']) || $_SESSION['user']['role'] !== 'admin') {
     header('Location: /index.php?page=login');
     exit;
@@ -14,159 +15,207 @@ $success = '';
 // Handle POST actions
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
+    $group_id = $_POST['group_id'] ?? '';
     $loan_id = (int)($_POST['loan_id'] ?? 0);
     
-    if ($action === 'approve_return_stage1' && $loan_id) {
-        $stmt = $pdo->prepare('SELECT * FROM loans WHERE id = ?');
-        $stmt->execute([$loan_id]);
-        $loan = $stmt->fetch();
-        
-        if (!$loan || ($loan['return_stage'] ?? '') !== 'pending_return') {
-            $errors[] = 'Pengembalian tidak valid.';
-        } else {
-            $stmt = $pdo->prepare('UPDATE loans SET return_stage = ? WHERE id = ?');
-            $stmt->execute(['awaiting_return_doc', $loan_id]);
-            $success = 'Pengembalian disetujui tahap 1. Menunggu user upload dokumen.';
-        }
-    }
-    
-    elseif ($action === 'reject_return' && $loan_id) {
-        $rejection_note = trim($_POST['rejection_note'] ?? '');
-        
-        // Get loan details for notification
-        $stmt = $pdo->prepare('SELECT l.*, i.name AS inventory_name FROM loans l JOIN inventories i ON i.id = l.inventory_id WHERE l.id = ?');
-        $stmt->execute([$loan_id]);
-        $loan = $stmt->fetch();
-        
-        $stmt = $pdo->prepare('UPDATE loans SET return_stage = ?, return_rejection_note = ? WHERE id = ?');
-        $stmt->execute(['return_rejected', $rejection_note, $loan_id]);
-        
-        // Create notification
-        if ($loan) {
-            $notifTitle = 'Pengajuan Pengembalian Ditolak';
-            $notifMessage = 'Pengajuan pengembalian Anda untuk "' . $loan['inventory_name'] . '" telah ditolak.';
-            if ($rejection_note) {
-                $notifMessage .= ' Alasan: ' . $rejection_note;
-            }
-            
-            $stmt = $pdo->prepare("
-                INSERT INTO notifications (user_id, type, title, message, reference_id, reference_type)
-                VALUES (?, 'return_rejected', ?, ?, ?, 'loan')
-            ");
-            $stmt->execute([$loan['user_id'], $notifTitle, $notifMessage, $loan_id]);
-        }
-        
-        $success = 'Pengajuan pengembalian ditolak.';
-    }
-    
-    elseif ($action === 'final_approve_return' && $loan_id) {
+    // APPROVE RETURN with BAST upload (single approval)
+    if ($action === 'approve_return' && ($group_id || $loan_id)) {
         $pdo->beginTransaction();
         try {
-            $stmt = $pdo->prepare('SELECT l.*, i.name AS inventory_name FROM loans l JOIN inventories i ON i.id = l.inventory_id WHERE l.id = ? FOR UPDATE');
-            $stmt->execute([$loan_id]);
-            $loan = $stmt->fetch();
+            // Handle BAST return document upload
+            $adminDocPath = null;
+            if (isset($_FILES['bast_document']) && $_FILES['bast_document']['error'] === UPLOAD_ERR_OK) {
+                $file = $_FILES['bast_document'];
+                $allowedExt = ['pdf', 'xlsx', 'xls', 'doc', 'docx'];
+                $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+                
+                if (!in_array($ext, $allowedExt)) {
+                    throw new Exception('Format dokumen tidak valid. Hanya PDF, Excel, Word.');
+                }
+                if ($file['size'] > 10 * 1024 * 1024) {
+                    throw new Exception('Ukuran file maksimal 10MB.');
+                }
+                
+                $uploadDir = __DIR__ . '/../../public/assets/uploads/documents/bast/';
+                if (!is_dir($uploadDir)) mkdir($uploadDir, 0755, true);
+                
+                $filename = 'bast_return_' . ($group_id ?: $loan_id) . '_' . time() . '.' . $ext;
+                if (!move_uploaded_file($file['tmp_name'], $uploadDir . $filename)) {
+                    throw new Exception('Gagal mengupload dokumen.');
+                }
+                $adminDocPath = 'uploads/documents/bast/' . $filename;
+            }
             
-            if (!$loan) throw new Exception('Peminjaman tidak ditemukan');
-            if (($loan['return_stage'] ?? '') !== 'return_submitted') throw new Exception('Pengembalian tidak dalam tahap submitted');
+            // Get loans to return
+            if ($group_id) {
+                $stmt = $pdo->prepare('SELECT l.*, i.name as inventory_name FROM loans l JOIN inventories i ON i.id = l.inventory_id WHERE l.group_id = ? AND l.return_stage = "pending_return" FOR UPDATE');
+                $stmt->execute([$group_id]);
+            } else {
+                $stmt = $pdo->prepare('SELECT l.*, i.name as inventory_name FROM loans l JOIN inventories i ON i.id = l.inventory_id WHERE l.id = ? AND l.return_stage = "pending_return" FOR UPDATE');
+                $stmt->execute([$loan_id]);
+            }
+            $loans = $stmt->fetchAll();
             
-            $stmt = $pdo->prepare('UPDATE inventories SET stock_available = stock_available + ? WHERE id = ?');
-            $stmt->execute([$loan['quantity'], $loan['inventory_id']]);
+            if (empty($loans)) {
+                throw new Exception('Pengembalian tidak ditemukan atau sudah diproses.');
+            }
             
-            $stmt = $pdo->prepare('UPDATE loans SET return_stage = ?, status = ?, returned_at = NOW() WHERE id = ?');
-            $stmt->execute(['return_approved', 'returned', $loan_id]);
+            $userId = $loans[0]['user_id'];
+            $itemNames = [];
+            
+            foreach ($loans as $loan) {
+                // Return stock
+                $stmt = $pdo->prepare('UPDATE inventories SET stock_available = stock_available + ? WHERE id = ?');
+                $stmt->execute([$loan['quantity'], $loan['inventory_id']]);
+                
+                // Update loan status
+                $stmt = $pdo->prepare('UPDATE loans SET return_stage = "return_approved", status = "returned", returned_at = NOW(), return_admin_document_path = ? WHERE id = ?');
+                $stmt->execute([$adminDocPath, $loan['id']]);
+                
+                $itemNames[] = $loan['inventory_name'] . ' (' . $loan['quantity'] . ' unit)';
+            }
             
             // Create notification
-            $notifTitle = 'Pengembalian Berhasil';
-            $notifMessage = 'Pengembalian Anda untuk "' . $loan['inventory_name'] . '" telah berhasil dikonfirmasi. Terima kasih!';
+            $notifTitle = 'Pengembalian Disetujui';
+            $notifMessage = 'Pengembalian Anda untuk ' . implode(', ', $itemNames) . ' telah disetujui. Terima kasih!';
+            if ($adminDocPath) {
+                $notifMessage .= ' Dokumen BAST tersedia untuk diunduh.';
+            }
             
-            $stmt = $pdo->prepare("
-                INSERT INTO notifications (user_id, type, title, message, reference_id, reference_type)
-                VALUES (?, 'return_approved', ?, ?, ?, 'loan')
-            ");
-            $stmt->execute([$loan['user_id'], $notifTitle, $notifMessage, $loan_id]);
+            $stmt = $pdo->prepare("INSERT INTO notifications (user_id, type, title, message, reference_id, reference_type) VALUES (?, 'return_approved', ?, ?, ?, 'loan')");
+            $stmt->execute([$userId, $notifTitle, $notifMessage, $group_id ?: $loan_id]);
             
             $pdo->commit();
             $success = 'Pengembalian berhasil disetujui. Stok telah dikembalikan.';
         } catch (Exception $e) {
             $pdo->rollBack();
-            $errors[] = 'Error: ' . $e->getMessage();
+            $errors[] = $e->getMessage();
         }
     }
     
-    elseif ($action === 'final_reject_return' && $loan_id) {
+    // REJECT RETURN
+    elseif ($action === 'reject_return' && ($group_id || $loan_id)) {
         $rejection_note = trim($_POST['rejection_note'] ?? '');
         
-        // Get loan details for notification
-        $stmt = $pdo->prepare('SELECT l.*, i.name AS inventory_name FROM loans l JOIN inventories i ON i.id = l.inventory_id WHERE l.id = ?');
-        $stmt->execute([$loan_id]);
-        $loan = $stmt->fetch();
+        if ($group_id) {
+            $stmt = $pdo->prepare('SELECT l.*, i.name as inventory_name FROM loans l JOIN inventories i ON i.id = l.inventory_id WHERE l.group_id = ?');
+            $stmt->execute([$group_id]);
+        } else {
+            $stmt = $pdo->prepare('SELECT l.*, i.name as inventory_name FROM loans l JOIN inventories i ON i.id = l.inventory_id WHERE l.id = ?');
+            $stmt->execute([$loan_id]);
+        }
+        $loans = $stmt->fetchAll();
         
-        $stmt = $pdo->prepare('UPDATE loans SET return_stage = ?, return_rejection_note = ? WHERE id = ?');
-        $stmt->execute(['return_rejected', $rejection_note, $loan_id]);
-        
-        // Create notification
-        if ($loan) {
-            $notifTitle = 'Pengembalian Ditolak';
-            $notifMessage = 'Pengembalian Anda untuk "' . $loan['inventory_name'] . '" telah ditolak.';
-            if ($rejection_note) {
-                $notifMessage .= ' Alasan: ' . $rejection_note;
+        if (!empty($loans)) {
+            $userId = $loans[0]['user_id'];
+            $itemNames = [];
+            
+            foreach ($loans as $loan) {
+                $stmt = $pdo->prepare('UPDATE loans SET return_stage = "return_rejected", return_rejection_note = ? WHERE id = ?');
+                $stmt->execute([$rejection_note, $loan['id']]);
+                $itemNames[] = $loan['inventory_name'];
             }
             
-            $stmt = $pdo->prepare("
-                INSERT INTO notifications (user_id, type, title, message, reference_id, reference_type)
-                VALUES (?, 'return_rejected', ?, ?, ?, 'loan')
-            ");
-            $stmt->execute([$loan['user_id'], $notifTitle, $notifMessage, $loan_id]);
+            $notifMsg = 'Pengembalian Anda untuk ' . implode(', ', $itemNames) . ' telah ditolak.';
+            if ($rejection_note) $notifMsg .= ' Alasan: ' . $rejection_note;
+            
+            $stmt = $pdo->prepare("INSERT INTO notifications (user_id, type, title, message, reference_id, reference_type) VALUES (?, 'return_rejected', ?, ?, ?, 'loan')");
+            $stmt->execute([$userId, 'Pengembalian Ditolak', $notifMsg, $group_id ?: $loan_id]);
+            
+            $success = 'Pengembalian ditolak.';
         }
-        
-        $success = 'Pengembalian ditolak.';
     }
 }
 
-// Fetch loans with return requests
+// Fetch all loans with return requests (return_stage not null and not 'none')
 $stmt = $pdo->query("
-    SELECT l.*, u.name AS user_name, u.email AS user_email, i.name AS inventory_name, i.code AS inventory_code, i.image AS inventory_image
+    SELECT l.*, u.name AS user_name, u.email AS user_email, 
+           i.name AS inventory_name, i.code AS inventory_code, i.image AS inventory_image
     FROM loans l
     JOIN users u ON u.id = l.user_id
     JOIN inventories i ON i.id = l.inventory_id
     WHERE l.return_stage IS NOT NULL AND l.return_stage != 'none'
-    ORDER BY l.return_requested_at DESC
+    ORDER BY l.return_requested_at DESC, l.group_id, l.id
 ");
-$returns = $stmt->fetchAll();
+$allReturns = $stmt->fetchAll();
 
-// Stats
-$pendingCount = count(array_filter($returns, fn($r) => $r['return_stage'] === 'pending_return'));
-$awaitingDocCount = count(array_filter($returns, fn($r) => $r['return_stage'] === 'awaiting_return_doc'));
-$submittedCount = count(array_filter($returns, fn($r) => $r['return_stage'] === 'return_submitted'));
-$approvedCount = count(array_filter($returns, fn($r) => $r['return_stage'] === 'return_approved'));
+// Group returns by group_id
+$groupedReturns = [];
+foreach ($allReturns as $loan) {
+    if (!empty($loan['group_id'])) {
+        if (!isset($groupedReturns[$loan['group_id']])) {
+            $groupedReturns[$loan['group_id']] = [
+                'type' => 'group',
+                'group_id' => $loan['group_id'],
+                'user_id' => $loan['user_id'],
+                'user_name' => $loan['user_name'],
+                'user_email' => $loan['user_email'],
+                'return_requested_at' => $loan['return_requested_at'],
+                'return_stage' => $loan['return_stage'],
+                'items' => [],
+                'total_quantity' => 0,
+                'return_note' => $loan['return_note'] ?? null,
+                'return_rejection_note' => $loan['return_rejection_note'] ?? null,
+                'return_admin_document_path' => $loan['return_admin_document_path'] ?? null
+            ];
+        }
+        $groupedReturns[$loan['group_id']]['items'][] = $loan;
+        $groupedReturns[$loan['group_id']]['total_quantity'] += $loan['quantity'];
+        // Use first non-empty note
+        if (!empty($loan['return_note']) && empty($groupedReturns[$loan['group_id']]['return_note'])) {
+            $groupedReturns[$loan['group_id']]['return_note'] = $loan['return_note'];
+        }
+    } else {
+        $groupedReturns['single_' . $loan['id']] = [
+            'type' => 'single',
+            'group_id' => null,
+            'loan_id' => $loan['id'],
+            'user_id' => $loan['user_id'],
+            'user_name' => $loan['user_name'],
+            'user_email' => $loan['user_email'],
+            'return_requested_at' => $loan['return_requested_at'],
+            'return_stage' => $loan['return_stage'],
+            'items' => [$loan],
+            'total_quantity' => $loan['quantity'],
+            'return_note' => $loan['return_note'] ?? null,
+            'return_rejection_note' => $loan['return_rejection_note'] ?? null,
+            'return_admin_document_path' => $loan['return_admin_document_path'] ?? null
+        ];
+    }
+}
+
+// Count stats
+$pendingCount = count(array_filter($groupedReturns, fn($g) => $g['return_stage'] === 'pending_return'));
+$approvedCount = count(array_filter($groupedReturns, fn($g) => $g['return_stage'] === 'return_approved'));
+$rejectedCount = count(array_filter($groupedReturns, fn($g) => $g['return_stage'] === 'return_rejected'));
+
+// Fetch active BAST template for returns
+$bastTemplate = null;
+try {
+    $bastTemplate = $pdo->query("SELECT * FROM document_templates WHERE template_type = 'return' AND is_active = 1 LIMIT 1")->fetch();
+} catch (Exception $e) {}
 
 $returnStageLabels = [
     'pending_return' => ['Menunggu Validasi', 'warning', 'hourglass'],
-    'awaiting_return_doc' => ['Menunggu Dokumen', 'info', 'file-earmark'],
-    'return_submitted' => ['Validasi Final', 'primary', 'clock'],
     'return_approved' => ['Dikembalikan', 'success', 'check-circle'],
     'return_rejected' => ['Ditolak', 'danger', 'x-circle']
 ];
 ?>
 
-<!-- Page Header -->
 <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
-        <h1 class="page-title">
-            <i class="bi bi-box-arrow-in-left me-2"></i>Kelola Pengembalian
-        </h1>
+        <h1 class="page-title"><i class="bi bi-box-arrow-in-left me-2"></i>Kelola Pengembalian</h1>
         <p class="text-muted mb-0">Kelola permintaan pengembalian barang dari karyawan</p>
     </div>
 </div>
 
-<!-- Alert Messages -->
-<?php if($msg): ?>
-<div class="alert alert-info alert-dismissible fade show">
-    <i class="bi bi-info-circle me-2"></i><?= htmlspecialchars($msg) ?>
+<!-- Alerts -->
+<?php if($msg || $success): ?>
+<div class="alert alert-success alert-dismissible fade show">
+    <i class="bi bi-check-circle-fill me-2"></i><?= htmlspecialchars($msg ?: $success) ?>
     <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
 </div>
 <?php endif; ?>
-
 <?php foreach($errors as $e): ?>
 <div class="alert alert-danger alert-dismissible fade show">
     <i class="bi bi-exclamation-triangle me-2"></i><?= htmlspecialchars($e) ?>
@@ -174,63 +223,43 @@ $returnStageLabels = [
 </div>
 <?php endforeach; ?>
 
-<?php if($success): ?>
-<div class="alert alert-success alert-dismissible fade show">
-    <i class="bi bi-check-circle me-2"></i><?= htmlspecialchars($success) ?>
-    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-</div>
-<?php endif; ?>
-
-<!-- Stats Cards -->
+<!-- Stats -->
 <div class="row g-3 mb-4">
-    <div class="col-6 col-lg-3">
+    <div class="col-6 col-lg-4">
         <div class="modern-card" style="padding: 20px;">
             <div class="d-flex align-items-center gap-3">
-                <div style="width: 48px; height: 48px; background: linear-gradient(135deg, #f59e0b, #fbbf24); border-radius: var(--radius); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                <div style="width: 48px; height: 48px; background: linear-gradient(135deg, #f59e0b, #fbbf24); border-radius: var(--radius); display: flex; align-items: center; justify-content: center;">
                     <i class="bi bi-hourglass-split" style="color: #fff; font-size: 20px;"></i>
                 </div>
                 <div>
-                    <div style="font-size: 24px; font-weight: 700; color: var(--text-dark);"><?= $pendingCount ?></div>
-                    <div style="font-size: 13px; color: var(--text-muted);">Pending Review</div>
+                    <div style="font-size: 24px; font-weight: 700;"><?= $pendingCount ?></div>
+                    <div style="font-size: 13px; color: var(--text-muted);">Menunggu Validasi</div>
                 </div>
             </div>
         </div>
     </div>
-    <div class="col-6 col-lg-3">
+    <div class="col-6 col-lg-4">
         <div class="modern-card" style="padding: 20px;">
             <div class="d-flex align-items-center gap-3">
-                <div style="width: 48px; height: 48px; background: linear-gradient(135deg, #06b6d4, #22d3ee); border-radius: var(--radius); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
-                    <i class="bi bi-file-earmark" style="color: #fff; font-size: 20px;"></i>
-                </div>
-                <div>
-                    <div style="font-size: 24px; font-weight: 700; color: var(--text-dark);"><?= $awaitingDocCount ?></div>
-                    <div style="font-size: 13px; color: var(--text-muted);">Menunggu Dokumen</div>
-                </div>
-            </div>
-        </div>
-    </div>
-    <div class="col-6 col-lg-3">
-        <div class="modern-card" style="padding: 20px;">
-            <div class="d-flex align-items-center gap-3">
-                <div style="width: 48px; height: 48px; background: linear-gradient(135deg, var(--primary), var(--primary-light)); border-radius: var(--radius); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
-                    <i class="bi bi-clock" style="color: #fff; font-size: 20px;"></i>
-                </div>
-                <div>
-                    <div style="font-size: 24px; font-weight: 700; color: var(--text-dark);"><?= $submittedCount ?></div>
-                    <div style="font-size: 13px; color: var(--text-muted);">Validasi Final</div>
-                </div>
-            </div>
-        </div>
-    </div>
-    <div class="col-6 col-lg-3">
-        <div class="modern-card" style="padding: 20px;">
-            <div class="d-flex align-items-center gap-3">
-                <div style="width: 48px; height: 48px; background: linear-gradient(135deg, #10b981, #34d399); border-radius: var(--radius); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                <div style="width: 48px; height: 48px; background: linear-gradient(135deg, #10b981, #34d399); border-radius: var(--radius); display: flex; align-items: center; justify-content: center;">
                     <i class="bi bi-check-circle" style="color: #fff; font-size: 20px;"></i>
                 </div>
                 <div>
-                    <div style="font-size: 24px; font-weight: 700; color: var(--text-dark);"><?= $approvedCount ?></div>
-                    <div style="font-size: 13px; color: var(--text-muted);">Selesai</div>
+                    <div style="font-size: 24px; font-weight: 700;"><?= $approvedCount ?></div>
+                    <div style="font-size: 13px; color: var(--text-muted);">Dikembalikan</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-lg-4">
+        <div class="modern-card" style="padding: 20px;">
+            <div class="d-flex align-items-center gap-3">
+                <div style="width: 48px; height: 48px; background: linear-gradient(135deg, #ef4444, #f87171); border-radius: var(--radius); display: flex; align-items: center; justify-content: center;">
+                    <i class="bi bi-x-circle" style="color: #fff; font-size: 20px;"></i>
+                </div>
+                <div>
+                    <div style="font-size: 24px; font-weight: 700;"><?= $rejectedCount ?></div>
+                    <div style="font-size: 13px; color: var(--text-muted);">Ditolak</div>
                 </div>
             </div>
         </div>
@@ -240,19 +269,18 @@ $returnStageLabels = [
 <!-- Returns Table -->
 <div class="card">
     <div class="card-header d-flex justify-content-between align-items-center">
-        <h5 class="card-title mb-0">
-            <i class="bi bi-list-ul me-2"></i>Daftar Pengembalian
-        </h5>
-        <div class="input-group" style="width: 250px;">
-            <span class="input-group-text"><i class="bi bi-search"></i></span>
-            <input type="text" class="form-control" placeholder="Cari..." id="searchReturns">
+        <h5 class="card-title mb-0"><i class="bi bi-list-ul me-2"></i>Daftar Pengembalian</h5>
+        <div class="table-filters" style="padding: 0;">
+            <button class="table-filter-btn active" data-filter="all">Semua</button>
+            <button class="table-filter-btn" data-filter="pending_return">Pending</button>
+            <button class="table-filter-btn" data-filter="return_approved">Selesai</button>
         </div>
     </div>
     <div class="card-body p-0">
-        <?php if (empty($returns)): ?>
+        <?php if (empty($groupedReturns)): ?>
         <div class="text-center py-5">
             <div class="empty-state">
-                <i class="bi bi-inbox"></i>
+                <i class="bi bi-inbox" style="font-size: 48px; color: var(--text-muted);"></i>
                 <h5>Belum Ada Pengembalian</h5>
                 <p class="text-muted">Belum ada permintaan pengembalian dari karyawan.</p>
             </div>
@@ -262,64 +290,79 @@ $returnStageLabels = [
             <table class="table table-hover mb-0" id="returnsTable">
                 <thead>
                     <tr>
-                        <th width="60">No</th>
+                        <th>No</th>
                         <th>Peminjam</th>
                         <th>Barang</th>
-                        <th width="70">Qty</th>
-                        <th width="110">Tgl Pinjam</th>
-                        <th width="110">Tgl Pengajuan</th>
-                        <th width="140">Status</th>
-                        <th width="180">Aksi</th>
+                        <th>Qty</th>
+                        <th>Catatan</th>
+                        <th>Tanggal Pengajuan</th>
+                        <th>Status</th>
+                        <th>Aksi</th>
                     </tr>
                 </thead>
-                <tbody>
+                <tbody id="returnsTableBody">
                     <?php 
                     $rowNum = 0;
-                    foreach($returns as $l): 
+                    foreach($groupedReturns as $key => $group): 
                         $rowNum++;
-                        $rs = $l['return_stage'] ?? 'none';
-                        $stageInfo = $returnStageLabels[$rs] ?? ['Unknown', 'secondary', 'question'];
+                        $filterClass = $group['return_stage'];
+                        $isMulti = count($group['items']) > 1;
+                        $stageInfo = $returnStageLabels[$group['return_stage']] ?? ['Unknown', 'secondary', 'question'];
                     ?>
-                    <tr>
+                    <!-- Group Header Row -->
+                    <tr class="group-header" data-status="<?= $filterClass ?>" data-group="<?= $key ?>" <?= $isMulti ? 'style="cursor:pointer;" onclick="toggleGroup(\'' . $key . '\')"' : '' ?>>
                         <td><span class="badge bg-secondary"><?= $rowNum ?></span></td>
                         <td>
                             <div class="d-flex align-items-center">
-                                <div class="avatar me-2">
-                                    <?= strtoupper(substr($l['user_name'], 0, 1)) ?>
-                                </div>
+                                <div class="avatar me-2"><?= strtoupper(substr($group['user_name'], 0, 1)) ?></div>
                                 <div>
-                                    <div class="fw-semibold"><?= htmlspecialchars($l['user_name']) ?></div>
-                                    <small class="text-muted"><?= htmlspecialchars($l['user_email']) ?></small>
+                                    <div class="fw-semibold"><?= htmlspecialchars($group['user_name']) ?></div>
+                                    <small class="text-muted"><?= htmlspecialchars($group['user_email']) ?></small>
                                 </div>
                             </div>
                         </td>
                         <td>
+                            <?php if ($isMulti): ?>
+                            <div class="d-flex align-items-center gap-2">
+                                <i class="bi bi-chevron-right group-chevron" id="chevron-<?= $key ?>"></i>
+                                <div>
+                                    <span class="badge bg-primary"><?= count($group['items']) ?> barang</span>
+                                    <div style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">
+                                        <?= htmlspecialchars($group['items'][0]['inventory_name']) ?><?= count($group['items']) > 1 ? ', ...' : '' ?>
+                                    </div>
+                                </div>
+                            </div>
+                            <?php else: ?>
                             <div class="d-flex align-items-center">
-                                <?php if ($l['inventory_image']): ?>
-                                <img src="/public/assets/uploads/<?= htmlspecialchars($l['inventory_image']) ?>" 
-                                     alt="" class="rounded me-2" 
-                                     style="width: 40px; height: 40px; object-fit: cover;">
+                                <?php $item = $group['items'][0]; ?>
+                                <?php if ($item['inventory_image']): ?>
+                                <img src="/public/assets/uploads/<?= htmlspecialchars($item['inventory_image']) ?>" alt="" class="rounded me-2" style="width: 40px; height: 40px; object-fit: cover;">
                                 <?php else: ?>
-                                <div class="rounded me-2 d-flex align-items-center justify-content-center" 
-                                     style="width: 40px; height: 40px; background: var(--bg-tertiary);">
+                                <div class="rounded me-2 d-flex align-items-center justify-content-center" style="width: 40px; height: 40px; background: var(--bg-main);">
                                     <i class="bi bi-box-seam text-muted"></i>
                                 </div>
                                 <?php endif; ?>
                                 <div>
-                                    <div class="fw-semibold"><?= htmlspecialchars($l['inventory_name']) ?></div>
-                                    <small class="text-muted"><?= htmlspecialchars($l['inventory_code']) ?></small>
+                                    <div class="fw-semibold"><?= htmlspecialchars($item['inventory_name']) ?></div>
+                                    <small class="text-muted"><?= htmlspecialchars($item['inventory_code']) ?></small>
                                 </div>
                             </div>
+                            <?php endif; ?>
                         </td>
-                        <td><span class="badge bg-primary"><?= $l['quantity'] ?></span></td>
+                        <td><span class="badge bg-primary"><?= $group['total_quantity'] ?></span></td>
                         <td>
-                            <div><?= date('d M Y', strtotime($l['approved_at'] ?? $l['requested_at'])) ?></div>
-                            <small class="text-muted"><?= date('H:i', strtotime($l['approved_at'] ?? $l['requested_at'])) ?></small>
+                            <?php if (!empty($group['return_note'])): ?>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#noteModal<?= $key ?>" onclick="event.stopPropagation();">
+                                <i class="bi bi-chat-text me-1"></i>Lihat
+                            </button>
+                            <?php else: ?>
+                            <span class="text-muted">-</span>
+                            <?php endif; ?>
                         </td>
                         <td>
-                            <?php if ($l['return_requested_at']): ?>
-                            <div><?= date('d M Y', strtotime($l['return_requested_at'])) ?></div>
-                            <small class="text-muted"><?= date('H:i', strtotime($l['return_requested_at'])) ?></small>
+                            <?php if ($group['return_requested_at']): ?>
+                            <div><?= date('d M Y', strtotime($group['return_requested_at'])) ?></div>
+                            <small class="text-muted"><?= date('H:i', strtotime($group['return_requested_at'])) ?></small>
                             <?php else: ?>
                             <span class="text-muted">-</span>
                             <?php endif; ?>
@@ -330,89 +373,55 @@ $returnStageLabels = [
                             </span>
                         </td>
                         <td>
-                            <?php if ($rs === 'pending_return'): ?>
-                            <div class="btn-group btn-group-sm">
-                                <?php if (!empty($l['return_note'])): ?>
-                                <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#viewReturnNoteModal<?= $l['id'] ?>" title="Lihat Catatan">
-                                    <i class="bi bi-eye"></i>
+                            <?php if($group['return_stage'] === 'pending_return'): ?>
+                            <div class="btn-group btn-group-sm" onclick="event.stopPropagation();">
+                                <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#approveModal<?= $key ?>">
+                                    <i class="bi bi-check-lg me-1"></i>Approve
                                 </button>
-                                <?php endif; ?>
-                                <form method="POST" class="d-inline" onsubmit="return confirm('Setujui pengembalian tahap 1 dan minta dokumen?');">
-                                    <input type="hidden" name="action" value="approve_return_stage1">
-                                    <input type="hidden" name="loan_id" value="<?= $l['id'] ?>">
-                                    <button class="btn btn-success"><i class="bi bi-check-lg me-1"></i>Approve</button>
-                                </form>
-                                <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#rejectReturnModal<?= $l['id'] ?>">
+                                <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#rejectModal<?= $key ?>">
                                     <i class="bi bi-x-lg"></i>
                                 </button>
                             </div>
-                            
-                            <?php elseif ($rs === 'awaiting_return_doc'): ?>
-                            <div class="d-flex gap-1">
-                                <?php if (!empty($l['return_note'])): ?>
-                                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#viewReturnNoteModal<?= $l['id'] ?>" title="Lihat Catatan">
-                                    <i class="bi bi-eye"></i>
-                                </button>
-                                <?php endif; ?>
-                                <span class="badge bg-info">
-                                    <i class="bi bi-hourglass me-1"></i>Menunggu Dokumen
-                                </span>
-                            </div>
-                            
-                            <?php elseif ($rs === 'return_submitted'): ?>
-                            <div class="btn-group btn-group-sm">
-                                <?php if (!empty($l['return_note'])): ?>
-                                <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#viewReturnNoteModal<?= $l['id'] ?>" title="Lihat Catatan">
-                                    <i class="bi bi-eye"></i>
-                                </button>
-                                <?php endif; ?>
-                                <?php if ($l['return_document_path']): ?>
-                                <a class="btn-download-doc btn-sm" href="/public/<?= htmlspecialchars($l['return_document_path']) ?>" target="_blank">
-                                    <i class="bi bi-file-earmark-arrow-down"></i> Dokumen
-                                </a>
-                                <?php endif; ?>
-                                <form method="POST" class="d-inline" onsubmit="return confirm('Setujui pengembalian final dan kembalikan stok?');">
-                                    <input type="hidden" name="action" value="final_approve_return">
-                                    <input type="hidden" name="loan_id" value="<?= $l['id'] ?>">
-                                    <button class="btn btn-success"><i class="bi bi-check-lg me-1"></i>Final</button>
-                                </form>
-                                <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#rejectFinalReturnModal<?= $l['id'] ?>">
-                                    <i class="bi bi-x-lg"></i>
-                                </button>
-                            </div>
-                            
-                            <?php elseif ($rs === 'return_approved'): ?>
-                            <div class="d-flex flex-column align-items-start gap-1">
-                                <?php if (!empty($l['return_note'])): ?>
-                                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#viewReturnNoteModal<?= $l['id'] ?>" title="Lihat Catatan">
-                                    <i class="bi bi-eye me-1"></i>Catatan
-                                </button>
-                                <?php endif; ?>
-                                <span class="badge bg-success">
-                                    <i class="bi bi-check-circle me-1"></i>Selesai
-                                </span>
-                                <?php if ($l['returned_at']): ?>
-                                <small class="text-muted"><?= date('d M Y', strtotime($l['returned_at'])) ?></small>
-                                <?php endif; ?>
-                            </div>
-                            
-                            <?php elseif ($rs === 'return_rejected'): ?>
-                            <div class="d-flex flex-column align-items-start gap-1">
-                                <?php if (!empty($l['return_note'])): ?>
-                                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#viewReturnNoteModal<?= $l['id'] ?>" title="Lihat Catatan">
-                                    <i class="bi bi-eye me-1"></i>Catatan
-                                </button>
-                                <?php endif; ?>
-                                <span class="badge bg-danger">
-                                    <i class="bi bi-x-circle me-1"></i>Ditolak
-                                </span>
-                            </div>
-                            
+                            <?php elseif($group['return_stage'] === 'return_approved' && !empty($group['return_admin_document_path'])): ?>
+                            <a href="/public/assets/<?= htmlspecialchars($group['return_admin_document_path']) ?>" target="_blank" class="btn btn-outline-primary btn-sm" onclick="event.stopPropagation();">
+                                <i class="bi bi-file-earmark-arrow-down me-1"></i>BAST
+                            </a>
+                            <?php elseif($group['return_stage'] === 'return_rejected'): ?>
+                            <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#rejectionModal<?= $key ?>" onclick="event.stopPropagation();">
+                                <i class="bi bi-info-circle me-1"></i>Alasan
+                            </button>
                             <?php else: ?>
-                            <span class="text-muted">—</span>
+                            <span class="text-muted">-</span>
                             <?php endif; ?>
                         </td>
                     </tr>
+                    
+                    <!-- Detail Rows for Multi-item -->
+                    <?php if ($isMulti): ?>
+                    <?php foreach($group['items'] as $item): ?>
+                    <tr class="group-detail-row" data-parent="<?= $key ?>" data-status="<?= $filterClass ?>" style="display: none; background: var(--bg-secondary);">
+                        <td></td>
+                        <td></td>
+                        <td>
+                            <div class="d-flex align-items-center" style="padding-left: 20px;">
+                                <?php if ($item['inventory_image']): ?>
+                                <img src="/public/assets/uploads/<?= htmlspecialchars($item['inventory_image']) ?>" alt="" class="rounded me-2" style="width: 32px; height: 32px; object-fit: cover;">
+                                <?php else: ?>
+                                <div class="rounded me-2 d-flex align-items-center justify-content-center" style="width: 32px; height: 32px; background: var(--bg-main);">
+                                    <i class="bi bi-box-seam text-muted" style="font-size: 12px;"></i>
+                                </div>
+                                <?php endif; ?>
+                                <div>
+                                    <div style="font-size: 13px;"><?= htmlspecialchars($item['inventory_name']) ?></div>
+                                    <small class="text-muted"><?= htmlspecialchars($item['inventory_code']) ?></small>
+                                </div>
+                            </div>
+                        </td>
+                        <td><span class="badge bg-secondary"><?= $item['quantity'] ?></span></td>
+                        <td colspan="4"></td>
+                    </tr>
+                    <?php endforeach; ?>
+                    <?php endif; ?>
                     <?php endforeach; ?>
                 </tbody>
             </table>
@@ -421,73 +430,28 @@ $returnStageLabels = [
     </div>
 </div>
 
-<style>
-.avatar {
-    width: 36px;
-    height: 36px;
-    background: linear-gradient(135deg, var(--primary), var(--primary-light));
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: white;
-    font-weight: 600;
-    font-size: 0.875rem;
-}
+<!-- Modals -->
+<?php foreach($groupedReturns as $key => $group): ?>
 
-.empty-state {
-    padding: 2rem;
-}
-
-.empty-state i {
-    font-size: 4rem;
-    color: var(--text-muted);
-    display: block;
-    margin-bottom: 1rem;
-}
-
-.empty-state h5 {
-    color: var(--text-primary);
-}
-</style>
-
-<script>
-document.getElementById('searchReturns')?.addEventListener('input', function(e) {
-    const query = e.target.value.toLowerCase();
-    const rows = document.querySelectorAll('#returnsTable tbody tr');
-    
-    rows.forEach(row => {
-        const text = row.textContent.toLowerCase();
-        row.style.display = text.includes(query) ? '' : 'none';
-    });
-});
-</script>
-
-<!-- Rejection Modals -->
-<?php foreach($returns as $l): ?>
-
-<!-- View Return Note Modal -->
-<div class="modal fade" id="viewReturnNoteModal<?= $l['id'] ?>" tabindex="-1">
+<!-- Note Modal -->
+<?php if (!empty($group['return_note'])): ?>
+<div class="modal fade" id="noteModal<?= $key ?>" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title"><i class="bi bi-chat-left-text me-2"></i>Catatan Pengembalian #<?= $l['id'] ?></h5>
+                <h5 class="modal-title"><i class="bi bi-chat-left-text me-2"></i>Catatan Pengembalian dari <?= htmlspecialchars($group['user_name']) ?></h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
                 <div class="mb-3">
-                    <label class="form-label fw-semibold">Peminjam</label>
-                    <p class="mb-0"><?= htmlspecialchars($l['user_name']) ?> (<?= htmlspecialchars($l['user_email']) ?>)</p>
+                    <label class="form-label fw-semibold">Barang yang dikembalikan:</label>
+                    <?php foreach($group['items'] as $item): ?>
+                    <p class="mb-1">&bull; <?= htmlspecialchars($item['inventory_name']) ?> (<?= $item['quantity'] ?> unit)</p>
+                    <?php endforeach; ?>
                 </div>
-                <div class="mb-3">
-                    <label class="form-label fw-semibold">Barang</label>
-                    <p class="mb-0"><?= htmlspecialchars($l['inventory_name']) ?> (<?= htmlspecialchars($l['inventory_code']) ?>)</p>
-                </div>
-                <div class="mb-0">
-                    <label class="form-label fw-semibold">Catatan dari Peminjam</label>
-                    <div class="p-3 rounded" style="background: var(--bg-main); border: 1px solid var(--border-color);">
-                        <?= !empty($l['return_note']) ? nl2br(htmlspecialchars($l['return_note'])) : '<span class="text-muted">Tidak ada catatan</span>' ?>
-                    </div>
+                <div class="p-3 rounded" style="background: var(--bg-main); border-left: 4px solid var(--primary-light);">
+                    <label class="form-label fw-semibold">Catatan:</label>
+                    <p class="mb-0"><?= nl2br(htmlspecialchars($group['return_note'])) ?></p>
                 </div>
             </div>
             <div class="modal-footer">
@@ -496,50 +460,109 @@ document.getElementById('searchReturns')?.addEventListener('input', function(e) 
         </div>
     </div>
 </div>
+<?php endif; ?>
 
-<?php if ($l['return_stage'] === 'pending_return'): ?>
-<div class="modal fade" id="rejectReturnModal<?= $l['id'] ?>" tabindex="-1">
+<!-- Approve Return Modal -->
+<?php if ($group['return_stage'] === 'pending_return'): ?>
+<div class="modal fade" id="approveModal<?= $key ?>" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-check-circle me-2" style="color: var(--success);"></i>Setujui Pengembalian</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" enctype="multipart/form-data">
+                <div class="modal-body">
+                    <input type="hidden" name="action" value="approve_return">
+                    <?php if ($group['type'] === 'group'): ?>
+                    <input type="hidden" name="group_id" value="<?= htmlspecialchars($group['group_id']) ?>">
+                    <?php else: ?>
+                    <input type="hidden" name="loan_id" value="<?= $group['items'][0]['id'] ?>">
+                    <?php endif; ?>
+                    
+                    <div style="margin-bottom: 20px; padding: 16px; background: var(--bg-main); border-radius: var(--radius);">
+                        <h6><i class="bi bi-person me-2"></i>Peminjam: <?= htmlspecialchars($group['user_name']) ?></h6>
+                        <div class="table-responsive mt-3">
+                            <table class="table table-sm mb-0">
+                                <thead><tr><th>Barang</th><th>Qty</th></tr></thead>
+                                <tbody>
+                                    <?php foreach($group['items'] as $item): ?>
+                                    <tr>
+                                        <td><?= htmlspecialchars($item['inventory_name']) ?> <small class="text-muted">(<?= htmlspecialchars($item['inventory_code']) ?>)</small></td>
+                                        <td><span class="badge bg-primary"><?= $item['quantity'] ?></span></td>
+                                    </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    
+                    <?php if (!empty($group['return_note'])): ?>
+                    <div class="alert alert-info mb-3">
+                        <strong><i class="bi bi-chat-text me-1"></i>Catatan dari peminjam:</strong><br>
+                        <?= nl2br(htmlspecialchars($group['return_note'])) ?>
+                    </div>
+                    <?php endif; ?>
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold"><i class="bi bi-file-earmark-arrow-up me-1"></i>Upload Dokumen BAST Pengembalian</label>
+                        <input type="file" name="bast_document" class="form-control" accept=".pdf,.xlsx,.xls,.doc,.docx">
+                        <small class="text-muted">Format: PDF, Excel, Word. Maksimal 10MB. (Opsional)</small>
+                        <?php if ($bastTemplate): ?>
+                        <div class="mt-2">
+                            <a href="/public/assets/uploads/templates/<?= htmlspecialchars(basename($bastTemplate['file_path'])) ?>" target="_blank" class="btn btn-outline-secondary btn-sm">
+                                <i class="bi bi-download me-1"></i>Download Template
+                            </a>
+                        </div>
+                        <?php endif; ?>
+                    </div>
+                    
+                    <div class="alert alert-success mb-0">
+                        <i class="bi bi-info-circle me-2"></i>
+                        Dengan menyetujui, stok barang akan dikembalikan secara otomatis.
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+                    <button type="submit" class="btn btn-success"><i class="bi bi-check-lg me-1"></i>Setujui Pengembalian</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Reject Return Modal -->
+<div class="modal fade" id="rejectModal<?= $key ?>" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">
-                    <i class="bi bi-x-circle me-2" style="color: var(--danger);"></i>
-                    Tolak Pengembalian
-                </h5>
+                <h5 class="modal-title"><i class="bi bi-x-circle me-2" style="color: var(--danger);"></i>Tolak Pengembalian</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <form method="POST">
                 <div class="modal-body">
                     <input type="hidden" name="action" value="reject_return">
-                    <input type="hidden" name="loan_id" value="<?= $l['id'] ?>">
+                    <?php if ($group['type'] === 'group'): ?>
+                    <input type="hidden" name="group_id" value="<?= htmlspecialchars($group['group_id']) ?>">
+                    <?php else: ?>
+                    <input type="hidden" name="loan_id" value="<?= $group['items'][0]['id'] ?>">
+                    <?php endif; ?>
                     
                     <div style="margin-bottom: 16px; padding: 16px; background: var(--bg-main); border-radius: var(--radius);">
-                        <div class="d-flex align-items-center gap-3">
-                            <?php if ($l['inventory_image']): ?>
-                            <img src="/public/assets/uploads/<?= htmlspecialchars($l['inventory_image']) ?>" 
-                                 style="width: 50px; height: 50px; object-fit: cover; border-radius: var(--radius);">
-                            <?php endif; ?>
-                            <div>
-                                <strong><?= htmlspecialchars($l['inventory_name']) ?></strong>
-                                <br><small style="color: var(--text-muted);">Diajukan oleh <?= htmlspecialchars($l['user_name']) ?> • <?= $l['quantity'] ?> unit</small>
-                            </div>
-                        </div>
+                        <strong><?= htmlspecialchars($group['user_name']) ?></strong> mengajukan pengembalian:
+                        <?php foreach($group['items'] as $item): ?>
+                        <div class="mt-1">&bull; <?= htmlspecialchars($item['inventory_name']) ?> (<?= $item['quantity'] ?> unit)</div>
+                        <?php endforeach; ?>
                     </div>
                     
                     <div class="mb-3">
-                        <label class="form-label" style="color: var(--text-dark); font-weight: 500;">
-                            Alasan Penolakan <span class="text-danger">*</span>
-                        </label>
-                        <textarea name="rejection_note" class="form-control" rows="4" 
-                                  placeholder="Berikan alasan mengapa pengembalian ini ditolak..." required></textarea>
-                        <small style="color: var(--text-muted);">Catatan ini akan dikirimkan kepada karyawan.</small>
+                        <label class="form-label fw-semibold">Alasan Penolakan <span class="text-danger">*</span></label>
+                        <textarea name="rejection_note" class="form-control" rows="3" required></textarea>
                     </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
-                    <button type="submit" class="btn btn-danger">
-                        <i class="bi bi-x-lg me-1"></i> Tolak Pengembalian
-                    </button>
+                    <button type="submit" class="btn btn-danger"><i class="bi bi-x-lg me-1"></i>Tolak</button>
                 </div>
             </form>
         </div>
@@ -547,53 +570,63 @@ document.getElementById('searchReturns')?.addEventListener('input', function(e) 
 </div>
 <?php endif; ?>
 
-<?php if ($l['return_stage'] === 'return_submitted'): ?>
-<div class="modal fade" id="rejectFinalReturnModal<?= $l['id'] ?>" tabindex="-1">
+<!-- Rejection Reason Modal -->
+<?php if ($group['return_stage'] === 'return_rejected' && !empty($group['return_rejection_note'])): ?>
+<div class="modal fade" id="rejectionModal<?= $key ?>" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">
-                    <i class="bi bi-x-circle me-2" style="color: var(--danger);"></i>
-                    Tolak Pengembalian Final
-                </h5>
+                <h5 class="modal-title"><i class="bi bi-info-circle me-2"></i>Alasan Penolakan</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
-            <form method="POST">
-                <div class="modal-body">
-                    <input type="hidden" name="action" value="final_reject_return">
-                    <input type="hidden" name="loan_id" value="<?= $l['id'] ?>">
-                    
-                    <div style="margin-bottom: 16px; padding: 16px; background: var(--bg-main); border-radius: var(--radius);">
-                        <div class="d-flex align-items-center gap-3">
-                            <?php if ($l['inventory_image']): ?>
-                            <img src="/public/assets/uploads/<?= htmlspecialchars($l['inventory_image']) ?>" 
-                                 style="width: 50px; height: 50px; object-fit: cover; border-radius: var(--radius);">
-                            <?php endif; ?>
-                            <div>
-                                <strong><?= htmlspecialchars($l['inventory_name']) ?></strong>
-                                <br><small style="color: var(--text-muted);">Diajukan oleh <?= htmlspecialchars($l['user_name']) ?> • <?= $l['quantity'] ?> unit</small>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label class="form-label" style="color: var(--text-dark); font-weight: 500;">
-                            Alasan Penolakan <span class="text-danger">*</span>
-                        </label>
-                        <textarea name="rejection_note" class="form-control" rows="4" 
-                                  placeholder="Berikan alasan mengapa dokumen pengembalian ini ditolak..." required></textarea>
-                        <small style="color: var(--text-muted);">Catatan ini akan dikirimkan kepada karyawan.</small>
-                    </div>
+            <div class="modal-body">
+                <div class="p-3 rounded" style="background: var(--bg-main); border-left: 4px solid var(--danger);">
+                    <?= nl2br(htmlspecialchars($group['return_rejection_note'])) ?>
                 </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
-                    <button type="submit" class="btn btn-danger">
-                        <i class="bi bi-x-lg me-1"></i> Tolak Pengembalian
-                    </button>
-                </div>
-            </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Tutup</button>
+            </div>
         </div>
     </div>
 </div>
 <?php endif; ?>
+
 <?php endforeach; ?>
+
+<style>
+.avatar { width: 36px; height: 36px; background: var(--primary-light); color: #fff; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 14px; }
+.group-chevron { transition: transform 0.2s ease; }
+.group-chevron.expanded { transform: rotate(90deg); }
+.group-detail-row td { padding: 8px 12px !important; }
+</style>
+
+<script>
+function toggleGroup(groupId) {
+    const chevron = document.getElementById('chevron-' + groupId);
+    const detailRows = document.querySelectorAll(`tr[data-parent="${groupId}"]`);
+    
+    chevron.classList.toggle('expanded');
+    detailRows.forEach(row => {
+        row.style.display = row.style.display === 'none' ? '' : 'none';
+    });
+}
+
+document.querySelectorAll('.table-filter-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+        document.querySelectorAll('.table-filter-btn').forEach(b => b.classList.remove('active'));
+        this.classList.add('active');
+        
+        const filter = this.dataset.filter;
+        document.querySelectorAll('#returnsTableBody tr').forEach(row => {
+            if (filter === 'all' || row.dataset.status === filter) {
+                if (!row.classList.contains('group-detail-row')) {
+                    row.style.display = '';
+                }
+            } else {
+                row.style.display = 'none';
+            }
+        });
+    });
+});
+</script>
