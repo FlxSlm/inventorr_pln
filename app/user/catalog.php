@@ -194,6 +194,17 @@ foreach ($items as $item) {
                     <i class="bi bi-x-circle-fill me-1"></i>Stok Habis
                 </div>
                 <?php endif; ?>
+                
+                <!-- Condition Badge -->
+                <?php 
+                $condition = $item['item_condition'] ?? 'Baik';
+                $conditionBadgeClass = $condition === 'Baik' ? 'success' : ($condition === 'Rusak Ringan' ? 'warning' : 'danger');
+                ?>
+                <?php if ($condition !== 'Baik'): ?>
+                <span class="catalog-condition-badge <?= $conditionBadgeClass ?>">
+                    <i class="bi bi-<?= $condition === 'Rusak Ringan' ? 'exclamation-triangle' : 'x-circle' ?> me-1"></i><?= $condition ?>
+                </span>
+                <?php endif; ?>
             </div>
             
             <div class="card-body" style="padding: 20px;">
@@ -259,97 +270,128 @@ foreach ($items as $item) {
     <!-- Detail Modal -->
     <div class="modal fade" id="detailModal<?= $item['id'] ?>" tabindex="-1">
         <div class="modal-dialog modal-lg">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title"><i class="bi bi-info-circle me-2"></i>Detail Barang</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            <div class="modal-content" style="border: none; border-radius: 16px; overflow: hidden;">
+                <!-- Header with Image -->
+                <div style="position: relative;">
+                    <?php if ($item['image']): ?>
+                    <div style="height: 200px; overflow: hidden;">
+                        <img src="/public/assets/uploads/<?= htmlspecialchars($item['image']) ?>" 
+                             alt="<?= htmlspecialchars($item['name']) ?>" 
+                             style="width: 100%; height: 100%; object-fit: cover;">
+                    </div>
+                    <?php else: ?>
+                    <div style="height: 120px; background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%); display: flex; align-items: center; justify-content: center;">
+                        <i class="bi bi-box-seam" style="font-size: 3rem; color: rgba(255,255,255,0.5);"></i>
+                    </div>
+                    <?php endif; ?>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" style="position: absolute; top: 12px; right: 12px; background-color: rgba(0,0,0,0.3); border-radius: 50%; padding: 10px;"></button>
+                    
+                    <!-- Stock Badge on Image -->
+                    <span class="catalog-stock-badge <?= $stockClass ?>" style="position: absolute; bottom: 12px; right: 12px;">
+                        <?= $stockText ?>
+                    </span>
+                    
+                    <?php 
+                    // Condition badge
+                    $condition = $item['item_condition'] ?? 'Baik';
+                    $conditionClass = $condition === 'Baik' ? 'success' : ($condition === 'Rusak Ringan' ? 'warning' : 'danger');
+                    ?>
+                    <?php if ($condition !== 'Baik'): ?>
+                    <span class="badge bg-<?= $conditionClass ?>" style="position: absolute; bottom: 12px; left: 12px; padding: 8px 12px;">
+                        <i class="bi bi-<?= $condition === 'Rusak Ringan' ? 'exclamation-triangle' : 'x-circle' ?> me-1"></i><?= $condition ?>
+                    </span>
+                    <?php endif; ?>
                 </div>
-                <div class="modal-body">
-                    <div class="row">
-                        <div class="col-md-5">
-                            <?php if ($item['image']): ?>
-                            <img src="/public/assets/uploads/<?= htmlspecialchars($item['image']) ?>" 
-                                 alt="<?= htmlspecialchars($item['name']) ?>" 
-                                 class="img-fluid rounded" style="width: 100%; max-height: 300px; object-fit: cover;">
-                            <?php else: ?>
-                            <div class="d-flex align-items-center justify-content-center rounded" 
-                                 style="height: 250px; background: var(--bg-main);">
-                                <i class="bi bi-box-seam" style="font-size: 4rem; color: var(--text-muted);"></i>
-                            </div>
-                            <?php endif; ?>
-                        </div>
-                        <div class="col-md-7">
-                            <h4 style="font-weight: 600; color: var(--text-dark); margin-bottom: 16px;">
+                
+                <div class="modal-body" style="padding: 24px;">
+                    <!-- Title and Categories -->
+                    <div class="d-flex justify-content-between align-items-start mb-3">
+                        <div>
+                            <h4 style="font-weight: 700; color: var(--text-dark); margin: 0 0 8px 0;">
                                 <?= htmlspecialchars($item['name']) ?>
                             </h4>
-                            
-                            <table class="table table-borderless table-sm">
-                                <tr>
-                                    <td style="width: 140px; color: var(--text-muted);"><i class="bi bi-upc-scan me-2"></i>Nomor Seri</td>
-                                    <td><strong><?= htmlspecialchars($item['code'] ?: '-') ?></strong></td>
-                                </tr>
-                                <?php if (!empty($item['item_type'])): ?>
-                                <tr>
-                                    <td style="color: var(--text-muted);"><i class="bi bi-diagram-3 me-2"></i>Tipe Barang</td>
-                                    <td><strong><?= htmlspecialchars($item['item_type']) ?></strong></td>
-                                </tr>
-                                <?php endif; ?>
-                                <tr>
-                                    <td style="color: var(--text-muted);"><i class="bi bi-boxes me-2"></i>Stok Total</td>
-                                    <td><strong><?= $item['stock_total'] ?> <?= htmlspecialchars($item['unit'] ?? 'unit') ?></strong></td>
-                                </tr>
-                                <tr>
-                                    <td style="color: var(--text-muted);"><i class="bi bi-check2-circle me-2"></i>Stok Tersedia</td>
-                                    <td>
-                                        <strong class="text-<?= $stockClass ?>"><?= $item['stock_available'] ?> <?= htmlspecialchars($item['unit'] ?? 'unit') ?></strong>
-                                    </td>
-                                </tr>
-                                <?php if (!empty($item['year_acquired'])): ?>
-                                <tr>
-                                    <td style="color: var(--text-muted);"><i class="bi bi-calendar me-2"></i>Tahun Perolehan</td>
-                                    <td><strong><?= htmlspecialchars($item['year_acquired']) ?></strong></td>
-                                </tr>
-                                <?php endif; ?>
-                                <?php if (!empty($item['year_manufactured'])): ?>
-                                <tr>
-                                    <td style="color: var(--text-muted);"><i class="bi bi-wrench me-2"></i>Tahun Pembuatan</td>
-                                    <td><strong><?= htmlspecialchars($item['year_manufactured']) ?></strong></td>
-                                </tr>
-                                <?php endif; ?>
-                            </table>
-                            
-                            <?php if (!empty($itemCategories[$item['id']])): ?>
-                            <div class="mb-3">
-                                <label class="form-label fw-semibold">Kategori</label>
-                                <div>
-                                    <?php foreach($itemCategories[$item['id']] as $cat): ?>
-                                    <span class="badge" style="background: <?= htmlspecialchars($cat['color']) ?>; color: #fff; margin-right: 4px;">
-                                        <?= htmlspecialchars($cat['name']) ?>
-                                    </span>
-                                    <?php endforeach; ?>
-                                </div>
-                            </div>
-                            <?php endif; ?>
-                            
-                            <?php if ($item['description']): ?>
-                            <div class="mb-0">
-                                <label class="form-label fw-semibold">Deskripsi</label>
-                                <p class="mb-0" style="color: var(--text-muted);">
-                                    <?= nl2br(htmlspecialchars($item['description'])) ?>
-                                </p>
-                            </div>
+                            <?php if (!empty($item['code'])): ?>
+                            <span class="text-muted"><i class="bi bi-upc-scan me-1"></i><?= htmlspecialchars($item['code']) ?></span>
                             <?php endif; ?>
                         </div>
+                        <?php if (!empty($itemCategories[$item['id']])): ?>
+                        <div class="d-flex gap-1 flex-wrap justify-content-end" style="max-width: 50%;">
+                            <?php foreach($itemCategories[$item['id']] as $cat): ?>
+                            <span class="badge" style="background: <?= htmlspecialchars($cat['color']) ?>; color: #fff;">
+                                <?= htmlspecialchars($cat['name']) ?>
+                            </span>
+                            <?php endforeach; ?>
+                        </div>
+                        <?php endif; ?>
                     </div>
+                    
+                    <!-- Quick Info Grid -->
+                    <div class="row g-3 mb-4">
+                        <div class="col-6 col-md-3">
+                            <div style="background: var(--bg-main); border-radius: 10px; padding: 14px; text-align: center;">
+                                <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px;">Stok Total</div>
+                                <div style="font-size: 20px; font-weight: 700; color: var(--text-dark);"><?= $item['stock_total'] ?></div>
+                                <div style="font-size: 12px; color: var(--text-muted);"><?= htmlspecialchars($item['unit'] ?? 'unit') ?></div>
+                            </div>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <div style="background: var(--bg-main); border-radius: 10px; padding: 14px; text-align: center;">
+                                <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px;">Tersedia</div>
+                                <div style="font-size: 20px; font-weight: 700; color: var(--<?= $stockClass ?>);"><?= $item['stock_available'] ?></div>
+                                <div style="font-size: 12px; color: var(--text-muted);"><?= htmlspecialchars($item['unit'] ?? 'unit') ?></div>
+                            </div>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <div style="background: var(--bg-main); border-radius: 10px; padding: 14px; text-align: center;">
+                                <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px;">Kondisi</div>
+                                <div style="font-size: 14px; font-weight: 600; color: var(--<?= $conditionClass ?>); margin-top: 4px;">
+                                    <i class="bi bi-<?= $condition === 'Baik' ? 'check-circle' : ($condition === 'Rusak Ringan' ? 'exclamation-triangle' : 'x-circle') ?>"></i>
+                                </div>
+                                <div style="font-size: 12px; color: var(--text-muted);"><?= $condition ?></div>
+                            </div>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <div style="background: var(--bg-main); border-radius: 10px; padding: 14px; text-align: center;">
+                                <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px;">Tahun</div>
+                                <div style="font-size: 20px; font-weight: 700; color: var(--text-dark);"><?= htmlspecialchars($item['year_acquired'] ?? '-') ?></div>
+                                <div style="font-size: 12px; color: var(--text-muted);">Perolehan</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Additional Info -->
+                    <?php if (!empty($item['item_type']) || !empty($item['year_manufactured']) || !empty($item['description'])): ?>
+                    <div style="border-top: 1px solid var(--border-color); padding-top: 16px;">
+                        <?php if (!empty($item['item_type'])): ?>
+                        <div class="d-flex align-items-center mb-2">
+                            <span style="width: 130px; color: var(--text-muted); font-size: 13px;"><i class="bi bi-diagram-3 me-2"></i>Tipe Barang</span>
+                            <span style="font-weight: 500;"><?= htmlspecialchars($item['item_type']) ?></span>
+                        </div>
+                        <?php endif; ?>
+                        <?php if (!empty($item['year_manufactured'])): ?>
+                        <div class="d-flex align-items-center mb-2">
+                            <span style="width: 130px; color: var(--text-muted); font-size: 13px;"><i class="bi bi-wrench me-2"></i>Tahun Dibuat</span>
+                            <span style="font-weight: 500;"><?= htmlspecialchars($item['year_manufactured']) ?></span>
+                        </div>
+                        <?php endif; ?>
+                        <?php if (!empty($item['description'])): ?>
+                        <div class="mt-3">
+                            <div style="color: var(--text-muted); font-size: 13px; margin-bottom: 6px;"><i class="bi bi-card-text me-2"></i>Deskripsi</div>
+                            <p style="margin: 0; color: var(--text-dark); line-height: 1.6;"><?= nl2br(htmlspecialchars($item['description'])) ?></p>
+                        </div>
+                        <?php endif; ?>
+                    </div>
+                    <?php endif; ?>
                 </div>
-                <div class="modal-footer">
+                
+                <div class="modal-footer" style="padding: 16px 24px; border-top: 1px solid var(--border-color);">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Tutup</button>
                     <?php if ($item['stock_available'] > 0): ?>
                     <a href="/index.php?page=user_request_loan&item=<?= $item['id'] ?>" class="btn btn-primary">
-                        <i class="bi bi-hand-index me-1"></i> Ajukan Peminjaman
+                        <i class="bi bi-hand-index me-1"></i> Pinjam
                     </a>
                     <a href="/index.php?page=user_request_item&item=<?= $item['id'] ?>" class="btn btn-success">
-                        <i class="bi bi-bag-plus me-1"></i> Ajukan Permintaan
+                        <i class="bi bi-bag-plus me-1"></i> Minta
                     </a>
                     <?php endif; ?>
                 </div>
@@ -423,4 +465,17 @@ foreach ($items as $item) {
 .low-stock-ribbon.danger {
     background: linear-gradient(135deg, #ef4444, #dc2626);
 }
+.catalog-condition-badge {
+    position: absolute;
+    bottom: 12px;
+    left: 12px;
+    padding: 6px 10px;
+    border-radius: var(--radius);
+    font-size: 11px;
+    font-weight: 600;
+    color: #fff;
+}
+.catalog-condition-badge.success { background: var(--success); }
+.catalog-condition-badge.warning { background: var(--warning); }
+.catalog-condition-badge.danger { background: var(--danger); }
 </style>

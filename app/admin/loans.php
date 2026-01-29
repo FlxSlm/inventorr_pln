@@ -301,15 +301,17 @@ try {
             </thead>
             <tbody id="loansTableBody">
                 <?php 
+                $totalRows = count($groupedLoans);
                 $rowNum = 0;
                 foreach($groupedLoans as $key => $group): 
                     $rowNum++;
+                    $displayNum = $totalRows - $rowNum + 1; // Oldest gets highest number, newest gets 1
                     $filterClass = $group['stage'] === 'pending' ? 'pending' : ($group['stage'] === 'approved' ? 'approved' : 'rejected');
                     $isMulti = count($group['items']) > 1;
                 ?>
                 <!-- Group Header Row -->
                 <tr class="group-header" data-status="<?= $filterClass ?>" data-group="<?= $key ?>" <?= $isMulti ? 'style="cursor:pointer;" onclick="toggleGroup(\'' . $key . '\')"' : '' ?>>
-                    <td><span class="badge bg-secondary"><?= $rowNum ?></span></td>
+                    <td><span class="badge bg-secondary"><?= $displayNum ?></span></td>
                     <td>
                         <div class="d-flex align-items-center gap-2">
                             <div class="topbar-avatar" style="width: 38px; height: 38px; font-size: 14px;">

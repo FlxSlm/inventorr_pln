@@ -45,11 +45,12 @@ $myRecentLoans = $pdo->prepare('
 $myRecentLoans->execute([$userId]);
 $recentLoans = $myRecentLoans->fetchAll();
 
-// Top borrowed items (for chart)
+// Top borrowed items (for chart) - Only count FINAL approved loans
 $topBorrowed = $pdo->query("
   SELECT i.name, COUNT(l.id) as borrow_count
   FROM loans l
   JOIN inventories i ON i.id = l.inventory_id
+  WHERE l.stage = 'approved'
   GROUP BY l.inventory_id
   ORDER BY borrow_count DESC
   LIMIT 5
@@ -62,11 +63,12 @@ foreach ($topBorrowed as $item) {
     $chartData[] = (int)$item['borrow_count'];
 }
 
-// Top requested items (for chart)
+// Top requested items (for chart) - Only count FINAL approved requests
 $topRequested = $pdo->query("
   SELECT i.name, COUNT(r.id) as request_count
   FROM requests r
   JOIN inventories i ON i.id = r.inventory_id
+  WHERE r.stage = 'approved'
   GROUP BY r.inventory_id
   ORDER BY request_count DESC
   LIMIT 5

@@ -98,6 +98,17 @@ $lowStockItems = $pdo->query("
   ORDER BY stock_available ASC 
   LIMIT 5
 ")->fetchAll();
+
+// Damaged items (Rusak Ringan or Rusak Berat)
+$damagedItems = $pdo->query("
+  SELECT id, name, stock_available, stock_total, image, item_condition
+  FROM inventories 
+  WHERE item_condition IN ('Rusak Ringan', 'Rusak Berat') AND deleted_at IS NULL 
+  ORDER BY CASE WHEN item_condition = 'Rusak Berat' THEN 0 ELSE 1 END, name ASC 
+  LIMIT 5
+")->fetchAll();
+
+$totalDamagedItems = $pdo->query("SELECT COUNT(*) FROM inventories WHERE item_condition IN ('Rusak Ringan', 'Rusak Berat') AND deleted_at IS NULL")->fetchColumn();
 ?>
 
 <!-- Page Header -->
@@ -207,154 +218,246 @@ $lowStockItems = $pdo->query("
     </div>
 </div>
 
-<!-- Charts Row - Vertical Layout -->
-<div class="charts-vertical">
+<!-- Charts Row - Side by Side -->
+<div class="row g-4" style="margin-bottom: 24px;">
     <!-- Chart Card - Most Borrowed -->
-    <div class="modern-card">
-        <div class="card-header">
-            <h3 class="card-title">
-                <i class="bi bi-bar-chart-fill"></i> Barang Paling Sering Dipinjam
-            </h3>
-            <div class="card-actions">
-                <button class="chart-type-btn active" data-chart="borrow" data-type="bar" title="Bar Chart">
-                    <i class="bi bi-bar-chart"></i>
-                </button>
-                <button class="chart-type-btn" data-chart="borrow" data-type="doughnut" title="Doughnut Chart">
-                    <i class="bi bi-pie-chart"></i>
-                </button>
-            </div>
-        </div>
-        <div class="card-body">
-            <?php if (empty($topBorrowed)): ?>
-            <div class="empty-state">
-                <div class="empty-state-icon">
-                    <i class="bi bi-bar-chart"></i>
+    <div class="col-lg-6">
+        <div class="modern-card h-100">
+            <div class="card-header">
+                <h3 class="card-title">
+                    <i class="bi bi-bar-chart-fill"></i> Barang Paling Sering Dipinjam
+                </h3>
+                <div class="card-actions">
+                    <button class="chart-type-btn active" data-chart="borrow" data-type="bar" title="Bar Chart">
+                        <i class="bi bi-bar-chart"></i>
+                    </button>
+                    <button class="chart-type-btn" data-chart="borrow" data-type="doughnut" title="Doughnut Chart">
+                        <i class="bi bi-pie-chart"></i>
+                    </button>
                 </div>
-                <h5 class="empty-state-title">Belum Ada Data</h5>
-                <p class="empty-state-text">Data peminjaman akan muncul di sini</p>
             </div>
-            <?php else: ?>
-            <div class="chart-container" style="height: 300px;">
-                <canvas id="topBorrowedChart"></canvas>
+            <div class="card-body" style="padding: 16px;">
+                <?php if (empty($topBorrowed)): ?>
+                <div class="empty-state" style="padding: 30px;">
+                    <div class="empty-state-icon" style="width: 50px; height: 50px; font-size: 20px;">
+                        <i class="bi bi-bar-chart"></i>
+                    </div>
+                    <h5 class="empty-state-title" style="font-size: 14px;">Belum Ada Data</h5>
+                    <p class="empty-state-text mb-0" style="font-size: 12px;">Data peminjaman akan muncul di sini</p>
+                </div>
+                <?php else: ?>
+                <div class="chart-container" style="height: 250px;">
+                    <canvas id="topBorrowedChart"></canvas>
+                </div>
+                <?php endif; ?>
             </div>
-            <?php endif; ?>
         </div>
     </div>
     
     <!-- Chart Card - Most Requested -->
-    <div class="modern-card">
-        <div class="card-header">
-            <h3 class="card-title">
-                <i class="bi bi-cart-check-fill"></i> Barang Paling Sering Diminta
-            </h3>
-            <div class="card-actions">
-                <button class="chart-type-btn active" data-chart="request" data-type="bar" title="Bar Chart">
-                    <i class="bi bi-bar-chart"></i>
-                </button>
-                <button class="chart-type-btn" data-chart="request" data-type="doughnut" title="Doughnut Chart">
-                    <i class="bi bi-pie-chart"></i>
-                </button>
-            </div>
-        </div>
-        <div class="card-body">
-            <?php if (empty($topRequested)): ?>
-            <div class="empty-state">
-                <div class="empty-state-icon">
-                    <i class="bi bi-cart-check"></i>
+    <div class="col-lg-6">
+        <div class="modern-card h-100">
+            <div class="card-header">
+                <h3 class="card-title">
+                    <i class="bi bi-cart-check-fill"></i> Barang Paling Sering Diminta
+                </h3>
+                <div class="card-actions">
+                    <button class="chart-type-btn active" data-chart="request" data-type="bar" title="Bar Chart">
+                        <i class="bi bi-bar-chart"></i>
+                    </button>
+                    <button class="chart-type-btn" data-chart="request" data-type="doughnut" title="Doughnut Chart">
+                        <i class="bi bi-pie-chart"></i>
+                    </button>
                 </div>
-                <h5 class="empty-state-title">Belum Ada Data</h5>
-                <p class="empty-state-text">Data permintaan akan muncul di sini</p>
             </div>
-            <?php else: ?>
-            <div class="chart-container" style="height: 300px;">
-                <canvas id="topRequestedChart"></canvas>
+            <div class="card-body" style="padding: 16px;">
+                <?php if (empty($topRequested)): ?>
+                <div class="empty-state" style="padding: 30px;">
+                    <div class="empty-state-icon" style="width: 50px; height: 50px; font-size: 20px;">
+                        <i class="bi bi-cart-check"></i>
+                    </div>
+                    <h5 class="empty-state-title" style="font-size: 14px;">Belum Ada Data</h5>
+                    <p class="empty-state-text mb-0" style="font-size: 12px;">Data permintaan akan muncul di sini</p>
+                </div>
+                <?php else: ?>
+                <div class="chart-container" style="height: 250px;">
+                    <canvas id="topRequestedChart"></canvas>
+                </div>
+                <?php endif; ?>
             </div>
-            <?php endif; ?>
         </div>
     </div>
 </div>
 
 <!-- Info Stats Row -->
-<div class="content-grid">
-    <!-- Info Card -->
-    <div class="modern-card">
-        <div class="card-header">
-            <h3 class="card-title">
-                <i class="bi bi-pie-chart-fill"></i> Statistik Cepat
-            </h3>
-            <button class="card-menu-btn">
-                <i class="bi bi-three-dots-vertical"></i>
-            </button>
-        </div>
-        <div class="card-body">
-            <div class="info-stat-main">
-                <p class="info-stat-value"><?= number_format($totalUsers) ?></p>
-                <p class="info-stat-label">Total Pengguna Terdaftar</p>
+<div class="row g-4" style="margin-bottom: 24px;">
+    <!-- Quick Stats Card -->
+    <div class="col-lg-4">
+        <div class="modern-card h-100">
+            <div class="card-header">
+                <h3 class="card-title">
+                    <i class="bi bi-pie-chart-fill"></i> Statistik Cepat
+                </h3>
             </div>
-            <ul class="info-list">
-                <li class="info-list-item">
-                    <div class="info-list-left">
-                        <div class="info-list-icon" style="background: rgba(26, 154, 170, 0.1); color: var(--primary-light);">
-                            <i class="bi bi-box-seam"></i>
+            <div class="card-body" style="padding: 16px;">
+                <div class="info-stat-main" style="padding: 12px 0;">
+                    <p class="info-stat-value" style="font-size: 28px;"><?= number_format($totalUsers) ?></p>
+                    <p class="info-stat-label" style="font-size: 12px;">Total Pengguna Terdaftar</p>
+                </div>
+                <ul class="info-list" style="margin: 0;">
+                    <li class="info-list-item" style="padding: 10px 0;">
+                        <div class="info-list-left">
+                            <div class="info-list-icon" style="background: rgba(26, 154, 170, 0.1); color: var(--primary-light); width: 32px; height: 32px;">
+                                <i class="bi bi-box-seam" style="font-size: 14px;"></i>
+                            </div>
+                            <span class="info-list-text" style="font-size: 13px;">Barang</span>
                         </div>
-                        <span class="info-list-text">Barang Tersedia</span>
-                    </div>
-                    <span class="info-list-value"><?= number_format($totalItems) ?></span>
-                </li>
-                <li class="info-list-item">
-                    <div class="info-list-left">
-                        <div class="info-list-icon" style="background: var(--success-light); color: var(--success);">
-                            <i class="bi bi-clipboard-check"></i>
+                        <span class="info-list-value" style="font-size: 14px;"><?= number_format($totalItems) ?></span>
+                    </li>
+                    <li class="info-list-item" style="padding: 10px 0;">
+                        <div class="info-list-left">
+                            <div class="info-list-icon" style="background: var(--success-light); color: var(--success); width: 32px; height: 32px;">
+                                <i class="bi bi-clipboard-check" style="font-size: 14px;"></i>
+                            </div>
+                            <span class="info-list-text" style="font-size: 13px;">Peminjaman</span>
                         </div>
-                        <span class="info-list-text">Total Peminjaman</span>
-                    </div>
-                    <span class="info-list-value"><?= number_format($totalLoans) ?></span>
-                </li>
-                <li class="info-list-item">
-                    <div class="info-list-left">
-                        <div class="info-list-icon" style="background: var(--warning-light); color: var(--warning);">
-                            <i class="bi bi-hourglass-split"></i>
+                        <span class="info-list-value" style="font-size: 14px;"><?= number_format($totalLoans) ?></span>
+                    </li>
+                    <li class="info-list-item" style="padding: 10px 0;">
+                        <div class="info-list-left">
+                            <div class="info-list-icon" style="background: var(--warning-light); color: var(--warning); width: 32px; height: 32px;">
+                                <i class="bi bi-hourglass-split" style="font-size: 14px;"></i>
+                            </div>
+                            <span class="info-list-text" style="font-size: 13px;">Pending</span>
                         </div>
-                        <span class="info-list-text">Pending Approval</span>
-                    </div>
-                    <span class="info-list-value"><?= number_format($totalPendingLoans) ?></span>
-                </li>
-                <li class="info-list-item">
-                    <div class="info-list-left">
-                        <div class="info-list-icon" style="background: var(--danger-light); color: var(--danger);">
-                            <i class="bi bi-exclamation-triangle"></i>
+                        <span class="info-list-value" style="font-size: 14px;"><?= number_format($totalPendingLoans) ?></span>
+                    </li>
+                    <li class="info-list-item" style="padding: 10px 0;">
+                        <div class="info-list-left">
+                            <div class="info-list-icon" style="background: var(--danger-light); color: var(--danger); width: 32px; height: 32px;">
+                                <i class="bi bi-exclamation-triangle" style="font-size: 14px;"></i>
+                            </div>
+                            <span class="info-list-text" style="font-size: 13px;">Stok Rendah</span>
                         </div>
-                        <span class="info-list-text">Stok Rendah</span>
+                        <span class="info-list-value" style="font-size: 14px;"><?= number_format($lowStock) ?></span>
+                    </li>
+                </ul>
+                <a href="/index.php?page=admin_users_list" class="info-btn" style="margin-top: 12px; padding: 10px;">
+                    <i class="bi bi-people"></i> Kelola Pengguna
+                </a>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Low Stock Items -->
+    <div class="col-lg-4">
+        <div class="modern-card h-100">
+            <div class="card-header">
+                <h3 class="card-title">
+                    <i class="bi bi-exclamation-triangle-fill"></i> Stok Menipis
+                </h3>
+                <a href="/index.php?page=admin_inventory_list&low_stock=1" style="color: var(--primary-light); font-size: 12px;">Semua</a>
+            </div>
+            <div class="card-body" style="padding: 12px;">
+                <?php if (empty($lowStockItems)): ?>
+                <div class="empty-state" style="padding: 30px 15px;">
+                    <div class="empty-state-icon" style="width: 50px; height: 50px; font-size: 20px;">
+                        <i class="bi bi-check-circle"></i>
                     </div>
-                    <span class="info-list-value"><?= number_format($lowStock) ?></span>
-                </li>
-            </ul>
-            <a href="/index.php?page=admin_users_list" class="info-btn">
-                <i class="bi bi-people"></i> Kelola Pengguna
-            </a>
+                    <h5 class="empty-state-title" style="font-size: 14px;">Stok Aman</h5>
+                    <p class="empty-state-text mb-0" style="font-size: 12px;">Semua barang memiliki stok cukup</p>
+                </div>
+                <?php else: ?>
+                <?php foreach($lowStockItems as $item): ?>
+                <div class="product-item" style="padding: 10px 0;">
+                    <?php if (!empty($item['image'])): ?>
+                    <img src="/public/assets/uploads/<?= htmlspecialchars($item['image']) ?>" 
+                         alt="<?= htmlspecialchars($item['name']) ?>"
+                         class="product-img"
+                         style="width: 40px; height: 40px; object-fit: cover; border-radius: var(--radius);">
+                    <?php else: ?>
+                    <div class="product-img" style="background: var(--danger-light); width: 40px; height: 40px;">
+                        <i class="bi bi-box-seam" style="color: var(--danger); font-size: 16px;"></i>
+                    </div>
+                    <?php endif; ?>
+                    <div class="product-info" style="flex: 1; min-width: 0;">
+                        <p class="product-name" style="font-size: 13px; margin: 0 0 2px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"><?= htmlspecialchars($item['name']) ?></p>
+                        <p class="product-category" style="font-size: 11px; margin: 0;">Total: <?= $item['stock_total'] ?></p>
+                    </div>
+                    <div class="product-stock" style="text-align: right;">
+                        <p class="product-stock-value" style="color: var(--danger); font-size: 16px; margin: 0;"><?= $item['stock_available'] ?></p>
+                    </div>
+                </div>
+                <?php endforeach; ?>
+                <?php endif; ?>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Damaged Items -->
+    <div class="col-lg-4">
+        <div class="modern-card h-100">
+            <div class="card-header">
+                <h3 class="card-title">
+                    <i class="bi bi-tools"></i> Barang Rusak
+                </h3>
+                <a href="/index.php?page=admin_inventory_list&condition=damaged" style="color: var(--primary-light); font-size: 12px;">(<?= $totalDamagedItems ?>)</a>
+            </div>
+            <div class="card-body" style="padding: 12px;">
+                <?php if (empty($damagedItems)): ?>
+                <div class="empty-state" style="padding: 30px 15px;">
+                    <div class="empty-state-icon" style="width: 50px; height: 50px; font-size: 20px;">
+                        <i class="bi bi-check-circle"></i>
+                    </div>
+                    <h5 class="empty-state-title" style="font-size: 14px;">Semua Baik</h5>
+                    <p class="empty-state-text mb-0" style="font-size: 12px;">Tidak ada barang rusak</p>
+                </div>
+                <?php else: ?>
+                <?php foreach($damagedItems as $item): 
+                    $conditionClass = $item['item_condition'] === 'Rusak Berat' ? 'danger' : 'warning';
+                ?>
+                <div class="product-item" style="padding: 10px 0;">
+                    <?php if (!empty($item['image'])): ?>
+                    <img src="/public/assets/uploads/<?= htmlspecialchars($item['image']) ?>" 
+                         alt="<?= htmlspecialchars($item['name']) ?>"
+                         class="product-img"
+                         style="width: 40px; height: 40px; object-fit: cover; border-radius: var(--radius);">
+                    <?php else: ?>
+                    <div class="product-img" style="background: var(--<?= $conditionClass ?>-light); width: 40px; height: 40px;">
+                        <i class="bi bi-box-seam" style="color: var(--<?= $conditionClass ?>); font-size: 16px;"></i>
+                    </div>
+                    <?php endif; ?>
+                    <div class="product-info" style="flex: 1; min-width: 0;">
+                        <p class="product-name" style="font-size: 13px; margin: 0 0 2px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"><?= htmlspecialchars($item['name']) ?></p>
+                        <span class="badge bg-<?= $conditionClass ?>" style="font-size: 10px; padding: 3px 6px;"><?= $item['item_condition'] ?></span>
+                    </div>
+                </div>
+                <?php endforeach; ?>
+                <?php endif; ?>
+            </div>
         </div>
     </div>
 </div>
 
-<!-- Table & Products Row -->
-<div class="content-grid">
-    <!-- Recent Loans Table -->
-    <div class="table-card">
-        <div class="card-header" style="padding: 20px 24px; border-bottom: 1px solid var(--border-color);">
-            <h3 class="card-title" style="margin: 0;">
-                <i class="bi bi-clock-history"></i> Peminjaman Terbaru
-            </h3>
-            <a href="/index.php?page=admin_loans" class="btn btn-secondary btn-sm">
-                Lihat Semua
-            </a>
-        </div>
-        <div style="padding: 20px 24px 0;">
-            <div class="table-filters">
-                <button class="table-filter-btn active" data-filter="all">Semua</button>
-                <button class="table-filter-btn" data-filter="pending">Pending</button>
-                <button class="table-filter-btn" data-filter="approved">Disetujui</button>
+<!-- Recent Loans Table -->
+<div class="row g-4">
+    <div class="col-12">
+        <div class="table-card">
+            <div class="card-header" style="padding: 16px 20px; border-bottom: 1px solid var(--border-color);">
+                <h3 class="card-title" style="margin: 0; font-size: 16px;">
+                    <i class="bi bi-clock-history"></i> Peminjaman Terbaru
+                </h3>
+                <a href="/index.php?page=admin_loans" class="btn btn-secondary btn-sm">
+                    Lihat Semua
+                </a>
             </div>
-        </div>
+            <div style="padding: 12px 20px 0;">
+                <div class="table-filters">
+                    <button class="table-filter-btn active" data-filter="all">Semua</button>
+                    <button class="table-filter-btn" data-filter="pending">Pending</button>
+                    <button class="table-filter-btn" data-filter="approved">Disetujui</button>
+                </div>
+            </div>
         <div class="table-responsive">
             <table class="data-table">
                 <thead>
@@ -439,49 +542,6 @@ $lowStockItems = $pdo->query("
             </table>
         </div>
     </div>
-    
-    <!-- Low Stock Items -->
-    <div class="modern-card">
-        <div class="card-header">
-            <h3 class="card-title">
-                <i class="bi bi-exclamation-triangle-fill"></i> Stok Menipis
-            </h3>
-            <a href="/index.php?page=admin_inventory_list" style="color: var(--primary-light); font-size: 14px;">Lihat Semua</a>
-        </div>
-        <div class="card-body">
-            <?php if (empty($lowStockItems)): ?>
-            <div class="empty-state" style="padding: 40px 20px;">
-                <div class="empty-state-icon" style="width: 60px; height: 60px; font-size: 24px;">
-                    <i class="bi bi-check-circle"></i>
-                </div>
-                <h5 class="empty-state-title">Stok Aman</h5>
-                <p class="empty-state-text mb-0">Semua barang memiliki stok cukup</p>
-            </div>
-            <?php else: ?>
-            <?php foreach($lowStockItems as $item): ?>
-            <div class="product-item">
-                <?php if (!empty($item['image'])): ?>
-                <img src="/public/assets/uploads/<?= htmlspecialchars($item['image']) ?>" 
-                     alt="<?= htmlspecialchars($item['name']) ?>"
-                     class="product-img"
-                     style="width: 48px; height: 48px; object-fit: cover; border-radius: var(--radius);">
-                <?php else: ?>
-                <div class="product-img" style="background: var(--danger-light);">
-                    <i class="bi bi-box-seam" style="color: var(--danger);"></i>
-                </div>
-                <?php endif; ?>
-                <div class="product-info">
-                    <p class="product-name"><?= htmlspecialchars($item['name']) ?></p>
-                    <p class="product-category">Stok Total: <?= $item['stock_total'] ?></p>
-                </div>
-                <div class="product-stock">
-                    <p class="product-stock-value" style="color: var(--danger);"><?= $item['stock_available'] ?></p>
-                    <p class="product-stock-label">tersedia</p>
-                </div>
-            </div>
-            <?php endforeach; ?>
-            <?php endif; ?>
-        </div>
     </div>
 </div>
 

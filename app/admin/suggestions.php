@@ -13,8 +13,9 @@ $pdo = require __DIR__ . '/../config/database.php';
 $success = $_GET['msg'] ?? '';
 $error = '';
 $adminId = $_SESSION['user']['id'];
+$redirectAfterReply = false;
 
-// Handle reply
+// Handle reply - Must be done BEFORE any output
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'reply') {
     $suggestionId = (int)($_POST['suggestion_id'] ?? 0);
     $reply = trim($_POST['reply'] ?? '');
@@ -48,9 +49,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 $stmt->execute([$suggestion['user_id'], $notifTitle, $notifMessage, $suggestionId]);
             }
             
-            // Redirect to avoid form resubmission
-            header('Location: /index.php?page=admin_suggestions&msg=' . urlencode('Balasan berhasil dikirim!'));
-            exit;
+            // Set success message and redirect flag
+            $success = 'Balasan berhasil dikirim!';
+            $redirectAfterReply = true;
         } catch (PDOException $e) {
             $error = 'Gagal mengirim balasan. Silakan coba lagi.';
         }
@@ -98,6 +99,15 @@ $totalCount = $pdo->query("SELECT COUNT(*) FROM material_suggestions")->fetchCol
         <p>Lihat dan tanggapi usulan material dari karyawan</p>
     </div>
 </div>
+
+<?php 
+// If redirect needed after successful reply, do JavaScript redirect
+if ($redirectAfterReply): 
+?>
+<script>
+    window.location.href = '/index.php?page=admin_suggestions&msg=<?= urlencode($success) ?>';
+</script>
+<?php endif; ?>
 
 <?php if ($success): ?>
 <div class="alert alert-success alert-dismissible fade show" style="border-radius: var(--radius);">

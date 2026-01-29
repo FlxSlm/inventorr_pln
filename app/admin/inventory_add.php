@@ -15,7 +15,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $year_acquired = trim($_POST['year_acquired'] ?? '');
     $year_manufactured = trim($_POST['year_manufactured'] ?? '');
     $low_stock_threshold = (int)($_POST['low_stock_threshold'] ?? 5);
+    $item_condition = trim($_POST['item_condition'] ?? 'Baik');
     $selectedCategories = $_POST['categories'] ?? [];
+    
+    // Validate item_condition
+    $validConditions = ['Baik', 'Rusak Ringan', 'Rusak Berat'];
+    if (!in_array($item_condition, $validConditions)) {
+        $item_condition = 'Baik';
+    }
     
     // Validation
     if (empty($name)) $errors[] = 'Nama barang wajib diisi.';
@@ -82,8 +89,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     
     if (empty($errors)) {
-        $stmt = $pdo->prepare('INSERT INTO inventories (name, code, item_type, description, stock_total, stock_available, unit, year_acquired, year_manufactured, low_stock_threshold, image) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
-        $stmt->execute([$name, $code ?: null, $item_type ?: null, $description, $stock_total, $stock_total, $unit, $year_acquired ?: null, $year_manufactured ?: null, $low_stock_threshold, $imageName]);
+        $stmt = $pdo->prepare('INSERT INTO inventories (name, code, item_type, description, stock_total, stock_available, unit, year_acquired, year_manufactured, low_stock_threshold, item_condition, image) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+        $stmt->execute([$name, $code ?: null, $item_type ?: null, $description, $stock_total, $stock_total, $unit, $year_acquired ?: null, $year_manufactured ?: null, $low_stock_threshold, $item_condition, $imageName]);
         $inventoryId = $pdo->lastInsertId();
         
         // Save categories
@@ -165,6 +172,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <label class="form-label"><i class="bi bi-exclamation-triangle me-1"></i> Batas Stok Menipis</label>
                             <input type="number" name="low_stock_threshold" class="form-control" value="5" min="0">
                             <small class="text-muted">Notifikasi muncul jika stok &le; nilai ini</small>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label"><i class="bi bi-heart-pulse me-1"></i> Kondisi Barang</label>
+                            <select name="item_condition" class="form-select">
+                                <option value="Baik" selected>Baik</option>
+                                <option value="Rusak Ringan">Rusak Ringan</option>
+                                <option value="Rusak Berat">Rusak Berat</option>
+                            </select>
+                            <small class="text-muted">Kondisi fisik barang saat ini</small>
                         </div>
                     </div>
                     

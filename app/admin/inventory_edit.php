@@ -51,7 +51,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $year_acquired = trim($_POST['year_acquired'] ?? '');
     $year_manufactured = trim($_POST['year_manufactured'] ?? '');
     $low_stock_threshold = (int)($_POST['low_stock_threshold'] ?? 5);
+    $item_condition = trim($_POST['item_condition'] ?? 'Baik');
     $selectedCategories = $_POST['categories'] ?? [];
+    
+    // Validate item_condition
+    $validConditions = ['Baik', 'Rusak Ringan', 'Rusak Berat'];
+    if (!in_array($item_condition, $validConditions)) {
+        $item_condition = 'Baik';
+    }
     
     // Validate year_acquired (now required)
     if (empty($year_acquired)) {
@@ -102,8 +109,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     
     if (empty($errors)) {
-        $stmt = $pdo->prepare('UPDATE inventories SET name=?, code=?, item_type=?, description=?, stock_total=?, stock_available=?, unit=?, year_acquired=?, year_manufactured=?, low_stock_threshold=?, image=?, updated_at=NOW() WHERE id=?');
-        $stmt->execute([$name, $code ?: null, $item_type ?: null, $description, $stock_total, $stock_available, $unit, $year_acquired ?: null, $year_manufactured ?: null, $low_stock_threshold, $imageName, $id]);
+        $stmt = $pdo->prepare('UPDATE inventories SET name=?, code=?, item_type=?, description=?, stock_total=?, stock_available=?, unit=?, year_acquired=?, year_manufactured=?, low_stock_threshold=?, item_condition=?, image=?, updated_at=NOW() WHERE id=?');
+        $stmt->execute([$name, $code ?: null, $item_type ?: null, $description, $stock_total, $stock_available, $unit, $year_acquired ?: null, $year_manufactured ?: null, $low_stock_threshold, $item_condition, $imageName, $id]);
         
         $pdo->prepare('DELETE FROM inventory_categories WHERE inventory_id = ?')->execute([$id]);
         if (!empty($selectedCategories)) {
@@ -267,6 +274,17 @@ $imageDeleted = isset($_GET['msg']) && $_GET['msg'] === 'image_deleted';
                                    value="<?= htmlspecialchars($item['low_stock_threshold'] ?? 5) ?>" 
                                    min="0">
                             <small class="text-muted">Notifikasi muncul jika stok &le; nilai ini</small>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">
+                                <i class="bi bi-heart-pulse me-1"></i>Kondisi Barang
+                            </label>
+                            <select name="item_condition" class="form-select">
+                                <option value="Baik" <?= ($item['item_condition'] ?? 'Baik') === 'Baik' ? 'selected' : '' ?>>Baik</option>
+                                <option value="Rusak Ringan" <?= ($item['item_condition'] ?? '') === 'Rusak Ringan' ? 'selected' : '' ?>>Rusak Ringan</option>
+                                <option value="Rusak Berat" <?= ($item['item_condition'] ?? '') === 'Rusak Berat' ? 'selected' : '' ?>>Rusak Berat</option>
+                            </select>
+                            <small class="text-muted">Kondisi fisik barang saat ini</small>
                         </div>
                     </div>
                     

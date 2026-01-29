@@ -1,13 +1,74 @@
 <?php
-// app/admin/inventory_list.php - Modern Style
+// app/admin/inventory_list.php - Modern Style with Filters
 $pageTitle = 'Kelola Inventaris';
 $pdo = require __DIR__ . '/../config/database.php';
 
-// get inventories
-$stmt = $pdo->query('SELECT * FROM inventories WHERE deleted_at IS NULL ORDER BY id DESC');
+// Fetch all categories for filter
+$categories = $pdo->query('SELECT * FROM categories ORDER BY name ASC')->fetchAll();
+
+// Get filter parameters
+$filterCategories = $_GET['categories'] ?? [];
+$filterConditions = $_GET['conditions'] ?? [];
+$filterLowStock = isset($_GET['low_stock']) ? true : false;
+$filterSearch = trim($_GET['search'] ?? '');
+$conditionFilter = $_GET['condition'] ?? ''; // for dashboard link
+
+// Build query with filters
+$sql = 'SELECT DISTINCT i.* FROM inventories i';
+$params = [];
+$where = ['i.deleted_at IS NULL'];
+
+// Join categories if filter applied
+if (!empty($filterCategories)) {
+    $sql .= ' JOIN inventory_categories ic ON ic.inventory_id = i.id';
+    $placeholders = implode(',', array_fill(0, count($filterCategories), '?'));
+    $where[] = "ic.category_id IN ($placeholders)";
+    $params = array_merge($params, $filterCategories);
+}
+
+// Filter by condition
+if (!empty($filterConditions)) {
+    $condPlaceholders = implode(',', array_fill(0, count($filterConditions), '?'));
+    $where[] = "i.item_condition IN ($condPlaceholders)";
+    $params = array_merge($params, $filterConditions);
+}
+
+// Special filter for damaged from dashboard
+if ($conditionFilter === 'damaged') {
+    $where[] = "i.item_condition IN ('Rusak Ringan', 'Rusak Berat')";
+}
+
+// Filter by low stock
+if ($filterLowStock) {
+    $where[] = 'i.stock_available <= COALESCE(i.low_stock_threshold, 5)';
+}
+
+// Search filter
+if (!empty($filterSearch)) {
+    $where[] = '(i.name LIKE ? OR i.code LIKE ? OR i.description LIKE ?)';
+    $searchParam = "%{$filterSearch}%";
+    $params[] = $searchParam;
+    $params[] = $searchParam;
+    $params[] = $searchParam;
+}
+
+$sql .= ' WHERE ' . implode(' AND ', $where);
+$sql .= ' ORDER BY i.id DESC';
+
+$stmt = $pdo->prepare($sql);
+$stmt->execute($params);
 $items = $stmt->fetchAll();
 
+// Fetch categories for each item
+$itemCategories = [];
+foreach ($items as $item) {
+    $catStmt = $pdo->prepare('SELECT c.* FROM categories c JOIN inventory_categories ic ON ic.category_id = c.id WHERE ic.inventory_id = ?');
+    $catStmt->execute([$item['id']]);
+    $itemCategories[$item['id']] = $catStmt->fetchAll();
+}
+
 $msg = $_GET['msg'] ?? '';
+$hasFilters = !empty($filterCategories) || !empty($filterConditions) || $filterLowStock || !empty($filterSearch) || $conditionFilter === 'damaged';
 ?>
 
 <!-- Page Header -->
@@ -38,6 +99,96 @@ $msg = $_GET['msg'] ?? '';
 <div class="alert alert-success alert-dismissible fade show">
     <i class="bi bi-check-circle-fill me-2"></i>Barang berhasil dihapus.
     <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+</div>
+<?php endif; ?>
+
+<!-- Filter Section -->
+<div class="modern-card" style="margin-bottom: 24px;">
+    <div class="card-body" style="padding: 20px;">
+        <form method="GET" action="/index.php" id="filterForm">
+            <input type="hidden" name="page" value="admin_inventory_list">
+            
+            <div class="row g-3">
+                <!-- Search -->
+                <div class="col-md-4">
+                    <label class="form-label fw-semibold"><i class="bi bi-search me-1"></i>Cari Barang</label>
+                    <input type="text" name="search" class="form-control" placeholder="Nama, kode, atau deskripsi..." value="<?= htmlspecialchars($filterSearch) ?>">
+                </div>
+                
+                <!-- Categories Filter -->
+                <div class="col-md-4">
+                    <label class="form-label fw-semibold"><i class="bi bi-tags me-1"></i>Kategori</label>
+                    <div class="filter-checkbox-group">
+                        <?php foreach($categories as $cat): ?>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="checkbox" name="categories[]" value="<?= $cat['id'] ?>" id="cat<?= $cat['id'] ?>" <?= in_array($cat['id'], $filterCategories) ? 'checked' : '' ?>>
+                            <label class="form-check-label" for="cat<?= $cat['id'] ?>">
+                                <span class="badge" style="background: <?= htmlspecialchars($cat['color']) ?>;"><?= htmlspecialchars($cat['name']) ?></span>
+                            </label>
+                        </div>
+                        <?php endforeach; ?>
+                        <?php if (empty($categories)): ?>
+                        <small class="text-muted">Belum ada kategori</small>
+                        <?php endif; ?>
+                    </div>
+                </div>
+                
+                <!-- Condition Filter -->
+                <div class="col-md-2">
+                    <label class="form-label fw-semibold"><i class="bi bi-heart-pulse me-1"></i>Kondisi</label>
+                    <div class="filter-checkbox-group">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="conditions[]" value="Baik" id="condBaik" <?= in_array('Baik', $filterConditions) ? 'checked' : '' ?>>
+                            <label class="form-check-label" for="condBaik"><span class="badge bg-success">Baik</span></label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="conditions[]" value="Rusak Ringan" id="condRR" <?= in_array('Rusak Ringan', $filterConditions) ? 'checked' : '' ?>>
+                            <label class="form-check-label" for="condRR"><span class="badge bg-warning">Rusak Ringan</span></label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="conditions[]" value="Rusak Berat" id="condRB" <?= in_array('Rusak Berat', $filterConditions) ? 'checked' : '' ?>>
+                            <label class="form-check-label" for="condRB"><span class="badge bg-danger">Rusak Berat</span></label>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Stock Filter -->
+                <div class="col-md-2">
+                    <label class="form-label fw-semibold"><i class="bi bi-box-seam me-1"></i>Stok</label>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" name="low_stock" value="1" id="lowStock" <?= $filterLowStock ? 'checked' : '' ?>>
+                        <label class="form-check-label" for="lowStock">
+                            <span class="badge bg-warning"><i class="bi bi-exclamation-triangle me-1"></i>Stok Menipis</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="d-flex gap-2 mt-3">
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-funnel me-1"></i>Terapkan Filter
+                </button>
+                <?php if ($hasFilters): ?>
+                <a href="/index.php?page=admin_inventory_list" class="btn btn-outline-secondary">
+                    <i class="bi bi-x-lg me-1"></i>Reset Filter
+                </a>
+                <?php endif; ?>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Filter Result Info -->
+<?php if ($hasFilters): ?>
+<div class="alert alert-info d-flex align-items-center justify-content-between" style="margin-bottom: 24px;">
+    <div>
+        <i class="bi bi-funnel-fill me-2"></i>
+        Menampilkan <strong><?= count($items) ?></strong> barang dengan filter aktif
+        <?php if ($conditionFilter === 'damaged'): ?>
+        <span class="badge bg-warning ms-2">Barang Rusak</span>
+        <?php endif; ?>
+    </div>
+    <a href="/index.php?page=admin_inventory_list" class="btn btn-sm btn-outline-info">Reset</a>
 </div>
 <?php endif; ?>
 
@@ -106,9 +257,31 @@ $msg = $_GET['msg'] ?? '';
                     <i class="bi bi-x-circle-fill me-1"></i>Stok Habis
                 </div>
                 <?php endif; ?>
+                
+                <!-- Condition Badge -->
+                <?php 
+                $condition = $it['item_condition'] ?? 'Baik';
+                $conditionBadgeClass = $condition === 'Baik' ? 'success' : ($condition === 'Rusak Ringan' ? 'warning' : 'danger');
+                ?>
+                <?php if ($condition !== 'Baik'): ?>
+                <span class="condition-badge <?= $conditionBadgeClass ?>" style="position: absolute; bottom: 12px; left: 12px;">
+                    <i class="bi bi-<?= $condition === 'Rusak Ringan' ? 'exclamation-triangle' : 'x-circle' ?> me-1"></i><?= $condition ?>
+                </span>
+                <?php endif; ?>
             </div>
             
             <div class="card-body" style="padding: 20px;">
+                <!-- Categories -->
+                <?php if (!empty($itemCategories[$it['id']])): ?>
+                <div style="margin-bottom: 8px;">
+                    <?php foreach($itemCategories[$it['id']] as $cat): ?>
+                    <span class="badge" style="background: <?= htmlspecialchars($cat['color']) ?>20; color: <?= htmlspecialchars($cat['color']) ?>; font-size: 10px; margin-right: 4px;">
+                        <?= htmlspecialchars($cat['name']) ?>
+                    </span>
+                    <?php endforeach; ?>
+                </div>
+                <?php endif; ?>
+                
                 <h5 style="margin: 0 0 4px 0; font-weight: 600; color: var(--primary-light);">
                     <?= htmlspecialchars($it['name']) ?>
                 </h5>
@@ -236,5 +409,23 @@ $msg = $_GET['msg'] ?? '';
 }
 .low-stock-ribbon.danger {
     background: linear-gradient(135deg, #ef4444, #dc2626);
+}
+.condition-badge {
+    padding: 6px 10px;
+    border-radius: var(--radius);
+    font-size: 11px;
+    font-weight: 600;
+    color: #fff;
+}
+.condition-badge.success { background: var(--success); }
+.condition-badge.warning { background: var(--warning); }
+.condition-badge.danger { background: var(--danger); }
+.filter-checkbox-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+.filter-checkbox-group .form-check {
+    margin: 0;
 }
 </style>

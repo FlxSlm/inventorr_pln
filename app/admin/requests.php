@@ -313,15 +313,17 @@ try {
                 </thead>
                 <tbody id="requestsTableBody">
                     <?php 
+                    $totalRows = count($groupedRequests);
                     $rowNum = 0;
                     foreach($groupedRequests as $key => $group): 
                         $rowNum++;
+                        $displayNum = $totalRows - $rowNum + 1; // Oldest gets highest number, newest gets 1
                         $filterClass = $group['stage'] === 'pending' ? 'pending' : ($group['stage'] === 'approved' ? 'approved' : 'rejected');
                         $isMulti = count($group['items']) > 1;
                     ?>
                     <!-- Group Header Row -->
                     <tr class="group-header" data-status="<?= $filterClass ?>" data-group="<?= $key ?>" <?= $isMulti ? 'style="cursor:pointer;" onclick="toggleGroup(\'' . $key . '\')"' : '' ?>>
-                        <td><span class="badge bg-secondary"><?= $rowNum ?></span></td>
+                        <td><span class="badge bg-secondary"><?= $displayNum ?></span></td>
                         <td>
                             <div class="d-flex align-items-center">
                                 <div class="avatar me-2"><?= strtoupper(substr($group['user_name'], 0, 1)) ?></div>

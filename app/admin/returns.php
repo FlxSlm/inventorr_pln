@@ -302,16 +302,18 @@ $returnStageLabels = [
                 </thead>
                 <tbody id="returnsTableBody">
                     <?php 
+                    $totalRows = count($groupedReturns);
                     $rowNum = 0;
                     foreach($groupedReturns as $key => $group): 
                         $rowNum++;
+                        $displayNum = $totalRows - $rowNum + 1; // Oldest gets highest number, newest gets 1
                         $filterClass = $group['return_stage'];
                         $isMulti = count($group['items']) > 1;
                         $stageInfo = $returnStageLabels[$group['return_stage']] ?? ['Unknown', 'secondary', 'question'];
                     ?>
                     <!-- Group Header Row -->
                     <tr class="group-header" data-status="<?= $filterClass ?>" data-group="<?= $key ?>" <?= $isMulti ? 'style="cursor:pointer;" onclick="toggleGroup(\'' . $key . '\')"' : '' ?>>
-                        <td><span class="badge bg-secondary"><?= $rowNum ?></span></td>
+                        <td><span class="badge bg-secondary"><?= $displayNum ?></span></td>
                         <td>
                             <div class="d-flex align-items-center">
                                 <div class="avatar me-2"><?= strtoupper(substr($group['user_name'], 0, 1)) ?></div>
@@ -466,13 +468,22 @@ $returnStageLabels = [
 <?php if ($group['return_stage'] === 'pending_return'): ?>
 <div class="modal fade" id="approveModal<?= $key ?>" tabindex="-1">
     <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title"><i class="bi bi-check-circle me-2" style="color: var(--success);"></i>Setujui Pengembalian</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        <div class="modal-content" style="border: none; border-radius: 16px; overflow: hidden;">
+            <!-- Gradient Header -->
+            <div class="modal-header" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); border: none; padding: 24px 28px;">
+                <div class="d-flex align-items-center gap-3">
+                    <div style="width: 48px; height: 48px; background: rgba(255,255,255,0.2); border-radius: 12px; display: flex; align-items: center; justify-content: center;">
+                        <i class="bi bi-check-circle-fill" style="color: #fff; font-size: 24px;"></i>
+                    </div>
+                    <div>
+                        <h5 class="modal-title" style="color: #fff; font-weight: 600; margin: 0;">Setujui Pengembalian</h5>
+                        <small style="color: rgba(255,255,255,0.8);">Verifikasi dan selesaikan proses pengembalian</small>
+                    </div>
+                </div>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <form method="POST" enctype="multipart/form-data">
-                <div class="modal-body">
+                <div class="modal-body" style="padding: 28px;">
                     <input type="hidden" name="action" value="approve_return">
                     <?php if ($group['type'] === 'group'): ?>
                     <input type="hidden" name="group_id" value="<?= htmlspecialchars($group['group_id']) ?>">
@@ -480,51 +491,85 @@ $returnStageLabels = [
                     <input type="hidden" name="loan_id" value="<?= $group['items'][0]['id'] ?>">
                     <?php endif; ?>
                     
-                    <div style="margin-bottom: 20px; padding: 16px; background: var(--bg-main); border-radius: var(--radius);">
-                        <h6><i class="bi bi-person me-2"></i>Peminjam: <?= htmlspecialchars($group['user_name']) ?></h6>
-                        <div class="table-responsive mt-3">
-                            <table class="table table-sm mb-0">
-                                <thead><tr><th>Barang</th><th>Qty</th></tr></thead>
-                                <tbody>
-                                    <?php foreach($group['items'] as $item): ?>
-                                    <tr>
-                                        <td><?= htmlspecialchars($item['inventory_name']) ?> <small class="text-muted">(<?= htmlspecialchars($item['inventory_code']) ?>)</small></td>
-                                        <td><span class="badge bg-primary"><?= $item['quantity'] ?></span></td>
-                                    </tr>
-                                    <?php endforeach; ?>
-                                </tbody>
-                            </table>
+                    <!-- Borrower Info Card -->
+                    <div style="background: linear-gradient(135deg, var(--bg-main) 0%, var(--bg-card) 100%); border-radius: 12px; padding: 20px; margin-bottom: 20px; border: 1px solid var(--border-color);">
+                        <div class="d-flex align-items-center gap-3 mb-3">
+                            <div class="avatar" style="width: 44px; height: 44px; font-size: 18px;"><?= strtoupper(substr($group['user_name'], 0, 1)) ?></div>
+                            <div>
+                                <h6 style="margin: 0; font-weight: 600;"><?= htmlspecialchars($group['user_name']) ?></h6>
+                                <small class="text-muted"><?= htmlspecialchars($group['user_email']) ?></small>
+                            </div>
+                        </div>
+                        
+                        <!-- Items List -->
+                        <div style="background: var(--bg-card); border-radius: 8px; overflow: hidden;">
+                            <div style="padding: 12px 16px; background: rgba(16, 185, 129, 0.1); border-bottom: 1px solid var(--border-color);">
+                                <strong style="color: var(--success);"><i class="bi bi-box-seam me-2"></i>Barang yang Dikembalikan</strong>
+                            </div>
+                            <?php foreach($group['items'] as $idx => $item): ?>
+                            <div style="padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; <?= $idx < count($group['items']) - 1 ? 'border-bottom: 1px solid var(--border-color);' : '' ?>">
+                                <div class="d-flex align-items-center gap-3">
+                                    <?php if (!empty($item['inventory_image'])): ?>
+                                    <img src="/public/assets/uploads/<?= htmlspecialchars($item['inventory_image']) ?>" alt="" style="width: 40px; height: 40px; object-fit: cover; border-radius: 8px;">
+                                    <?php else: ?>
+                                    <div style="width: 40px; height: 40px; background: var(--bg-main); border-radius: 8px; display: flex; align-items: center; justify-content: center;">
+                                        <i class="bi bi-box-seam text-muted"></i>
+                                    </div>
+                                    <?php endif; ?>
+                                    <div>
+                                        <div style="font-weight: 500;"><?= htmlspecialchars($item['inventory_name']) ?></div>
+                                        <small class="text-muted"><?= htmlspecialchars($item['inventory_code'] ?? '-') ?></small>
+                                    </div>
+                                </div>
+                                <span class="badge bg-primary" style="font-size: 14px; padding: 8px 12px;"><?= $item['quantity'] ?> unit</span>
+                            </div>
+                            <?php endforeach; ?>
                         </div>
                     </div>
                     
                     <?php if (!empty($group['return_note'])): ?>
-                    <div class="alert alert-info mb-3">
-                        <strong><i class="bi bi-chat-text me-1"></i>Catatan dari peminjam:</strong><br>
-                        <?= nl2br(htmlspecialchars($group['return_note'])) ?>
+                    <!-- Return Note -->
+                    <div style="background: linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(37, 99, 235, 0.05) 100%); border-radius: 12px; padding: 16px 20px; margin-bottom: 20px; border-left: 4px solid #3b82f6;">
+                        <div class="d-flex align-items-start gap-3">
+                            <i class="bi bi-chat-quote-fill" style="color: #3b82f6; font-size: 20px; margin-top: 2px;"></i>
+                            <div>
+                                <strong style="color: #3b82f6;">Catatan dari Peminjam</strong>
+                                <p style="margin: 8px 0 0 0; color: var(--text-dark);"><?= nl2br(htmlspecialchars($group['return_note'])) ?></p>
+                            </div>
+                        </div>
                     </div>
                     <?php endif; ?>
                     
-                    <div class="mb-3">
-                        <label class="form-label fw-semibold"><i class="bi bi-file-earmark-arrow-up me-1"></i>Upload Dokumen BAST Pengembalian</label>
-                        <input type="file" name="bast_document" class="form-control" accept=".pdf,.xlsx,.xls,.doc,.docx">
-                        <small class="text-muted">Format: PDF, Excel, Word. Maksimal 10MB. (Opsional)</small>
+                    <!-- Upload Section -->
+                    <div style="background: var(--bg-main); border-radius: 12px; padding: 20px; margin-bottom: 20px; border: 2px dashed var(--border-color);">
+                        <label class="form-label fw-semibold d-flex align-items-center gap-2">
+                            <i class="bi bi-cloud-arrow-up" style="font-size: 20px; color: var(--primary);"></i>
+                            Upload Dokumen BAST Pengembalian
+                        </label>
+                        <input type="file" name="bast_document" class="form-control" accept=".pdf,.xlsx,.xls,.doc,.docx" style="margin-top: 12px;">
+                        <small class="text-muted d-block mt-2">Format: PDF, Excel, Word. Maksimal 10MB. (Opsional)</small>
                         <?php if ($bastTemplate): ?>
-                        <div class="mt-2">
-                            <a href="/public/assets/uploads/templates/<?= htmlspecialchars(basename($bastTemplate['file_path'])) ?>" target="_blank" class="btn btn-outline-secondary btn-sm">
-                                <i class="bi bi-download me-1"></i>Download Template
+                        <div class="mt-3 pt-3" style="border-top: 1px solid var(--border-color);">
+                            <a href="/public/assets/uploads/templates/<?= htmlspecialchars(basename($bastTemplate['file_path'])) ?>" target="_blank" class="btn btn-outline-primary btn-sm">
+                                <i class="bi bi-download me-1"></i>Download Template BAST
                             </a>
                         </div>
                         <?php endif; ?>
                     </div>
                     
-                    <div class="alert alert-success mb-0">
-                        <i class="bi bi-info-circle me-2"></i>
-                        Dengan menyetujui, stok barang akan dikembalikan secara otomatis.
+                    <!-- Info Alert -->
+                    <div style="background: linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(5, 150, 105, 0.05) 100%); border-radius: 12px; padding: 16px 20px; display: flex; align-items: center; gap: 12px;">
+                        <i class="bi bi-info-circle-fill" style="color: var(--success); font-size: 20px;"></i>
+                        <span>Dengan menyetujui, stok barang akan dikembalikan secara otomatis ke inventaris.</span>
                     </div>
                 </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
-                    <button type="submit" class="btn btn-success"><i class="bi bi-check-lg me-1"></i>Setujui Pengembalian</button>
+                <div class="modal-footer" style="padding: 20px 28px; border-top: 1px solid var(--border-color);">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="bi bi-x-lg me-1"></i>Batal
+                    </button>
+                    <button type="submit" class="btn btn-success" style="padding: 10px 24px;">
+                        <i class="bi bi-check-lg me-1"></i>Setujui Pengembalian
+                    </button>
                 </div>
             </form>
         </div>
