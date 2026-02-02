@@ -372,44 +372,6 @@ body::before {
     left: 100%;
 }
 
-.divider {
-    display: flex;
-    align-items: center;
-    margin: 1.5rem 0;
-}
-
-.divider::before,
-.divider::after {
-    content: '';
-    flex: 1;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.divider span {
-    padding: 0 1rem;
-    color: #64748b;
-    font-size: 0.875rem;
-}
-
-.register-link {
-    text-align: center;
-}
-
-.register-link span {
-    color: #94a3b8;
-}
-
-.register-link a {
-    color: var(--accent);
-    text-decoration: none;
-    font-weight: 600;
-    transition: color 0.3s ease;
-}
-
-.register-link a:hover {
-    color: var(--accent-light);
-}
-
 .alert {
     border: none;
     border-radius: 12px;
@@ -559,15 +521,6 @@ body::before {
                         <i class="bi bi-box-arrow-in-right me-2"></i>Masuk
                     </button>
                 </form>
-
-                <div class="divider">
-                    <span>atau</span>
-                </div>
-                
-                <div class="register-link">
-                    <span>Belum punya akun?</span>
-                    <a href="/index.php?page=register">Daftar Sekarang</a>
-                </div>
             </div>
         </div>
     </div>
