@@ -204,61 +204,6 @@ foreach ($topRequested as $item) {
     </div>
 </div>
 
-<!-- Quick Actions Strip -->
-<div class="row g-3" style="margin-bottom: 24px;">
-    <div class="col-md-3 col-6">
-        <a href="/index.php?page=user_request_loan" class="text-decoration-none">
-            <div class="modern-card p-3 text-center h-100" style="transition: all 0.2s; cursor: pointer; border: 2px solid transparent;" 
-                 onmouseover="this.style.borderColor='var(--primary-light)'; this.style.transform='translateY(-2px)';" 
-                 onmouseout="this.style.borderColor='transparent'; this.style.transform='translateY(0)';">
-                <div style="width: 48px; height: 48px; background: var(--primary-light); color: #fff; border-radius: 12px; display: flex; align-items: center; justify-content: center; margin: 0 auto 10px; font-size: 22px;">
-                    <i class="bi bi-plus-lg"></i>
-                </div>
-                <div style="font-size: 13px; font-weight: 600; color: var(--text-dark);">Ajukan Peminjaman</div>
-                <div style="font-size: 11px; color: var(--text-muted);">Pinjam barang baru</div>
-            </div>
-        </a>
-    </div>
-    <div class="col-md-3 col-6">
-        <a href="/index.php?page=user_request_item" class="text-decoration-none">
-            <div class="modern-card p-3 text-center h-100" style="transition: all 0.2s; cursor: pointer; border: 2px solid transparent;"
-                 onmouseover="this.style.borderColor='var(--success)'; this.style.transform='translateY(-2px)';" 
-                 onmouseout="this.style.borderColor='transparent'; this.style.transform='translateY(0)';">
-                <div style="width: 48px; height: 48px; background: var(--success); color: #fff; border-radius: 12px; display: flex; align-items: center; justify-content: center; margin: 0 auto 10px; font-size: 22px;">
-                    <i class="bi bi-cart-plus"></i>
-                </div>
-                <div style="font-size: 13px; font-weight: 600; color: var(--text-dark);">Permintaan Barang</div>
-                <div style="font-size: 11px; color: var(--text-muted);">Request barang permanen</div>
-            </div>
-        </a>
-    </div>
-    <div class="col-md-3 col-6">
-        <a href="/index.php?page=catalog" class="text-decoration-none">
-            <div class="modern-card p-3 text-center h-100" style="transition: all 0.2s; cursor: pointer; border: 2px solid transparent;"
-                 onmouseover="this.style.borderColor='var(--info)'; this.style.transform='translateY(-2px)';" 
-                 onmouseout="this.style.borderColor='transparent'; this.style.transform='translateY(0)';">
-                <div style="width: 48px; height: 48px; background: var(--info); color: #fff; border-radius: 12px; display: flex; align-items: center; justify-content: center; margin: 0 auto 10px; font-size: 22px;">
-                    <i class="bi bi-search"></i>
-                </div>
-                <div style="font-size: 13px; font-weight: 600; color: var(--text-dark);">Katalog Barang</div>
-                <div style="font-size: 11px; color: var(--text-muted);">Lihat semua barang</div>
-            </div>
-        </a>
-    </div>
-    <div class="col-md-3 col-6">
-        <a href="/index.php?page=user_suggestions" class="text-decoration-none">
-            <div class="modern-card p-3 text-center h-100" style="transition: all 0.2s; cursor: pointer; border: 2px solid transparent;"
-                 onmouseover="this.style.borderColor='var(--warning)'; this.style.transform='translateY(-2px)';" 
-                 onmouseout="this.style.borderColor='transparent'; this.style.transform='translateY(0)';">
-                <div style="width: 48px; height: 48px; background: var(--warning); color: #fff; border-radius: 12px; display: flex; align-items: center; justify-content: center; margin: 0 auto 10px; font-size: 22px;">
-                    <i class="bi bi-lightbulb"></i>
-                </div>
-                <div style="font-size: 13px; font-weight: 600; color: var(--text-dark);">Saran & Masukan</div>
-                <div style="font-size: 11px; color: var(--text-muted);">Kirim feedback</div>
-            </div>
-        </a>
-    </div>
-</div>
 
 <!-- Content Grid -->
 <div class="content-grid">

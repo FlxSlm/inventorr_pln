@@ -477,7 +477,6 @@ $returnStageLabels = [
                         <div class="fw-semibold mb-2"><?= count($l['items']) ?> Barang:</div>
                         <?php foreach($l['items'] as $gi): ?>
                         <div class="d-flex align-items-center mb-1">
-                            <i class="bi bi-box-seam text-muted me-2"></i>
                             <span><?= htmlspecialchars($gi['inventory_name']) ?> (<?= (int)$gi['quantity'] ?> unit)</span>
                         </div>
                         <?php endforeach; ?>

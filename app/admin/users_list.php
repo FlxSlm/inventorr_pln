@@ -72,9 +72,11 @@ foreach ($users as $u) {
     
     // Suggestions
     $suggestionsStmt = $pdo->prepare("
-        SELECT * FROM material_suggestions
-        WHERE user_id = ?
-        ORDER BY created_at DESC
+        SELECT s.*, c.name AS category_name, c.color AS category_color
+        FROM material_suggestions s
+        LEFT JOIN categories c ON c.id = s.category_id
+        WHERE s.user_id = ?
+        ORDER BY s.created_at DESC
         LIMIT 10
     ");
     $suggestionsStmt->execute([$uid]);
@@ -552,24 +554,23 @@ function openUserHistory(userId) {
                         <div style="padding: 14px; border: 1px solid var(--border-color); border-radius: 10px; margin-bottom: 12px; background: var(--bg-card);">
                             <div class="d-flex justify-content-between align-items-start">
                                 <div>
-                                    <div style="font-weight: 600; color: var(--text-dark);"><?= htmlspecialchars($sug['item_name']) ?></div>
-                                    <small style="color: var(--text-muted);">Jumlah: <?= $sug['quantity'] ?></small>
+                                    <div style="font-weight: 600; color: var(--text-dark);"><?= htmlspecialchars($sug['subject'] ?? 'N/A') ?></div>
+                                    <?php if (!empty($sug['category_name'])): ?>
+                                    <small style="color: var(--text-muted);"><span class="badge" style="background-color: <?= $sug['category_color'] ?? '#999' ?>; font-size: 10px;"><?= htmlspecialchars($sug['category_name']) ?></span></small>
+                                    <?php endif; ?>
                                 </div>
                                 <span class="badge bg-<?= $sugStatus[1] ?>"><?= $sugStatus[0] ?></span>
+                            </div>
+                            <div style="margin-top: 8px; color: var(--text-muted); font-size: 12px;">
+                                <?= htmlspecialchars(substr($sug['message'], 0, 100)) ?><?= strlen($sug['message']) > 100 ? '...' : '' ?>
                             </div>
                             <div style="margin-top: 10px; font-size: 12px; color: var(--text-muted);">
                                 <i class="bi bi-calendar me-1"></i><?= date('d M Y H:i', strtotime($sug['created_at'])) ?>
                             </div>
-                            <?php if(!empty($sug['reason'])): ?>
-                            <div style="margin-top: 10px; padding: 10px; background: var(--bg-main); border-radius: 6px; font-size: 13px;">
-                                <strong style="color: var(--text-dark);"><i class="bi bi-chat-left-text me-1"></i>Alasan:</strong>
-                                <p style="margin: 5px 0 0 0; color: var(--text-muted);"><?= nl2br(htmlspecialchars($sug['reason'])) ?></p>
-                            </div>
-                            <?php endif; ?>
-                            <?php if(!empty($sug['admin_response'])): ?>
+                            <?php if(!empty($sug['admin_reply'])): ?>
                             <div style="margin-top: 10px; padding: 10px; background: rgba(16,185,129,0.1); border-radius: 6px; border-left: 3px solid var(--success); font-size: 13px;">
                                 <strong style="color: var(--success);"><i class="bi bi-reply me-1"></i>Tanggapan Admin:</strong>
-                                <p style="margin: 5px 0 0 0;"><?= nl2br(htmlspecialchars($sug['admin_response'])) ?></p>
+                                <p style="margin: 5px 0 0 0;"><?= nl2br(htmlspecialchars($sug['admin_reply'])) ?></p>
                             </div>
                             <?php endif; ?>
                         </div>
