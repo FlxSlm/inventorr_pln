@@ -113,16 +113,16 @@ $lowStockItems = $pdo->query("
   LIMIT 5
 ")->fetchAll();
 
-// Damaged items (Rusak Ringan or Rusak Berat)
-$damagedItems = $pdo->query("
-  SELECT id, name, stock_available, stock_total, image, item_condition
+// Out of stock items (stock_available = 0)
+$outOfStockItems = $pdo->query("
+  SELECT id, name, stock_available, stock_total, image
   FROM inventories 
-  WHERE item_condition IN ('Rusak Ringan', 'Rusak Berat') AND deleted_at IS NULL 
-  ORDER BY CASE WHEN item_condition = 'Rusak Berat' THEN 0 ELSE 1 END, name ASC 
+  WHERE stock_available = 0 AND deleted_at IS NULL 
+  ORDER BY name ASC 
   LIMIT 5
 ")->fetchAll();
 
-$totalDamagedItems = $pdo->query("SELECT COUNT(*) FROM inventories WHERE item_condition IN ('Rusak Ringan', 'Rusak Berat') AND deleted_at IS NULL")->fetchColumn();
+$totalOutOfStockItems = $pdo->query("SELECT COUNT(*) FROM inventories WHERE stock_available = 0 AND deleted_at IS NULL")->fetchColumn();
 ?>
 
 <!-- Page Header -->
@@ -228,82 +228,6 @@ $totalDamagedItems = $pdo->query("SELECT COUNT(*) FROM inventories WHERE item_co
         </div>
         <a href="/index.php?page=admin_returns" class="stat-card-btn">
             <i class="bi bi-eye"></i> Lihat Detail
-        </a>
-    </div>
-</div>
-
-<!-- Quick Actions Strip -->
-<div class="row g-3" style="margin-bottom: 24px;">
-    <div class="col-lg-2 col-md-4 col-6">
-        <a href="/index.php?page=admin_inventory_add" class="text-decoration-none">
-            <div class="modern-card p-3 text-center h-100" style="transition: all 0.2s; cursor: pointer; border: 2px solid transparent;" 
-                 onmouseover="this.style.borderColor='var(--primary-light)'; this.style.transform='translateY(-2px)';" 
-                 onmouseout="this.style.borderColor='transparent'; this.style.transform='translateY(0)';">
-                <div style="width: 42px; height: 42px; background: var(--primary-light); color: #fff; border-radius: 10px; display: flex; align-items: center; justify-content: center; margin: 0 auto 8px; font-size: 18px;">
-                    <i class="bi bi-plus-lg"></i>
-                </div>
-                <div style="font-size: 12px; font-weight: 600; color: var(--text-dark);">Tambah Barang</div>
-            </div>
-        </a>
-    </div>
-    <div class="col-lg-2 col-md-4 col-6">
-        <a href="/index.php?page=admin_loans" class="text-decoration-none">
-            <div class="modern-card p-3 text-center h-100" style="transition: all 0.2s; cursor: pointer; border: 2px solid transparent;"
-                 onmouseover="this.style.borderColor='var(--warning)'; this.style.transform='translateY(-2px)';" 
-                 onmouseout="this.style.borderColor='transparent'; this.style.transform='translateY(0)';">
-                <div style="width: 42px; height: 42px; background: var(--warning); color: #fff; border-radius: 10px; display: flex; align-items: center; justify-content: center; margin: 0 auto 8px; font-size: 18px;">
-                    <i class="bi bi-clipboard-check"></i>
-                </div>
-                <div style="font-size: 12px; font-weight: 600; color: var(--text-dark);">Kelola Peminjaman</div>
-            </div>
-        </a>
-    </div>
-    <div class="col-lg-2 col-md-4 col-6">
-        <a href="/index.php?page=admin_requests" class="text-decoration-none">
-            <div class="modern-card p-3 text-center h-100" style="transition: all 0.2s; cursor: pointer; border: 2px solid transparent;"
-                 onmouseover="this.style.borderColor='var(--success)'; this.style.transform='translateY(-2px)';" 
-                 onmouseout="this.style.borderColor='transparent'; this.style.transform='translateY(0)';">
-                <div style="width: 42px; height: 42px; background: var(--success); color: #fff; border-radius: 10px; display: flex; align-items: center; justify-content: center; margin: 0 auto 8px; font-size: 18px;">
-                    <i class="bi bi-cart-check"></i>
-                </div>
-                <div style="font-size: 12px; font-weight: 600; color: var(--text-dark);">Kelola Permintaan</div>
-            </div>
-        </a>
-    </div>
-    <div class="col-lg-2 col-md-4 col-6">
-        <a href="/index.php?page=admin_returns" class="text-decoration-none">
-            <div class="modern-card p-3 text-center h-100" style="transition: all 0.2s; cursor: pointer; border: 2px solid transparent;"
-                 onmouseover="this.style.borderColor='var(--info)'; this.style.transform='translateY(-2px)';" 
-                 onmouseout="this.style.borderColor='transparent'; this.style.transform='translateY(0)';">
-                <div style="width: 42px; height: 42px; background: var(--info); color: #fff; border-radius: 10px; display: flex; align-items: center; justify-content: center; margin: 0 auto 8px; font-size: 18px;">
-                    <i class="bi bi-box-arrow-in-left"></i>
-                </div>
-                <div style="font-size: 12px; font-weight: 600; color: var(--text-dark);">Pengembalian</div>
-            </div>
-        </a>
-    </div>
-    <div class="col-lg-2 col-md-4 col-6">
-        <a href="/index.php?page=admin_users_list" class="text-decoration-none">
-            <div class="modern-card p-3 text-center h-100" style="transition: all 0.2s; cursor: pointer; border: 2px solid transparent;"
-                 onmouseover="this.style.borderColor='var(--secondary)'; this.style.transform='translateY(-2px)';" 
-                 onmouseout="this.style.borderColor='transparent'; this.style.transform='translateY(0)';">
-                <div style="width: 42px; height: 42px; background: var(--secondary); color: #fff; border-radius: 10px; display: flex; align-items: center; justify-content: center; margin: 0 auto 8px; font-size: 18px;">
-                    <i class="bi bi-people"></i>
-                </div>
-                <div style="font-size: 12px; font-weight: 600; color: var(--text-dark);">Kelola User</div>
-            </div>
-        </a>
-    </div>
-    <div class="col-lg-2 col-md-4 col-6">
-        <a href="/index.php?page=admin_suggestions" class="text-decoration-none">
-            <div class="modern-card p-3 text-center h-100" style="transition: all 0.2s; cursor: pointer; border: 2px solid transparent;"
-                 onmouseover="this.style.borderColor='var(--accent)'; this.style.transform='translateY(-2px)';" 
-                 onmouseout="this.style.borderColor='transparent'; this.style.transform='translateY(0)';">
-                <div style="width: 42px; height: 42px; background: var(--accent); color: #fff; border-radius: 10px; display: flex; align-items: center; justify-content: center; margin: 0 auto 8px; font-size: 18px;">
-                    <i class="bi bi-lightbulb"></i>
-                </div>
-                <div style="font-size: 12px; font-weight: 600; color: var(--text-dark);">Saran Masukan</div>
-            </div>
         </a>
     </div>
 </div>
@@ -518,28 +442,26 @@ $totalDamagedItems = $pdo->query("SELECT COUNT(*) FROM inventories WHERE item_co
         </div>
     </div>
     
-    <!-- Damaged Items -->
+    <!-- Out of Stock Items -->
     <div class="col-lg-4">
         <div class="modern-card h-100">
             <div class="card-header">
                 <h3 class="card-title">
-                    <i class="bi bi-tools"></i> Barang Rusak
+                    <i class="bi bi-x-circle"></i> Stok Habis
                 </h3>
-                <a href="/index.php?page=admin_inventory_list&condition=damaged" style="color: var(--primary-light); font-size: 12px;">(<?= $totalDamagedItems ?>)</a>
+                <a href="/index.php?page=admin_inventory_list&low_stock=1" style="color: var(--primary-light); font-size: 12px;">(<?= $totalOutOfStockItems ?>)</a>
             </div>
             <div class="card-body" style="padding: 12px;">
-                <?php if (empty($damagedItems)): ?>
+                <?php if (empty($outOfStockItems)): ?>
                 <div class="empty-state" style="padding: 30px 15px;">
                     <div class="empty-state-icon" style="width: 50px; height: 50px; font-size: 20px;">
                         <i class="bi bi-check-circle"></i>
                     </div>
-                    <h5 class="empty-state-title" style="font-size: 14px;">Semua Baik</h5>
-                    <p class="empty-state-text mb-0" style="font-size: 12px;">Tidak ada barang rusak</p>
+                    <h5 class="empty-state-title" style="font-size: 14px;">Stok Tersedia</h5>
+                    <p class="empty-state-text mb-0" style="font-size: 12px;">Semua barang memiliki stok</p>
                 </div>
                 <?php else: ?>
-                <?php foreach($damagedItems as $item): 
-                    $conditionClass = $item['item_condition'] === 'Rusak Berat' ? 'danger' : 'warning';
-                ?>
+                <?php foreach($outOfStockItems as $item): ?>
                 <div class="product-item" style="padding: 10px 0;">
                     <?php if (!empty($item['image'])): ?>
                     <img src="/public/assets/uploads/<?= htmlspecialchars($item['image']) ?>" 
@@ -547,13 +469,13 @@ $totalDamagedItems = $pdo->query("SELECT COUNT(*) FROM inventories WHERE item_co
                          class="product-img"
                          style="width: 40px; height: 40px; object-fit: cover; border-radius: var(--radius);">
                     <?php else: ?>
-                    <div class="product-img" style="background: var(--<?= $conditionClass ?>-light); width: 40px; height: 40px;">
-                        <i class="bi bi-box-seam" style="color: var(--<?= $conditionClass ?>); font-size: 16px;"></i>
+                    <div class="product-img" style="background: var(--danger-light); width: 40px; height: 40px;">
+                        <i class="bi bi-box-seam" style="color: var(--danger); font-size: 16px;"></i>
                     </div>
                     <?php endif; ?>
                     <div class="product-info" style="flex: 1; min-width: 0;">
                         <p class="product-name" style="font-size: 13px; margin: 0 0 2px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"><?= htmlspecialchars($item['name']) ?></p>
-                        <span class="badge bg-<?= $conditionClass ?>" style="font-size: 10px; padding: 3px 6px;"><?= $item['item_condition'] ?></span>
+                        <span class="badge bg-danger" style="font-size: 10px; padding: 3px 6px;">Habis</span>
                     </div>
                 </div>
                 <?php endforeach; ?>
