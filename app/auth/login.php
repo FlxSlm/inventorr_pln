@@ -480,7 +480,7 @@ body::before {
                     <div class="brand-icon danantara"><img src="/public/assets/img/danantara.png" alt="Danantara Logo"></div>
                 </div>
                 <h2>PLN Inventory</h2>
-                <p>Sistem Manajemen Inventaris Terpadu</p>
+                <p>Sistem Manajemen Inventaris PT PLN (Persero) UPT MANADO</p>
                 
                 <div class="login-features">
                     <div class="feature-item">

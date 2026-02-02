@@ -208,7 +208,7 @@ if ($preSelectedItem) {
                             <i class="bi bi-1-circle-fill"></i>
                         </div>
                         <div class="step-content">
-                            <div class="fw-semibold">Ajukan Permintaan</div>
+                            <div class="fw-semibold">Ajukan Peminjaman</div>
                             <small class="text-muted">Isi form dan kirim permintaan</small>
                         </div>
                     </div>
@@ -218,25 +218,7 @@ if ($preSelectedItem) {
                         </div>
                         <div class="step-content">
                             <div class="fw-semibold">Validasi Admin</div>
-                            <small class="text-muted">Admin mereview permintaan</small>
-                        </div>
-                    </div>
-                    <div class="process-step">
-                        <div class="step-icon">
-                            <i class="bi bi-3-circle"></i>
-                        </div>
-                        <div class="step-content">
-                            <div class="fw-semibold">Upload Dokumen</div>
-                            <small class="text-muted">Upload Dokumen Berita Acara Serah Terima (BAST)</small>
-                        </div>
-                    </div>
-                    <div class="process-step">
-                        <div class="step-icon">
-                            <i class="bi bi-4-circle"></i>
-                        </div>
-                        <div class="step-content">
-                            <div class="fw-semibold">Persetujuan Final</div>
-                            <small class="text-muted">Admin menyetujui peminjaman</small>
+                            <small class="text-muted">Admin mereview pengajuan peminjaman dan menerbitkan dokumen Berita Acara</small>
                         </div>
                     </div>
                     <div class="process-step">
@@ -245,7 +227,7 @@ if ($preSelectedItem) {
                         </div>
                         <div class="step-content">
                             <div class="fw-semibold">Selesai</div>
-                            <small class="text-muted">Barang dapat diambil</small>
+                            <small class="text-muted">Barang dapat diambil dan Anda dapat mengunduh dokumen Berita Acara yang diterbitkan oleh admin.</small>
                         </div>
                     </div>
                 </div>

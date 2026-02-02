@@ -204,6 +204,62 @@ foreach ($topRequested as $item) {
     </div>
 </div>
 
+<!-- Quick Actions Strip -->
+<div class="row g-3" style="margin-bottom: 24px;">
+    <div class="col-md-3 col-6">
+        <a href="/index.php?page=user_request_loan" class="text-decoration-none">
+            <div class="modern-card p-3 text-center h-100" style="transition: all 0.2s; cursor: pointer; border: 2px solid transparent;" 
+                 onmouseover="this.style.borderColor='var(--primary-light)'; this.style.transform='translateY(-2px)';" 
+                 onmouseout="this.style.borderColor='transparent'; this.style.transform='translateY(0)';">
+                <div style="width: 48px; height: 48px; background: var(--primary-light); color: #fff; border-radius: 12px; display: flex; align-items: center; justify-content: center; margin: 0 auto 10px; font-size: 22px;">
+                    <i class="bi bi-plus-lg"></i>
+                </div>
+                <div style="font-size: 13px; font-weight: 600; color: var(--text-dark);">Ajukan Peminjaman</div>
+                <div style="font-size: 11px; color: var(--text-muted);">Pinjam barang baru</div>
+            </div>
+        </a>
+    </div>
+    <div class="col-md-3 col-6">
+        <a href="/index.php?page=user_request_item" class="text-decoration-none">
+            <div class="modern-card p-3 text-center h-100" style="transition: all 0.2s; cursor: pointer; border: 2px solid transparent;"
+                 onmouseover="this.style.borderColor='var(--success)'; this.style.transform='translateY(-2px)';" 
+                 onmouseout="this.style.borderColor='transparent'; this.style.transform='translateY(0)';">
+                <div style="width: 48px; height: 48px; background: var(--success); color: #fff; border-radius: 12px; display: flex; align-items: center; justify-content: center; margin: 0 auto 10px; font-size: 22px;">
+                    <i class="bi bi-cart-plus"></i>
+                </div>
+                <div style="font-size: 13px; font-weight: 600; color: var(--text-dark);">Permintaan Barang</div>
+                <div style="font-size: 11px; color: var(--text-muted);">Request barang permanen</div>
+            </div>
+        </a>
+    </div>
+    <div class="col-md-3 col-6">
+        <a href="/index.php?page=catalog" class="text-decoration-none">
+            <div class="modern-card p-3 text-center h-100" style="transition: all 0.2s; cursor: pointer; border: 2px solid transparent;"
+                 onmouseover="this.style.borderColor='var(--info)'; this.style.transform='translateY(-2px)';" 
+                 onmouseout="this.style.borderColor='transparent'; this.style.transform='translateY(0)';">
+                <div style="width: 48px; height: 48px; background: var(--info); color: #fff; border-radius: 12px; display: flex; align-items: center; justify-content: center; margin: 0 auto 10px; font-size: 22px;">
+                    <i class="bi bi-search"></i>
+                </div>
+                <div style="font-size: 13px; font-weight: 600; color: var(--text-dark);">Katalog Barang</div>
+                <div style="font-size: 11px; color: var(--text-muted);">Lihat semua barang</div>
+            </div>
+        </a>
+    </div>
+    <div class="col-md-3 col-6">
+        <a href="/index.php?page=user_suggestions" class="text-decoration-none">
+            <div class="modern-card p-3 text-center h-100" style="transition: all 0.2s; cursor: pointer; border: 2px solid transparent;"
+                 onmouseover="this.style.borderColor='var(--warning)'; this.style.transform='translateY(-2px)';" 
+                 onmouseout="this.style.borderColor='transparent'; this.style.transform='translateY(0)';">
+                <div style="width: 48px; height: 48px; background: var(--warning); color: #fff; border-radius: 12px; display: flex; align-items: center; justify-content: center; margin: 0 auto 10px; font-size: 22px;">
+                    <i class="bi bi-lightbulb"></i>
+                </div>
+                <div style="font-size: 13px; font-weight: 600; color: var(--text-dark);">Saran & Masukan</div>
+                <div style="font-size: 11px; color: var(--text-muted);">Kirim feedback</div>
+            </div>
+        </a>
+    </div>
+</div>
+
 <!-- Content Grid -->
 <div class="content-grid">
     <!-- Recent Loans -->
@@ -336,7 +392,24 @@ foreach ($topRequested as $item) {
             </div>
         </div>
         <div class="card-body">
-            <div class="chart-container" style="height: 300px;">
+            <!-- Summary -->
+            <div style="display: flex; gap: 16px; margin-bottom: 16px; flex-wrap: wrap;">
+                <div style="background: var(--bg-main); padding: 12px 16px; border-radius: 8px; flex: 1; min-width: 120px;">
+                    <div style="font-size: 20px; font-weight: 700; color: var(--primary-light);"><?= array_sum($chartData) ?></div>
+                    <div style="font-size: 11px; color: var(--text-muted);">Total Peminjaman</div>
+                </div>
+                <div style="background: var(--bg-main); padding: 12px 16px; border-radius: 8px; flex: 1; min-width: 120px;">
+                    <div style="font-size: 20px; font-weight: 700; color: var(--text-dark);"><?= count($chartLabels) ?></div>
+                    <div style="font-size: 11px; color: var(--text-muted);">Jenis Barang</div>
+                </div>
+                <?php if(!empty($chartLabels[0])): ?>
+                <div style="background: var(--bg-main); padding: 12px 16px; border-radius: 8px; flex: 2; min-width: 150px;">
+                    <div style="font-size: 14px; font-weight: 600; color: var(--success);"><?= htmlspecialchars($chartLabels[0]) ?></div>
+                    <div style="font-size: 11px; color: var(--text-muted);">Paling Populer (<?= $chartData[0] ?>x)</div>
+                </div>
+                <?php endif; ?>
+            </div>
+            <div class="chart-container" style="height: 280px;">
                 <canvas id="topBorrowedChart"></canvas>
             </div>
         </div>
@@ -359,7 +432,24 @@ foreach ($topRequested as $item) {
             </div>
         </div>
         <div class="card-body">
-            <div class="chart-container" style="height: 300px;">
+            <!-- Summary -->
+            <div style="display: flex; gap: 16px; margin-bottom: 16px; flex-wrap: wrap;">
+                <div style="background: var(--bg-main); padding: 12px 16px; border-radius: 8px; flex: 1; min-width: 120px;">
+                    <div style="font-size: 20px; font-weight: 700; color: var(--primary-light);"><?= array_sum($requestChartData) ?></div>
+                    <div style="font-size: 11px; color: var(--text-muted);">Total Permintaan</div>
+                </div>
+                <div style="background: var(--bg-main); padding: 12px 16px; border-radius: 8px; flex: 1; min-width: 120px;">
+                    <div style="font-size: 20px; font-weight: 700; color: var(--text-dark);"><?= count($requestChartLabels) ?></div>
+                    <div style="font-size: 11px; color: var(--text-muted);">Jenis Barang</div>
+                </div>
+                <?php if(!empty($requestChartLabels[0])): ?>
+                <div style="background: var(--bg-main); padding: 12px 16px; border-radius: 8px; flex: 2; min-width: 150px;">
+                    <div style="font-size: 14px; font-weight: 600; color: var(--success);"><?= htmlspecialchars($requestChartLabels[0]) ?></div>
+                    <div style="font-size: 11px; color: var(--text-muted);">Paling Populer (<?= $requestChartData[0] ?>x)</div>
+                </div>
+                <?php endif; ?>
+            </div>
+            <div class="chart-container" style="height: 280px;">
                 <canvas id="topRequestedChart"></canvas>
             </div>
         </div>
@@ -374,133 +464,102 @@ const chartData = <?= json_encode($chartData) ?>;
 const requestChartLabels = <?= json_encode($requestChartLabels) ?>;
 const requestChartData = <?= json_encode($requestChartData) ?>;
 
-// Chart colors
-const chartColors = [
-    'rgba(10, 107, 124, 0.85)',
-    'rgba(26, 154, 170, 0.85)',
-    'rgba(45, 212, 191, 0.85)',
-    'rgba(20, 184, 166, 0.85)',
-    'rgba(13, 148, 136, 0.85)',
-    'rgba(6, 95, 70, 0.85)',
-    'rgba(4, 120, 87, 0.85)'
-];
-
-const chartBorderColors = [
-    'rgba(10, 107, 124, 1)',
-    'rgba(26, 154, 170, 1)',
-    'rgba(45, 212, 191, 1)',
-    'rgba(20, 184, 166, 1)',
-    'rgba(13, 148, 136, 1)',
-    'rgba(6, 95, 70, 1)',
-    'rgba(4, 120, 87, 1)'
+// Minimalist monochromatic teal colors for doughnut
+const tealPalette = [
+    'rgba(13, 79, 92, 0.9)',
+    'rgba(26, 154, 170, 0.9)',
+    'rgba(45, 180, 180, 0.9)',
+    'rgba(94, 200, 200, 0.9)',
+    'rgba(140, 215, 215, 0.9)',
+    'rgba(175, 225, 225, 0.9)',
+    'rgba(200, 235, 235, 0.9)'
 ];
 
 let topBorrowedChart = null;
 let topRequestedChart = null;
 
-function createChart(chartId, labels, data, type = 'bar') {
+function createMinimalistChart(chartId, labels, data, type = 'bar') {
     const ctx = document.getElementById(chartId);
     if (!ctx) return null;
     
-    const commonOptions = {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-            legend: {
-                display: type !== 'bar',
-                position: 'right',
-                labels: {
-                    padding: 15,
-                    usePointStyle: true,
-                    pointStyle: 'circle',
-                    font: {
-                        size: 11,
-                        family: "'Inter', sans-serif"
-                    }
-                }
-            },
-            tooltip: {
-                backgroundColor: 'rgba(13, 79, 92, 0.95)',
-                padding: 12,
-                titleFont: { size: 13, weight: '600' },
-                bodyFont: { size: 12 },
-                borderColor: 'rgba(45, 212, 191, 0.3)',
-                borderWidth: 1,
-                cornerRadius: 8,
-                displayColors: true,
-                callbacks: {
-                    label: function(context) {
-                        const labelText = chartId.includes('Borrowed') ? 'kali dipinjam' : 'kali diminta';
-                        return ` ${context.parsed.r || context.parsed.y || context.parsed} ${labelText}`;
-                    }
-                }
-            }
-        }
-    };
+    const isBar = type === 'bar';
     
-    let config = {
+    return new Chart(ctx, {
         type: type,
         data: {
             labels: labels,
             datasets: [{
                 label: chartId.includes('Borrowed') ? 'Jumlah Peminjaman' : 'Jumlah Permintaan',
                 data: data,
-                backgroundColor: type === 'bar' ? 'rgba(26, 154, 170, 0.85)' : chartColors,
-                borderColor: type === 'bar' ? 'rgba(10, 107, 124, 1)' : chartBorderColors,
-                borderWidth: type === 'bar' ? 0 : 2,
-                borderRadius: type === 'bar' ? 8 : 0,
-                hoverBackgroundColor: type === 'bar' ? 'rgba(45, 212, 191, 0.95)' : undefined
+                backgroundColor: isBar ? 'rgba(26, 154, 170, 0.8)' : tealPalette,
+                borderColor: isBar ? 'rgba(13, 79, 92, 1)' : tealPalette.map(c => c.replace('0.9', '1')),
+                borderWidth: isBar ? 0 : 2,
+                borderRadius: isBar ? 6 : 0,
+                hoverBackgroundColor: isBar ? 'rgba(13, 79, 92, 0.95)' : undefined
             }]
         },
-        options: commonOptions
-    };
-    
-    // Type specific options
-    if (type === 'bar') {
-        config.options.scales = {
-            y: {
-                beginAtZero: true,
-                grid: { color: 'rgba(0, 0, 0, 0.05)', drawBorder: false },
-                ticks: { font: { size: 11 } }
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: !isBar,
+                    position: 'right',
+                    labels: {
+                        padding: 12,
+                        usePointStyle: true,
+                        pointStyle: 'circle',
+                        font: { size: 11, family: "'Inter', sans-serif" },
+                        color: '#64748b'
+                    }
+                },
+                tooltip: {
+                    backgroundColor: 'rgba(15, 23, 42, 0.95)',
+                    padding: 12,
+                    titleFont: { size: 13, weight: '600' },
+                    bodyFont: { size: 12 },
+                    cornerRadius: 8,
+                    displayColors: true
+                }
             },
-            x: {
-                grid: { display: false },
-                ticks: { font: { size: 11 } }
-            }
-        };
-        config.options.plugins.legend.display = false;
-    } else if (type === 'doughnut') {
-        config.options.cutout = '60%';
-    }
-    
-    return new Chart(ctx, config);
+            scales: isBar ? {
+                y: {
+                    beginAtZero: true,
+                    grid: { color: 'rgba(0, 0, 0, 0.04)', drawBorder: false },
+                    ticks: { font: { size: 11 }, color: '#94a3b8' }
+                },
+                x: {
+                    grid: { display: false },
+                    ticks: { font: { size: 11 }, color: '#64748b' }
+                }
+            } : {},
+            cutout: type === 'doughnut' ? '65%' : undefined
+        }
+    });
 }
 
-// Initialize charts when DOM is ready
 document.addEventListener('DOMContentLoaded', function() {
     if (chartLabels.length > 0) {
-        topBorrowedChart = createChart('topBorrowedChart', chartLabels, chartData, 'bar');
+        topBorrowedChart = createMinimalistChart('topBorrowedChart', chartLabels, chartData, 'bar');
     }
     if (requestChartLabels.length > 0) {
-        topRequestedChart = createChart('topRequestedChart', requestChartLabels, requestChartData, 'bar');
+        topRequestedChart = createMinimalistChart('topRequestedChart', requestChartLabels, requestChartData, 'bar');
     }
     
-    // Chart type toggle buttons
     document.querySelectorAll('.chart-type-btn').forEach(btn => {
         btn.addEventListener('click', function() {
             const chartType = this.dataset.chart;
             const type = this.dataset.type;
             
-            // Toggle active class within same chart group
             this.closest('.card-actions').querySelectorAll('.chart-type-btn').forEach(b => b.classList.remove('active'));
             this.classList.add('active');
             
             if (chartType === 'borrow') {
                 if (topBorrowedChart) topBorrowedChart.destroy();
-                topBorrowedChart = createChart('topBorrowedChart', chartLabels, chartData, type);
+                topBorrowedChart = createMinimalistChart('topBorrowedChart', chartLabels, chartData, type);
             } else if (chartType === 'request') {
                 if (topRequestedChart) topRequestedChart.destroy();
-                topRequestedChart = createChart('topRequestedChart', requestChartLabels, requestChartData, type);
+                topRequestedChart = createMinimalistChart('topRequestedChart', requestChartLabels, requestChartData, type);
             }
         });
     });

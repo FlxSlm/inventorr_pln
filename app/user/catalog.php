@@ -272,12 +272,12 @@ foreach ($items as $item) {
         <div class="modal-dialog modal-lg">
             <div class="modal-content" style="border: none; border-radius: 16px; overflow: hidden;">
                 <!-- Header with Image -->
-                <div style="position: relative;">
+                <div style="position: relative; background: linear-gradient(135deg, var(--bg-main) 0%, var(--border-color) 100%);">
                     <?php if ($item['image']): ?>
-                    <div style="height: 200px; overflow: hidden;">
+                    <div style="display: flex; justify-content: center; align-items: center; padding: 20px; min-height: 200px; max-height: 280px;">
                         <img src="/public/assets/uploads/<?= htmlspecialchars($item['image']) ?>" 
                              alt="<?= htmlspecialchars($item['name']) ?>" 
-                             style="width: 100%; height: 100%; object-fit: cover;">
+                             style="max-width: 100%; max-height: 240px; object-fit: contain; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
                     </div>
                     <?php else: ?>
                     <div style="height: 120px; background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%); display: flex; align-items: center; justify-content: center;">

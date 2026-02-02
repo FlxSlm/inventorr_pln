@@ -178,9 +178,11 @@ $stageLabels = [
                 </thead>
                 <tbody>
                     <?php 
+                    $totalRows = count($requests);
                     $rowNumber = 0;
                     foreach($requests as $r): 
                         $rowNumber++;
+                        $displayNum = $totalRows - $rowNumber + 1;
                         $isGroup = !empty($r['is_group']);
                         
                         if ($isGroup):
@@ -194,7 +196,7 @@ $stageLabels = [
                             $filterClass = 'all ' . $stage;
                     ?>
                     <tr class="request-row group-header <?= $filterClass ?>" data-group="<?= $r['group_id'] ?>" style="cursor: pointer;" onclick="toggleGroup('<?= $r['group_id'] ?>')">
-                        <td><span class="badge bg-secondary"><?= $rowNumber ?></span></td>
+                        <td><span class="badge bg-secondary"><?= $displayNum ?></span></td>
                         <td>
                             <div class="d-flex align-items-center">
                                 <div class="rounded me-2 d-flex align-items-center justify-content-center" style="width: 40px; height: 40px; background: linear-gradient(135deg, var(--primary), var(--primary-light));">
@@ -272,7 +274,7 @@ $stageLabels = [
                         $filterClass = 'all ' . $stage;
                     ?>
                     <tr class="request-row <?= $filterClass ?>">
-                        <td><span class="badge bg-secondary"><?= $rowNumber ?></span></td>
+                        <td><span class="badge bg-secondary"><?= $displayNum ?></span></td>
                         <td>
                             <div class="d-flex align-items-center">
                                 <?php if ($r['inventory_image']): ?>

@@ -37,6 +37,20 @@ $stmt = $pdo->query("
 ");
 $recentLoans = $stmt->fetchAll();
 
+// Recent requests
+$recentRequests = [];
+try {
+    $stmt = $pdo->query("
+      SELECT r.*, u.name AS user_name, i.name AS inventory_name
+      FROM requests r
+      JOIN users u ON u.id = r.user_id
+      JOIN inventories i ON i.id = r.inventory_id
+      ORDER BY r.requested_at DESC
+      LIMIT 5
+    ");
+    $recentRequests = $stmt->fetchAll();
+} catch (Exception $e) {}
+
 // Top borrowed items (for chart) - Only count FINAL approved loans (stage 2 validation completed)
 // Loans must have stage='approved' which only happens after admin does final approval
 // Also fetch category color for each item
@@ -218,6 +232,82 @@ $totalDamagedItems = $pdo->query("SELECT COUNT(*) FROM inventories WHERE item_co
     </div>
 </div>
 
+<!-- Quick Actions Strip -->
+<div class="row g-3" style="margin-bottom: 24px;">
+    <div class="col-lg-2 col-md-4 col-6">
+        <a href="/index.php?page=admin_inventory_add" class="text-decoration-none">
+            <div class="modern-card p-3 text-center h-100" style="transition: all 0.2s; cursor: pointer; border: 2px solid transparent;" 
+                 onmouseover="this.style.borderColor='var(--primary-light)'; this.style.transform='translateY(-2px)';" 
+                 onmouseout="this.style.borderColor='transparent'; this.style.transform='translateY(0)';">
+                <div style="width: 42px; height: 42px; background: var(--primary-light); color: #fff; border-radius: 10px; display: flex; align-items: center; justify-content: center; margin: 0 auto 8px; font-size: 18px;">
+                    <i class="bi bi-plus-lg"></i>
+                </div>
+                <div style="font-size: 12px; font-weight: 600; color: var(--text-dark);">Tambah Barang</div>
+            </div>
+        </a>
+    </div>
+    <div class="col-lg-2 col-md-4 col-6">
+        <a href="/index.php?page=admin_loans" class="text-decoration-none">
+            <div class="modern-card p-3 text-center h-100" style="transition: all 0.2s; cursor: pointer; border: 2px solid transparent;"
+                 onmouseover="this.style.borderColor='var(--warning)'; this.style.transform='translateY(-2px)';" 
+                 onmouseout="this.style.borderColor='transparent'; this.style.transform='translateY(0)';">
+                <div style="width: 42px; height: 42px; background: var(--warning); color: #fff; border-radius: 10px; display: flex; align-items: center; justify-content: center; margin: 0 auto 8px; font-size: 18px;">
+                    <i class="bi bi-clipboard-check"></i>
+                </div>
+                <div style="font-size: 12px; font-weight: 600; color: var(--text-dark);">Kelola Peminjaman</div>
+            </div>
+        </a>
+    </div>
+    <div class="col-lg-2 col-md-4 col-6">
+        <a href="/index.php?page=admin_requests" class="text-decoration-none">
+            <div class="modern-card p-3 text-center h-100" style="transition: all 0.2s; cursor: pointer; border: 2px solid transparent;"
+                 onmouseover="this.style.borderColor='var(--success)'; this.style.transform='translateY(-2px)';" 
+                 onmouseout="this.style.borderColor='transparent'; this.style.transform='translateY(0)';">
+                <div style="width: 42px; height: 42px; background: var(--success); color: #fff; border-radius: 10px; display: flex; align-items: center; justify-content: center; margin: 0 auto 8px; font-size: 18px;">
+                    <i class="bi bi-cart-check"></i>
+                </div>
+                <div style="font-size: 12px; font-weight: 600; color: var(--text-dark);">Kelola Permintaan</div>
+            </div>
+        </a>
+    </div>
+    <div class="col-lg-2 col-md-4 col-6">
+        <a href="/index.php?page=admin_returns" class="text-decoration-none">
+            <div class="modern-card p-3 text-center h-100" style="transition: all 0.2s; cursor: pointer; border: 2px solid transparent;"
+                 onmouseover="this.style.borderColor='var(--info)'; this.style.transform='translateY(-2px)';" 
+                 onmouseout="this.style.borderColor='transparent'; this.style.transform='translateY(0)';">
+                <div style="width: 42px; height: 42px; background: var(--info); color: #fff; border-radius: 10px; display: flex; align-items: center; justify-content: center; margin: 0 auto 8px; font-size: 18px;">
+                    <i class="bi bi-box-arrow-in-left"></i>
+                </div>
+                <div style="font-size: 12px; font-weight: 600; color: var(--text-dark);">Pengembalian</div>
+            </div>
+        </a>
+    </div>
+    <div class="col-lg-2 col-md-4 col-6">
+        <a href="/index.php?page=admin_users_list" class="text-decoration-none">
+            <div class="modern-card p-3 text-center h-100" style="transition: all 0.2s; cursor: pointer; border: 2px solid transparent;"
+                 onmouseover="this.style.borderColor='var(--secondary)'; this.style.transform='translateY(-2px)';" 
+                 onmouseout="this.style.borderColor='transparent'; this.style.transform='translateY(0)';">
+                <div style="width: 42px; height: 42px; background: var(--secondary); color: #fff; border-radius: 10px; display: flex; align-items: center; justify-content: center; margin: 0 auto 8px; font-size: 18px;">
+                    <i class="bi bi-people"></i>
+                </div>
+                <div style="font-size: 12px; font-weight: 600; color: var(--text-dark);">Kelola User</div>
+            </div>
+        </a>
+    </div>
+    <div class="col-lg-2 col-md-4 col-6">
+        <a href="/index.php?page=admin_suggestions" class="text-decoration-none">
+            <div class="modern-card p-3 text-center h-100" style="transition: all 0.2s; cursor: pointer; border: 2px solid transparent;"
+                 onmouseover="this.style.borderColor='var(--accent)'; this.style.transform='translateY(-2px)';" 
+                 onmouseout="this.style.borderColor='transparent'; this.style.transform='translateY(0)';">
+                <div style="width: 42px; height: 42px; background: var(--accent); color: #fff; border-radius: 10px; display: flex; align-items: center; justify-content: center; margin: 0 auto 8px; font-size: 18px;">
+                    <i class="bi bi-lightbulb"></i>
+                </div>
+                <div style="font-size: 12px; font-weight: 600; color: var(--text-dark);">Saran Masukan</div>
+            </div>
+        </a>
+    </div>
+</div>
+
 <!-- Charts Row - Side by Side -->
 <div class="row g-4" style="margin-bottom: 24px;">
     <!-- Chart Card - Most Borrowed -->
@@ -246,7 +336,24 @@ $totalDamagedItems = $pdo->query("SELECT COUNT(*) FROM inventories WHERE item_co
                     <p class="empty-state-text mb-0" style="font-size: 12px;">Data peminjaman akan muncul di sini</p>
                 </div>
                 <?php else: ?>
-                <div class="chart-container" style="height: 250px;">
+                <!-- Summary -->
+                <div style="display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap;">
+                    <div style="background: var(--bg-main); padding: 10px 14px; border-radius: 8px; flex: 1; min-width: 80px;">
+                        <div style="font-size: 18px; font-weight: 700; color: var(--primary-light);"><?= array_sum($chartData) ?></div>
+                        <div style="font-size: 10px; color: var(--text-muted);">Total</div>
+                    </div>
+                    <div style="background: var(--bg-main); padding: 10px 14px; border-radius: 8px; flex: 1; min-width: 80px;">
+                        <div style="font-size: 18px; font-weight: 700; color: var(--text-dark);"><?= count($chartLabels) ?></div>
+                        <div style="font-size: 10px; color: var(--text-muted);">Jenis</div>
+                    </div>
+                    <?php if(!empty($chartLabels[0])): ?>
+                    <div style="background: var(--bg-main); padding: 10px 14px; border-radius: 8px; flex: 2; min-width: 120px;">
+                        <div style="font-size: 13px; font-weight: 600; color: var(--success); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"><?= htmlspecialchars($chartLabels[0]) ?></div>
+                        <div style="font-size: 10px; color: var(--text-muted);">Terpopuler (<?= $chartData[0] ?>x)</div>
+                    </div>
+                    <?php endif; ?>
+                </div>
+                <div class="chart-container" style="height: 220px;">
                     <canvas id="topBorrowedChart"></canvas>
                 </div>
                 <?php endif; ?>
@@ -280,7 +387,24 @@ $totalDamagedItems = $pdo->query("SELECT COUNT(*) FROM inventories WHERE item_co
                     <p class="empty-state-text mb-0" style="font-size: 12px;">Data permintaan akan muncul di sini</p>
                 </div>
                 <?php else: ?>
-                <div class="chart-container" style="height: 250px;">
+                <!-- Summary -->
+                <div style="display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap;">
+                    <div style="background: var(--bg-main); padding: 10px 14px; border-radius: 8px; flex: 1; min-width: 80px;">
+                        <div style="font-size: 18px; font-weight: 700; color: var(--primary-light);"><?= array_sum($requestChartData) ?></div>
+                        <div style="font-size: 10px; color: var(--text-muted);">Total</div>
+                    </div>
+                    <div style="background: var(--bg-main); padding: 10px 14px; border-radius: 8px; flex: 1; min-width: 80px;">
+                        <div style="font-size: 18px; font-weight: 700; color: var(--text-dark);"><?= count($requestChartLabels) ?></div>
+                        <div style="font-size: 10px; color: var(--text-muted);">Jenis</div>
+                    </div>
+                    <?php if(!empty($requestChartLabels[0])): ?>
+                    <div style="background: var(--bg-main); padding: 10px 14px; border-radius: 8px; flex: 2; min-width: 120px;">
+                        <div style="font-size: 13px; font-weight: 600; color: var(--success); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"><?= htmlspecialchars($requestChartLabels[0]) ?></div>
+                        <div style="font-size: 10px; color: var(--text-muted);">Terpopuler (<?= $requestChartData[0] ?>x)</div>
+                    </div>
+                    <?php endif; ?>
+                </div>
+                <div class="chart-container" style="height: 220px;">
                     <canvas id="topRequestedChart"></canvas>
                 </div>
                 <?php endif; ?>
@@ -545,6 +669,99 @@ $totalDamagedItems = $pdo->query("SELECT COUNT(*) FROM inventories WHERE item_co
     </div>
 </div>
 
+<!-- Recent Requests Table -->
+<div class="row g-4" style="margin-top: 24px;">
+    <div class="col-12">
+        <div class="table-card">
+            <div class="card-header" style="padding: 16px 20px; border-bottom: 1px solid var(--border-color);">
+                <h3 class="card-title" style="margin: 0; font-size: 16px;">
+                    <i class="bi bi-cart-check"></i> Permintaan Terbaru
+                </h3>
+                <a href="/index.php?page=admin_requests" class="btn btn-secondary btn-sm">
+                    Lihat Semua
+                </a>
+            </div>
+            <div style="padding: 12px 20px 0;">
+                <div class="table-filters" id="requestFilters">
+                    <button class="table-filter-btn active" data-filter="all">Semua</button>
+                    <button class="table-filter-btn" data-filter="pending">Pending</button>
+                    <button class="table-filter-btn" data-filter="approved">Disetujui</button>
+                </div>
+            </div>
+        <div class="table-responsive">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Peminta</th>
+                        <th>Barang</th>
+                        <th>Jumlah</th>
+                        <th>Tanggal</th>
+                        <th>Status</th>
+                        <th>Aksi</th>
+                    </tr>
+                </thead>
+                <tbody id="dashboardRequestsTable">
+                    <?php if(empty($recentRequests)): ?>
+                    <tr>
+                        <td colspan="7">
+                            <div class="empty-state" style="padding: 40px;">
+                                <div class="empty-state-icon" style="width: 60px; height: 60px; font-size: 24px;">
+                                    <i class="bi bi-cart"></i>
+                                </div>
+                                <h5 class="empty-state-title">Belum Ada Permintaan</h5>
+                                <p class="empty-state-text mb-0">Data permintaan akan muncul di sini</p>
+                            </div>
+                        </td>
+                    </tr>
+                    <?php else: ?>
+                    <?php foreach($recentRequests as $r): 
+                        $rowStatus = ($r['stage'] === 'pending') ? 'pending' : 
+                                     (($r['stage'] === 'approved') ? 'approved' : 'other');
+                    ?>
+                    <tr data-status="<?= $rowStatus ?>">
+                        <td><span class="badge bg-secondary">#<?= $r['id'] ?></span></td>
+                        <td>
+                            <div class="d-flex align-items-center gap-2">
+                                <div class="topbar-avatar" style="width: 32px; height: 32px; font-size: 12px;">
+                                    <?= strtoupper(substr($r['user_name'], 0, 1)) ?>
+                                </div>
+                                <?= htmlspecialchars($r['user_name']) ?>
+                            </div>
+                        </td>
+                        <td><?= htmlspecialchars($r['inventory_name']) ?></td>
+                        <td><strong><?= $r['quantity'] ?></strong></td>
+                        <td><small><?= date('d M Y', strtotime($r['requested_at'])) ?></small></td>
+                        <td>
+                            <?php if($r['stage'] === 'pending'): ?>
+                                <span class="status-badge warning">Pending</span>
+                            <?php elseif($r['stage'] === 'approved'): ?>
+                                <span class="status-badge success">Disetujui</span>
+                            <?php elseif($r['stage'] === 'rejected'): ?>
+                                <span class="status-badge danger">Ditolak</span>
+                            <?php else: ?>
+                                <span class="status-badge secondary"><?= htmlspecialchars($r['stage']) ?></span>
+                            <?php endif; ?>
+                        </td>
+                        <td>
+                            <?php if($r['stage'] === 'pending'): ?>
+                            <a href="/index.php?page=admin_requests" class="btn btn-sm btn-primary">
+                                <i class="bi bi-eye"></i> Proses
+                            </a>
+                            <?php else: ?>
+                            <span class="text-muted">—</span>
+                            <?php endif; ?>
+                        </td>
+                    </tr>
+                    <?php endforeach; ?>
+                    <?php endif; ?>
+                </tbody>
+            </table>
+        </div>
+    </div>
+    </div>
+</div>
+
 <?php if (!empty($topBorrowed) || !empty($topRequested)): ?>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
@@ -556,23 +773,16 @@ document.addEventListener('DOMContentLoaded', function() {
     const requestLabels = <?= json_encode($requestChartLabels) ?>;
     const requestData = <?= json_encode($requestChartData) ?>;
 
-    // Chart colors from category colors
-    const borrowColors = <?= json_encode($chartColors) ?>.map(c => {
-        // Convert hex to rgba with opacity
-        const hex = c.replace('#', '');
-        const r = parseInt(hex.substring(0, 2), 16);
-        const g = parseInt(hex.substring(2, 4), 16);
-        const b = parseInt(hex.substring(4, 6), 16);
-        return `rgba(${r}, ${g}, ${b}, 0.85)`;
-    });
-    
-    const requestColors = <?= json_encode($requestChartColors) ?>.map(c => {
-        const hex = c.replace('#', '');
-        const r = parseInt(hex.substring(0, 2), 16);
-        const g = parseInt(hex.substring(2, 4), 16);
-        const b = parseInt(hex.substring(4, 6), 16);
-        return `rgba(${r}, ${g}, ${b}, 0.85)`;
-    });
+    // Minimalist monochromatic teal palette for doughnut charts
+    const tealPalette = [
+        'rgba(13, 79, 92, 0.9)',
+        'rgba(26, 154, 170, 0.9)',
+        'rgba(45, 180, 180, 0.9)',
+        'rgba(94, 200, 200, 0.9)',
+        'rgba(140, 215, 215, 0.9)',
+        'rgba(175, 225, 225, 0.9)',
+        'rgba(200, 235, 235, 0.9)'
+    ];
 
     let topBorrowedChart = null;
     let topRequestedChart = null;
@@ -585,6 +795,8 @@ document.addEventListener('DOMContentLoaded', function() {
             topBorrowedChart.destroy();
         }
         
+        const isBar = type === 'bar';
+        
         topBorrowedChart = new Chart(ctx, {
             type: type,
             data: {
@@ -592,24 +804,35 @@ document.addEventListener('DOMContentLoaded', function() {
                 datasets: [{
                     label: 'Jumlah Peminjaman',
                     data: borrowData,
-                    backgroundColor: borrowColors,
-                    borderColor: borrowColors.map(c => c.replace('0.85', '1')),
-                    borderWidth: type === 'bar' ? 0 : 2,
-                    borderRadius: type === 'bar' ? 8 : 0
+                    backgroundColor: isBar ? 'rgba(26, 154, 170, 0.8)' : tealPalette,
+                    borderColor: isBar ? 'rgba(13, 79, 92, 1)' : tealPalette.map(c => c.replace('0.9', '1')),
+                    borderWidth: isBar ? 0 : 2,
+                    borderRadius: isBar ? 6 : 0,
+                    hoverBackgroundColor: isBar ? 'rgba(13, 79, 92, 0.95)' : undefined
                 }]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
                 plugins: {
-                    legend: { display: type !== 'bar', position: 'right' },
-                    tooltip: { backgroundColor: 'rgba(13, 79, 92, 0.95)', padding: 12, cornerRadius: 8 }
+                    legend: {
+                        display: !isBar,
+                        position: 'right',
+                        labels: { padding: 10, usePointStyle: true, pointStyle: 'circle', font: { size: 11 }, color: '#64748b' }
+                    },
+                    tooltip: {
+                        backgroundColor: 'rgba(15, 23, 42, 0.95)',
+                        padding: 10,
+                        cornerRadius: 8,
+                        titleFont: { size: 12, weight: '600' },
+                        bodyFont: { size: 11 }
+                    }
                 },
-                scales: type === 'bar' ? {
-                    y: { beginAtZero: true, grid: { color: 'rgba(0, 0, 0, 0.05)' } },
-                    x: { grid: { display: false } }
+                scales: isBar ? {
+                    y: { beginAtZero: true, grid: { color: 'rgba(0, 0, 0, 0.04)', drawBorder: false }, ticks: { font: { size: 10 }, color: '#94a3b8' } },
+                    x: { grid: { display: false }, ticks: { font: { size: 10 }, color: '#64748b' } }
                 } : {},
-                cutout: type === 'doughnut' ? '60%' : undefined
+                cutout: type === 'doughnut' ? '65%' : undefined
             }
         });
     }
@@ -622,6 +845,8 @@ document.addEventListener('DOMContentLoaded', function() {
             topRequestedChart.destroy();
         }
         
+        const isBar = type === 'bar';
+        
         topRequestedChart = new Chart(ctx, {
             type: type,
             data: {
@@ -629,24 +854,35 @@ document.addEventListener('DOMContentLoaded', function() {
                 datasets: [{
                     label: 'Jumlah Permintaan',
                     data: requestData,
-                    backgroundColor: requestColors,
-                    borderColor: requestColors.map(c => c.replace('0.85', '1')),
-                    borderWidth: type === 'bar' ? 0 : 2,
-                    borderRadius: type === 'bar' ? 8 : 0
+                    backgroundColor: isBar ? 'rgba(26, 154, 170, 0.8)' : tealPalette,
+                    borderColor: isBar ? 'rgba(13, 79, 92, 1)' : tealPalette.map(c => c.replace('0.9', '1')),
+                    borderWidth: isBar ? 0 : 2,
+                    borderRadius: isBar ? 6 : 0,
+                    hoverBackgroundColor: isBar ? 'rgba(13, 79, 92, 0.95)' : undefined
                 }]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
                 plugins: {
-                    legend: { display: type !== 'bar', position: 'right' },
-                    tooltip: { backgroundColor: 'rgba(133, 77, 14, 0.95)', padding: 12, cornerRadius: 8 }
+                    legend: {
+                        display: !isBar,
+                        position: 'right',
+                        labels: { padding: 10, usePointStyle: true, pointStyle: 'circle', font: { size: 11 }, color: '#64748b' }
+                    },
+                    tooltip: {
+                        backgroundColor: 'rgba(15, 23, 42, 0.95)',
+                        padding: 10,
+                        cornerRadius: 8,
+                        titleFont: { size: 12, weight: '600' },
+                        bodyFont: { size: 11 }
+                    }
                 },
-                scales: type === 'bar' ? {
-                    y: { beginAtZero: true, grid: { color: 'rgba(0, 0, 0, 0.05)' } },
-                    x: { grid: { display: false } }
+                scales: isBar ? {
+                    y: { beginAtZero: true, grid: { color: 'rgba(0, 0, 0, 0.04)', drawBorder: false }, ticks: { font: { size: 10 }, color: '#94a3b8' } },
+                    x: { grid: { display: false }, ticks: { font: { size: 10 }, color: '#64748b' } }
                 } : {},
-                cutout: type === 'doughnut' ? '60%' : undefined
+                cutout: type === 'doughnut' ? '65%' : undefined
             }
         });
     }
@@ -674,15 +910,33 @@ document.addEventListener('DOMContentLoaded', function() {
 <?php endif; ?>
 
 <script>
-// Dashboard filter buttons functionality
-document.querySelectorAll('.table-filters .table-filter-btn').forEach(btn => {
+// Dashboard filter buttons functionality for Loans
+document.querySelectorAll('.table-filters:not(#requestFilters) .table-filter-btn').forEach(btn => {
     btn.addEventListener('click', function() {
-        // Update active state
         this.closest('.table-filters').querySelectorAll('.table-filter-btn').forEach(b => b.classList.remove('active'));
         this.classList.add('active');
         
         const filter = this.dataset.filter;
         const rows = document.querySelectorAll('#dashboardLoansTable tr[data-status]');
+        
+        rows.forEach(row => {
+            if (filter === 'all' || row.dataset.status === filter) {
+                row.style.display = '';
+            } else {
+                row.style.display = 'none';
+            }
+        });
+    });
+});
+
+// Dashboard filter buttons functionality for Requests
+document.querySelectorAll('#requestFilters .table-filter-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+        this.closest('.table-filters').querySelectorAll('.table-filter-btn').forEach(b => b.classList.remove('active'));
+        this.classList.add('active');
+        
+        const filter = this.dataset.filter;
+        const rows = document.querySelectorAll('#dashboardRequestsTable tr[data-status]');
         
         rows.forEach(row => {
             if (filter === 'all' || row.dataset.status === filter) {

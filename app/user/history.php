@@ -259,6 +259,7 @@ $returnStageLabels = [
                 </thead>
                 <tbody>
                     <?php 
+                    $totalRows = count($loans);
                     $rowNumber = 0;
                     foreach($loans as $l): 
                         $rowNumber++;
@@ -283,7 +284,7 @@ $returnStageLabels = [
                     ?>
                     <!-- Group Header Row -->
                     <tr class="loan-row group-header <?= $filterClass ?>" data-group="<?= $l['group_id'] ?>" style="cursor: pointer;" onclick="toggleGroup('<?= $l['group_id'] ?>')">
-                        <td><span class="badge bg-secondary"><?= $rowNumber ?></span></td>
+                        <td><span class="badge bg-secondary"><?= $totalRows - $rowNumber + 1 ?></span></td>
                         <td>
                             <div class="d-flex align-items-center">
                                 <div class="rounded me-2 d-flex align-items-center justify-content-center" style="width: 40px; height: 40px; background: linear-gradient(135deg, var(--primary), var(--primary-light));">
@@ -387,7 +388,7 @@ $returnStageLabels = [
                         elseif (($l['return_stage'] ?? 'none') === 'return_approved') { $filterClass .= ' completed'; }
                     ?>
                     <tr class="loan-row <?= $filterClass ?>">
-                        <td><span class="badge bg-secondary"><?= $rowNumber ?></span></td>
+                        <td><span class="badge bg-secondary"><?= $totalRows - $rowNumber + 1 ?></span></td>
                         <td>
                             <div class="d-flex align-items-center">
                                 <?php if($l['inventory_image']): ?>

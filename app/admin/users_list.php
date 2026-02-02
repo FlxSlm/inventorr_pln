@@ -41,6 +41,59 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 $stmt = $pdo->query('SELECT id, name, email, role, is_blacklisted, created_at FROM users ORDER BY created_at DESC');
 $users = $stmt->fetchAll();
 
+// Fetch transaction history for each user
+$userHistory = [];
+foreach ($users as $u) {
+    $uid = $u['id'];
+    
+    // Loans
+    $loansStmt = $pdo->prepare("
+        SELECT l.*, i.name as inventory_name, i.code as inventory_code
+        FROM loans l
+        JOIN inventories i ON i.id = l.inventory_id
+        WHERE l.user_id = ?
+        ORDER BY l.requested_at DESC
+        LIMIT 10
+    ");
+    $loansStmt->execute([$uid]);
+    $userHistory[$uid]['loans'] = $loansStmt->fetchAll();
+    
+    // Requests
+    $requestsStmt = $pdo->prepare("
+        SELECT r.*, i.name as inventory_name, i.code as inventory_code
+        FROM requests r
+        JOIN inventories i ON i.id = r.inventory_id
+        WHERE r.user_id = ?
+        ORDER BY r.requested_at DESC
+        LIMIT 10
+    ");
+    $requestsStmt->execute([$uid]);
+    $userHistory[$uid]['requests'] = $requestsStmt->fetchAll();
+    
+    // Suggestions
+    $suggestionsStmt = $pdo->prepare("
+        SELECT * FROM material_suggestions
+        WHERE user_id = ?
+        ORDER BY created_at DESC
+        LIMIT 10
+    ");
+    $suggestionsStmt->execute([$uid]);
+    $userHistory[$uid]['suggestions'] = $suggestionsStmt->fetchAll();
+    
+    // Count totals
+    $countLoans = $pdo->prepare("SELECT COUNT(*) FROM loans WHERE user_id = ?");
+    $countLoans->execute([$uid]);
+    $userHistory[$uid]['total_loans'] = $countLoans->fetchColumn();
+    
+    $countRequests = $pdo->prepare("SELECT COUNT(*) FROM requests WHERE user_id = ?");
+    $countRequests->execute([$uid]);
+    $userHistory[$uid]['total_requests'] = $countRequests->fetchColumn();
+    
+    $countSuggestions = $pdo->prepare("SELECT COUNT(*) FROM material_suggestions WHERE user_id = ?");
+    $countSuggestions->execute([$uid]);
+    $userHistory[$uid]['total_suggestions'] = $countSuggestions->fetchColumn();
+}
+
 // Count stats
 $totalUsers = count($users);
 $adminCount = 0;
@@ -167,7 +220,7 @@ foreach ($users as $u) {
                 </tr>
                 <?php else: ?>
                 <?php foreach($users as $u): ?>
-                <tr>
+                <tr style="cursor: pointer;" onclick="openUserHistory(<?= $u['id'] ?>)" class="user-row">
                     <td>
                         <div class="d-flex align-items-center gap-2">
                             <div class="topbar-avatar" style="width: 40px; height: 40px; font-size: 14px; background: <?= $u['role'] === 'admin' ? 'linear-gradient(135deg, var(--warning), #d97706)' : 'linear-gradient(135deg, var(--primary-light), var(--accent))' ?>;">
@@ -180,6 +233,10 @@ foreach ($users as $u) {
                                     <span class="badge bg-secondary" style="font-size: 10px; margin-left: 4px;">Anda</span>
                                     <?php endif; ?>
                                 </div>
+                                <small style="color: var(--text-muted); font-size: 11px;">
+                                    <i class="bi bi-clipboard me-1"></i><?= $userHistory[$u['id']]['total_loans'] ?> peminjaman
+                                    <i class="bi bi-cart ms-2 me-1"></i><?= $userHistory[$u['id']]['total_requests'] ?> permintaan
+                                </small>
                             </div>
                         </div>
                     </td>
@@ -287,4 +344,251 @@ document.getElementById('searchUser')?.addEventListener('keyup', function() {
         row.style.display = text.includes(filter) ? '' : 'none';
     });
 });
+
+// Open user history modal
+function openUserHistory(userId) {
+    event.stopPropagation();
+    const modal = new bootstrap.Modal(document.getElementById('historyModal' + userId));
+    modal.show();
+}
 </script>
+
+<!-- User History Modals -->
+<?php foreach($users as $u): 
+    $history = $userHistory[$u['id']];
+    $stageLabels = [
+        'pending' => ['Menunggu', 'warning'],
+        'approved' => ['Disetujui', 'success'],
+        'rejected' => ['Ditolak', 'danger'],
+        'submitted' => ['Menunggu Verifikasi', 'info'],
+        'awaiting_document' => ['Upload Dokumen', 'info']
+    ];
+    $returnStageLabels = [
+        'none' => ['Belum Dikembalikan', 'secondary'],
+        'pending_return' => ['Menunggu', 'warning'],
+        'return_approved' => ['Dikembalikan', 'success'],
+        'return_rejected' => ['Ditolak', 'danger']
+    ];
+?>
+<div class="modal fade" id="historyModal<?= $u['id'] ?>" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content" style="border: none; border-radius: 16px; overflow: hidden;">
+            <!-- Header -->
+            <div class="modal-header" style="background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%); border: none; padding: 24px 28px;">
+                <div class="d-flex align-items-center gap-3">
+                    <div style="width: 56px; height: 56px; background: rgba(255,255,255,0.2); border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 24px; color: #fff; font-weight: 600;">
+                        <?= strtoupper(substr($u['name'], 0, 1)) ?>
+                    </div>
+                    <div>
+                        <h5 class="modal-title" style="color: #fff; font-weight: 600; margin: 0;"><?= htmlspecialchars($u['name']) ?></h5>
+                        <small style="color: rgba(255,255,255,0.8);"><?= htmlspecialchars($u['email']) ?></small>
+                        <div style="margin-top: 4px;">
+                            <span class="badge" style="background: rgba(255,255,255,0.2);">
+                                <?= $u['role'] === 'admin' ? 'Admin' : 'Karyawan' ?>
+                            </span>
+                            <span class="badge" style="background: <?= empty($u['is_blacklisted']) ? 'rgba(16,185,129,0.3)' : 'rgba(239,68,68,0.3)' ?>;">
+                                <?= empty($u['is_blacklisted']) ? 'Aktif' : 'Blacklist' ?>
+                            </span>
+                        </div>
+                    </div>
+                </div>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            
+            <div class="modal-body" style="padding: 0;">
+                <!-- Summary Stats -->
+                <div style="padding: 20px 28px; background: var(--bg-main); border-bottom: 1px solid var(--border-color);">
+                    <div class="row g-3">
+                        <div class="col-4">
+                            <div style="text-align: center; padding: 12px; background: var(--bg-card); border-radius: 10px;">
+                                <div style="font-size: 24px; font-weight: 700; color: var(--primary-light);"><?= $history['total_loans'] ?></div>
+                                <div style="font-size: 12px; color: var(--text-muted);">Peminjaman</div>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div style="text-align: center; padding: 12px; background: var(--bg-card); border-radius: 10px;">
+                                <div style="font-size: 24px; font-weight: 700; color: var(--success);"><?= $history['total_requests'] ?></div>
+                                <div style="font-size: 12px; color: var(--text-muted);">Permintaan</div>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div style="text-align: center; padding: 12px; background: var(--bg-card); border-radius: 10px;">
+                                <div style="font-size: 24px; font-weight: 700; color: var(--warning);"><?= $history['total_suggestions'] ?></div>
+                                <div style="font-size: 12px; color: var(--text-muted);">Usulan Material</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Tabs -->
+                <ul class="nav nav-tabs" style="padding: 0 28px; background: var(--bg-card); border-bottom: 1px solid var(--border-color);">
+                    <li class="nav-item">
+                        <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#loans<?= $u['id'] ?>">
+                            <i class="bi bi-clipboard me-1"></i>Peminjaman
+                        </button>
+                    </li>
+                    <li class="nav-item">
+                        <button class="nav-link" data-bs-toggle="tab" data-bs-target="#requests<?= $u['id'] ?>">
+                            <i class="bi bi-cart me-1"></i>Permintaan
+                        </button>
+                    </li>
+                    <li class="nav-item">
+                        <button class="nav-link" data-bs-toggle="tab" data-bs-target="#suggestions<?= $u['id'] ?>">
+                            <i class="bi bi-lightbulb me-1"></i>Usulan Material
+                        </button>
+                    </li>
+                </ul>
+                
+                <div class="tab-content" style="padding: 20px 28px; max-height: 400px; overflow-y: auto;">
+                    <!-- Loans Tab -->
+                    <div class="tab-pane fade show active" id="loans<?= $u['id'] ?>">
+                        <?php if(empty($history['loans'])): ?>
+                        <div style="text-align: center; padding: 40px; color: var(--text-muted);">
+                            <i class="bi bi-inbox" style="font-size: 32px;"></i>
+                            <p style="margin: 10px 0 0 0;">Belum ada riwayat peminjaman</p>
+                        </div>
+                        <?php else: ?>
+                        <?php foreach($history['loans'] as $loan): 
+                            $stage = $loan['stage'] ?? 'pending';
+                            $stageInfo = $stageLabels[$stage] ?? ['Unknown', 'secondary'];
+                            $returnStage = $loan['return_stage'] ?? 'none';
+                            $returnInfo = $returnStageLabels[$returnStage] ?? ['N/A', 'secondary'];
+                        ?>
+                        <div style="padding: 14px; border: 1px solid var(--border-color); border-radius: 10px; margin-bottom: 12px; background: var(--bg-card);">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div>
+                                    <div style="font-weight: 600; color: var(--text-dark);"><?= htmlspecialchars($loan['inventory_name']) ?></div>
+                                    <small style="color: var(--text-muted);"><?= htmlspecialchars($loan['inventory_code']) ?> &bull; <?= $loan['quantity'] ?> unit</small>
+                                </div>
+                                <div style="text-align: right;">
+                                    <span class="badge bg-<?= $stageInfo[1] ?>"><?= $stageInfo[0] ?></span>
+                                    <?php if($stage === 'approved'): ?>
+                                    <br><small class="badge bg-<?= $returnInfo[1] ?>" style="margin-top: 4px;"><?= $returnInfo[0] ?></small>
+                                    <?php endif; ?>
+                                </div>
+                            </div>
+                            <div style="margin-top: 10px; font-size: 12px; color: var(--text-muted);">
+                                <i class="bi bi-calendar me-1"></i><?= date('d M Y H:i', strtotime($loan['requested_at'])) ?>
+                            </div>
+                            <?php if(!empty($loan['note'])): ?>
+                            <div style="margin-top: 10px; padding: 10px; background: var(--bg-main); border-radius: 6px; font-size: 13px;">
+                                <strong style="color: var(--text-dark);"><i class="bi bi-chat-left-text me-1"></i>Catatan Karyawan:</strong>
+                                <p style="margin: 5px 0 0 0; color: var(--text-muted);"><?= nl2br(htmlspecialchars($loan['note'])) ?></p>
+                            </div>
+                            <?php endif; ?>
+                            <?php if(!empty($loan['rejection_note'])): ?>
+                            <div style="margin-top: 10px; padding: 10px; background: rgba(239,68,68,0.1); border-radius: 6px; border-left: 3px solid var(--danger); font-size: 13px;">
+                                <strong style="color: var(--danger);"><i class="bi bi-x-circle me-1"></i>Alasan Penolakan:</strong>
+                                <p style="margin: 5px 0 0 0;"><?= nl2br(htmlspecialchars($loan['rejection_note'])) ?></p>
+                            </div>
+                            <?php endif; ?>
+                            <?php if(!empty($loan['return_note'])): ?>
+                            <div style="margin-top: 10px; padding: 10px; background: rgba(59,130,246,0.1); border-radius: 6px; border-left: 3px solid var(--info); font-size: 13px;">
+                                <strong style="color: var(--info);"><i class="bi bi-arrow-return-left me-1"></i>Catatan Pengembalian:</strong>
+                                <p style="margin: 5px 0 0 0;"><?= nl2br(htmlspecialchars($loan['return_note'])) ?></p>
+                            </div>
+                            <?php endif; ?>
+                        </div>
+                        <?php endforeach; ?>
+                        <?php endif; ?>
+                    </div>
+                    
+                    <!-- Requests Tab -->
+                    <div class="tab-pane fade" id="requests<?= $u['id'] ?>">
+                        <?php if(empty($history['requests'])): ?>
+                        <div style="text-align: center; padding: 40px; color: var(--text-muted);">
+                            <i class="bi bi-inbox" style="font-size: 32px;"></i>
+                            <p style="margin: 10px 0 0 0;">Belum ada riwayat permintaan</p>
+                        </div>
+                        <?php else: ?>
+                        <?php foreach($history['requests'] as $req): 
+                            $stage = $req['stage'] ?? 'pending';
+                            $stageInfo = $stageLabels[$stage] ?? ['Unknown', 'secondary'];
+                        ?>
+                        <div style="padding: 14px; border: 1px solid var(--border-color); border-radius: 10px; margin-bottom: 12px; background: var(--bg-card);">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div>
+                                    <div style="font-weight: 600; color: var(--text-dark);"><?= htmlspecialchars($req['inventory_name']) ?></div>
+                                    <small style="color: var(--text-muted);"><?= htmlspecialchars($req['inventory_code']) ?> &bull; <?= $req['quantity'] ?> unit</small>
+                                </div>
+                                <span class="badge bg-<?= $stageInfo[1] ?>"><?= $stageInfo[0] ?></span>
+                            </div>
+                            <div style="margin-top: 10px; font-size: 12px; color: var(--text-muted);">
+                                <i class="bi bi-calendar me-1"></i><?= date('d M Y H:i', strtotime($req['requested_at'])) ?>
+                            </div>
+                            <?php if(!empty($req['note'])): ?>
+                            <div style="margin-top: 10px; padding: 10px; background: var(--bg-main); border-radius: 6px; font-size: 13px;">
+                                <strong style="color: var(--text-dark);"><i class="bi bi-chat-left-text me-1"></i>Catatan:</strong>
+                                <p style="margin: 5px 0 0 0; color: var(--text-muted);"><?= nl2br(htmlspecialchars($req['note'])) ?></p>
+                            </div>
+                            <?php endif; ?>
+                            <?php if(!empty($req['rejection_note'])): ?>
+                            <div style="margin-top: 10px; padding: 10px; background: rgba(239,68,68,0.1); border-radius: 6px; border-left: 3px solid var(--danger); font-size: 13px;">
+                                <strong style="color: var(--danger);"><i class="bi bi-x-circle me-1"></i>Alasan Penolakan:</strong>
+                                <p style="margin: 5px 0 0 0;"><?= nl2br(htmlspecialchars($req['rejection_note'])) ?></p>
+                            </div>
+                            <?php endif; ?>
+                        </div>
+                        <?php endforeach; ?>
+                        <?php endif; ?>
+                    </div>
+                    
+                    <!-- Suggestions Tab -->
+                    <div class="tab-pane fade" id="suggestions<?= $u['id'] ?>">
+                        <?php if(empty($history['suggestions'])): ?>
+                        <div style="text-align: center; padding: 40px; color: var(--text-muted);">
+                            <i class="bi bi-inbox" style="font-size: 32px;"></i>
+                            <p style="margin: 10px 0 0 0;">Belum ada usulan material</p>
+                        </div>
+                        <?php else: ?>
+                        <?php foreach($history['suggestions'] as $sug): 
+                            $statusLabels = [
+                                'pending' => ['Menunggu', 'warning'],
+                                'approved' => ['Disetujui', 'success'],
+                                'rejected' => ['Ditolak', 'danger']
+                            ];
+                            $sugStatus = $statusLabels[$sug['status']] ?? ['Unknown', 'secondary'];
+                        ?>
+                        <div style="padding: 14px; border: 1px solid var(--border-color); border-radius: 10px; margin-bottom: 12px; background: var(--bg-card);">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div>
+                                    <div style="font-weight: 600; color: var(--text-dark);"><?= htmlspecialchars($sug['item_name']) ?></div>
+                                    <small style="color: var(--text-muted);">Jumlah: <?= $sug['quantity'] ?></small>
+                                </div>
+                                <span class="badge bg-<?= $sugStatus[1] ?>"><?= $sugStatus[0] ?></span>
+                            </div>
+                            <div style="margin-top: 10px; font-size: 12px; color: var(--text-muted);">
+                                <i class="bi bi-calendar me-1"></i><?= date('d M Y H:i', strtotime($sug['created_at'])) ?>
+                            </div>
+                            <?php if(!empty($sug['reason'])): ?>
+                            <div style="margin-top: 10px; padding: 10px; background: var(--bg-main); border-radius: 6px; font-size: 13px;">
+                                <strong style="color: var(--text-dark);"><i class="bi bi-chat-left-text me-1"></i>Alasan:</strong>
+                                <p style="margin: 5px 0 0 0; color: var(--text-muted);"><?= nl2br(htmlspecialchars($sug['reason'])) ?></p>
+                            </div>
+                            <?php endif; ?>
+                            <?php if(!empty($sug['admin_response'])): ?>
+                            <div style="margin-top: 10px; padding: 10px; background: rgba(16,185,129,0.1); border-radius: 6px; border-left: 3px solid var(--success); font-size: 13px;">
+                                <strong style="color: var(--success);"><i class="bi bi-reply me-1"></i>Tanggapan Admin:</strong>
+                                <p style="margin: 5px 0 0 0;"><?= nl2br(htmlspecialchars($sug['admin_response'])) ?></p>
+                            </div>
+                            <?php endif; ?>
+                        </div>
+                        <?php endforeach; ?>
+                        <?php endif; ?>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="modal-footer" style="padding: 16px 28px; border-top: 1px solid var(--border-color);">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Tutup</button>
+            </div>
+        </div>
+    </div>
+</div>
+<?php endforeach; ?>
+
+<style>
+.user-row:hover { background: var(--bg-main) !important; }
+.nav-tabs .nav-link { border: none; color: var(--text-muted); padding: 12px 16px; }
+.nav-tabs .nav-link.active { color: var(--primary-light); border-bottom: 2px solid var(--primary-light); background: transparent; }
+</style>

@@ -287,6 +287,25 @@ try {
             <button class="table-filter-btn" data-filter="approved">Disetujui</button>
         </div>
     </div>
+    
+    <!-- Search Filters -->
+    <div style="padding: 16px 24px; border-bottom: 1px solid var(--border-color); background: var(--bg-main);">
+        <div class="row g-3">
+            <div class="col-md-6">
+                <div class="topbar-search" style="max-width: 100%;">
+                    <i class="bi bi-box-seam"></i>
+                    <input type="text" id="searchItem" placeholder="Cari berdasarkan nama barang..." style="width: 100%;">
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="topbar-search" style="max-width: 100%;">
+                    <i class="bi bi-person"></i>
+                    <input type="text" id="searchUser" placeholder="Cari berdasarkan nama karyawan..." style="width: 100%;">
+                </div>
+            </div>
+        </div>
+    </div>
+    
     <div class="card-body p-0">
         <?php if (empty($groupedRequests)): ?>
         <div class="text-center py-5">
@@ -621,17 +640,39 @@ document.querySelectorAll('.table-filter-btn').forEach(btn => {
     btn.addEventListener('click', function() {
         document.querySelectorAll('.table-filter-btn').forEach(b => b.classList.remove('active'));
         this.classList.add('active');
-        
-        const filter = this.dataset.filter;
-        document.querySelectorAll('#requestsTableBody tr').forEach(row => {
-            if (filter === 'all' || row.dataset.status === filter) {
-                if (!row.classList.contains('group-detail-row')) {
-                    row.style.display = '';
-                }
-            } else {
-                row.style.display = 'none';
-            }
-        });
+        applyAllFilters();
     });
 });
+
+// Search filters
+const searchItem = document.getElementById('searchItem');
+const searchUser = document.getElementById('searchUser');
+
+function applyAllFilters() {
+    const activeFilter = document.querySelector('.table-filter-btn.active')?.dataset.filter || 'all';
+    const itemQuery = (searchItem?.value || '').toLowerCase();
+    const userQuery = (searchUser?.value || '').toLowerCase();
+    
+    document.querySelectorAll('#requestsTableBody tr.group-header').forEach(row => {
+        const status = row.dataset.status;
+        const itemText = row.querySelector('td:nth-child(3)')?.textContent.toLowerCase() || '';
+        const userText = row.querySelector('td:nth-child(2)')?.textContent.toLowerCase() || '';
+        const groupId = row.dataset.group;
+        
+        const matchesStatus = activeFilter === 'all' || status === activeFilter;
+        const matchesItem = !itemQuery || itemText.includes(itemQuery);
+        const matchesUser = !userQuery || userText.includes(userQuery);
+        
+        if (matchesStatus && matchesItem && matchesUser) {
+            row.style.display = '';
+        } else {
+            row.style.display = 'none';
+            // Hide detail rows too
+            document.querySelectorAll(`tr[data-parent="${groupId}"]`).forEach(dr => dr.style.display = 'none');
+        }
+    });
+}
+
+searchItem?.addEventListener('keyup', applyAllFilters);
+searchUser?.addEventListener('keyup', applyAllFilters);
 </script>
