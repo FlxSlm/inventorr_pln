@@ -21,7 +21,7 @@ $stmt = $pdo->query("
     JOIN inventories i ON i.id = l.inventory_id
     WHERE l.stage = 'approved' 
       AND (l.return_stage IS NULL OR l.return_stage NOT IN ('return_approved'))
-    ORDER BY l.loan_date DESC, l.user_id, l.inventory_id
+    ORDER BY l.approved_at DESC, l.user_id, l.inventory_id
 ");
 $activeLoans = $stmt->fetchAll();
 

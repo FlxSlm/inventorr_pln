@@ -79,8 +79,8 @@ if (strpos($refId, 'single_') === 0) {
     
     if ($docType === 'loan') {
         $stmt = $pdo->prepare("
-            SELECT l.*, i.name as item_name, i.brand, i.serial_number, i.unit, i.image,
-                   u.full_name, l.loan_date as transaction_date
+            SELECT l.*, i.name as item_name, i.unit, i.image, i.code, i.description,
+                   u.name, l.requested_at as transaction_date
             FROM loans l
             JOIN inventories i ON l.inventory_id = i.id
             JOIN users u ON l.user_id = u.id
@@ -95,8 +95,8 @@ if (strpos($refId, 'single_') === 0) {
         }
     } elseif ($docType === 'request') {
         $stmt = $pdo->prepare("
-            SELECT r.*, i.name as item_name, i.brand, i.serial_number, i.unit, i.image,
-                   u.full_name, r.request_date as transaction_date
+            SELECT r.*, i.name as item_name, i.unit, i.image, i.code, i.description,
+                   u.name, r.request_date as transaction_date
             FROM requests r
             JOIN inventories i ON r.inventory_id = i.id
             JOIN users u ON r.user_id = u.id
@@ -106,13 +106,13 @@ if (strpos($refId, 'single_') === 0) {
         $item = $stmt->fetch();
         if ($item) {
             $items[] = $item;
-            $userName = $item['full_name'];
+            $userName = $item['name'];
             $transactionDate = $item['transaction_date'];
         }
     } elseif ($docType === 'return') {
         $stmt = $pdo->prepare("
-            SELECT l.*, i.name as item_name, i.brand, i.serial_number, i.unit, i.image,
-                   u.full_name, l.return_date as transaction_date
+            SELECT l.*, i.name as item_name, i.unit, i.image, i.code, i.description,
+                   u.name, l.returned_at as transaction_date
             FROM loans l
             JOIN inventories i ON l.inventory_id = i.id
             JOIN users u ON l.user_id = u.id
@@ -122,7 +122,7 @@ if (strpos($refId, 'single_') === 0) {
         $item = $stmt->fetch();
         if ($item) {
             $items[] = $item;
-            $userName = $item['full_name'];
+            $userName = $item['name'];
             $transactionDate = $item['transaction_date'];
         }
     }
@@ -132,8 +132,8 @@ if (strpos($refId, 'single_') === 0) {
     
     if ($docType === 'loan') {
         $stmt = $pdo->prepare("
-            SELECT l.*, i.name as item_name, i.brand, i.serial_number, i.unit, i.image,
-                   u.full_name, l.loan_date as transaction_date
+            SELECT l.*, i.name as item_name, i.unit, i.image, i.code, i.description,
+                   u.name, l.requested_at as transaction_date
             FROM loans l
             JOIN inventories i ON l.inventory_id = i.id
             JOIN users u ON l.user_id = u.id
@@ -142,13 +142,13 @@ if (strpos($refId, 'single_') === 0) {
         $stmt->execute([$groupId]);
         $items = $stmt->fetchAll();
         if (!empty($items)) {
-            $userName = $items[0]['full_name'];
+            $userName = $items[0]['name'];
             $transactionDate = $items[0]['transaction_date'];
         }
     } elseif ($docType === 'request') {
         $stmt = $pdo->prepare("
-            SELECT r.*, i.name as item_name, i.brand, i.serial_number, i.unit, i.image,
-                   u.full_name, r.request_date as transaction_date
+            SELECT r.*, i.name as item_name, i.unit, i.image, i.code, i.description,
+                   u.name, r.request_date as transaction_date
             FROM requests r
             JOIN inventories i ON r.inventory_id = i.id
             JOIN users u ON r.user_id = u.id
@@ -157,13 +157,13 @@ if (strpos($refId, 'single_') === 0) {
         $stmt->execute([$groupId]);
         $items = $stmt->fetchAll();
         if (!empty($items)) {
-            $userName = $items[0]['full_name'];
+            $userName = $items[0]['name'];
             $transactionDate = $items[0]['transaction_date'];
         }
     } elseif ($docType === 'return') {
         $stmt = $pdo->prepare("
-            SELECT l.*, i.name as item_name, i.brand, i.serial_number, i.unit, i.image,
-                   u.full_name, l.return_date as transaction_date
+            SELECT l.*, i.name as item_name, i.unit, i.image, i.code, i.description,
+                   u.name, l.returned_at as transaction_date
             FROM loans l
             JOIN inventories i ON l.inventory_id = i.id
             JOIN users u ON l.user_id = u.id
@@ -172,7 +172,7 @@ if (strpos($refId, 'single_') === 0) {
         $stmt->execute([$groupId]);
         $items = $stmt->fetchAll();
         if (!empty($items)) {
-            $userName = $items[0]['full_name'];
+            $userName = $items[0]['name'];
             $transactionDate = $items[0]['transaction_date'];
         }
     }
