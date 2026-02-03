@@ -232,14 +232,26 @@ foreach ($items as $item) {
                 </p>
                 <?php endif; ?>
                 
-                <!-- Stock Progress -->
+                <!-- Stock Status -->
                 <div style="margin-bottom: 16px;">
-                    <div class="d-flex justify-content-between" style="font-size: 12px; margin-bottom: 6px;">
-                        <span style="color: var(--text-muted);">Ketersediaan</span>
-                        <span style="font-weight: 600;"><?= $item['stock_available'] ?> / <?= $item['stock_total'] ?> <?= htmlspecialchars($item['unit'] ?? 'unit') ?></span>
-                    </div>
-                    <div style="height: 6px; background: var(--bg-main); border-radius: 3px; overflow: hidden;">
-                        <div style="height: 100%; width: <?= $stockPercent ?>%; background: var(--<?= $stockClass ?>); border-radius: 3px;"></div>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span style="color: var(--text-muted); font-size: 12px;">Ketersediaan</span>
+                        <div class="d-flex align-items-center gap-2">
+                            <span style="font-weight: 600; font-size: 13px;"><?= $item['stock_available'] ?> / <?= $item['stock_total'] ?> <?= htmlspecialchars($item['unit'] ?? 'unit') ?></span>
+                            <?php if ($item['stock_available'] <= 0): ?>
+                            <span class="badge" style="background: rgba(239, 68, 68, 0.1); color: #dc2626; font-size: 11px; padding: 4px 8px; border-radius: 6px;">
+                                <i class="bi bi-x-circle-fill me-1"></i>Stok Habis
+                            </span>
+                            <?php elseif ($isLowStock): ?>
+                            <span class="badge" style="background: rgba(245, 158, 11, 0.1); color: #d97706; font-size: 11px; padding: 4px 8px; border-radius: 6px;">
+                                <i class="bi bi-exclamation-triangle-fill me-1"></i>Menipis
+                            </span>
+                            <?php else: ?>
+                            <span class="badge" style="background: rgba(34, 197, 94, 0.1); color: #16a34a; font-size: 11px; padding: 4px 8px; border-radius: 6px;">
+                                <i class="bi bi-check-circle-fill me-1"></i>Tersedia
+                            </span>
+                            <?php endif; ?>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -338,7 +350,15 @@ foreach ($items as $item) {
                             <div style="background: var(--bg-main); border-radius: 10px; padding: 14px; text-align: center;">
                                 <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px;">Tersedia</div>
                                 <div style="font-size: 20px; font-weight: 700; color: var(--<?= $stockClass ?>);"><?= $item['stock_available'] ?></div>
-                                <div style="font-size: 12px; color: var(--text-muted);"><?= htmlspecialchars($item['unit'] ?? 'unit') ?></div>
+                                <div style="font-size: 12px;">
+                                    <?php if ($item['stock_available'] <= 0): ?>
+                                    <span style="color: var(--danger);"><i class="bi bi-x-circle-fill me-1"></i>Habis</span>
+                                    <?php elseif ($isLowStock): ?>
+                                    <span style="color: var(--warning);"><i class="bi bi-exclamation-triangle-fill me-1"></i>Menipis</span>
+                                    <?php else: ?>
+                                    <span style="color: var(--success);"><i class="bi bi-check-circle-fill me-1"></i>Tersedia</span>
+                                    <?php endif; ?>
+                                </div>
                             </div>
                         </div>
                         <div class="col-6 col-md-3">

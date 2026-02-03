@@ -151,6 +151,11 @@ switch ($page) {
         view('admin/returns.php');
         break;
 
+    // ----- Loan Tracking (Admin) -----
+    case 'admin_loan_tracking':
+        view('admin/loan_tracking.php');
+        break;
+
     // ----- Suggestions & Notifications -----
     case 'admin_suggestions':
         view('admin/suggestions.php');
@@ -189,6 +194,15 @@ switch ($page) {
     // ----- Template Management (Admin) -----
     case 'admin_templates':
         view('admin/templates.php');
+        break;
+
+    // ----- Document Generation (Admin) -----
+    case 'admin_generate_document':
+        view('admin/generate_document.php');
+        break;
+
+    case 'upload_generated_document':
+        require APP_PATH . 'admin/upload_generated_document.php';
         break;
 
 

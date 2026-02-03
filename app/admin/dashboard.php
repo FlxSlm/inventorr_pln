@@ -26,26 +26,47 @@ try {
     $totalRequests = $pdo->query("SELECT COUNT(*) FROM requests")->fetchColumn();
 } catch (Exception $e) {}
 
-// Recent loans
+// Recent loans - grouped by transaction (group_id)
 $stmt = $pdo->query("
-  SELECT l.*, u.name AS user_name, i.name AS inventory_name
+  SELECT 
+    COALESCE(l.group_id, CONCAT('single_', l.id)) AS transaction_id,
+    MIN(l.id) as first_loan_id,
+    u.name AS user_name,
+    u.id AS user_id,
+    COUNT(*) as item_count,
+    SUM(l.quantity) as total_quantity,
+    GROUP_CONCAT(DISTINCT i.name SEPARATOR ', ') as item_names,
+    MIN(l.requested_at) as requested_at,
+    MAX(l.status) as status,
+    MAX(l.stage) as stage
   FROM loans l
   JOIN users u ON u.id = l.user_id
   JOIN inventories i ON i.id = l.inventory_id
-  ORDER BY l.requested_at DESC
+  GROUP BY COALESCE(l.group_id, CONCAT('single_', l.id)), u.id
+  ORDER BY MIN(l.requested_at) DESC
   LIMIT 5
 ");
 $recentLoans = $stmt->fetchAll();
 
-// Recent requests
+// Recent requests - grouped by transaction (group_id)
 $recentRequests = [];
 try {
     $stmt = $pdo->query("
-      SELECT r.*, u.name AS user_name, i.name AS inventory_name
+      SELECT 
+        COALESCE(r.group_id, CONCAT('single_', r.id)) AS transaction_id,
+        MIN(r.id) as first_request_id,
+        u.name AS user_name,
+        u.id AS user_id,
+        COUNT(*) as item_count,
+        SUM(r.quantity) as total_quantity,
+        GROUP_CONCAT(DISTINCT i.name SEPARATOR ', ') as item_names,
+        MIN(r.requested_at) as requested_at,
+        MAX(r.stage) as stage
       FROM requests r
       JOIN users u ON u.id = r.user_id
       JOIN inventories i ON i.id = r.inventory_id
-      ORDER BY r.requested_at DESC
+      GROUP BY COALESCE(r.group_id, CONCAT('single_', r.id)), u.id
+      ORDER BY MIN(r.requested_at) DESC
       LIMIT 5
     ");
     $recentRequests = $stmt->fetchAll();
@@ -508,7 +529,7 @@ $totalOutOfStockItems = $pdo->query("SELECT COUNT(*) FROM inventories WHERE stoc
             <table class="data-table">
                 <thead>
                     <tr>
-                        <th>ID</th>
+                        <th>No</th>
                         <th>Peminjam</th>
                         <th>Barang</th>
                         <th>Jumlah</th>
@@ -531,12 +552,17 @@ $totalOutOfStockItems = $pdo->query("SELECT COUNT(*) FROM inventories WHERE stoc
                         </td>
                     </tr>
                     <?php else: ?>
-                    <?php foreach($recentLoans as $l): 
+                    <?php $loanNumber = 1; foreach($recentLoans as $l): 
                         $rowStatus = ($l['status'] === 'pending' || $l['stage'] === 'pending') ? 'pending' : 
                                      (($l['status'] === 'approved' || $l['stage'] === 'approved') ? 'approved' : 'other');
+                        // Truncate item names if too long
+                        $itemNames = $l['item_names'];
+                        if (strlen($itemNames) > 40) {
+                            $itemNames = substr($itemNames, 0, 37) . '...';
+                        }
                     ?>
                     <tr data-status="<?= $rowStatus ?>">
-                        <td><span class="badge bg-secondary">#<?= $l['id'] ?></span></td>
+                        <td><span class="badge bg-secondary"><?= $loanNumber++ ?></span></td>
                         <td>
                             <div class="d-flex align-items-center gap-2">
                                 <div class="topbar-avatar" style="width: 32px; height: 32px; font-size: 12px;">
@@ -545,8 +571,13 @@ $totalOutOfStockItems = $pdo->query("SELECT COUNT(*) FROM inventories WHERE stoc
                                 <?= htmlspecialchars($l['user_name']) ?>
                             </div>
                         </td>
-                        <td><?= htmlspecialchars($l['inventory_name']) ?></td>
-                        <td><strong><?= $l['quantity'] ?></strong></td>
+                        <td>
+                            <span title="<?= htmlspecialchars($l['item_names']) ?>"><?= htmlspecialchars($itemNames) ?></span>
+                            <?php if ($l['item_count'] > 1): ?>
+                            <span class="badge bg-info ms-1" style="font-size: 10px;"><?= $l['item_count'] ?> item</span>
+                            <?php endif; ?>
+                        </td>
+                        <td><strong><?= $l['total_quantity'] ?></strong></td>
                         <td><small><?= date('d M Y', strtotime($l['requested_at'])) ?></small></td>
                         <td>
                             <?php if($l['status'] === 'pending'): ?>
@@ -562,24 +593,9 @@ $totalOutOfStockItems = $pdo->query("SELECT COUNT(*) FROM inventories WHERE stoc
                             <?php endif; ?>
                         </td>
                         <td>
-                            <?php if($l['status'] === 'pending' && $l['stage'] === 'pending'): ?>
-                            <div class="table-actions">
-                                <form method="POST" action="/index.php?page=loan_approve" style="display:inline;">
-                                    <input type="hidden" name="loan_id" value="<?= $l['id'] ?>">
-                                    <button type="submit" class="table-action-btn success" title="Setujui" onclick="return confirm('Approve peminjaman ini?')">
-                                        <i class="bi bi-check-lg"></i>
-                                    </button>
-                                </form>
-                                <form method="POST" action="/index.php?page=loan_reject" style="display:inline;">
-                                    <input type="hidden" name="loan_id" value="<?= $l['id'] ?>">
-                                    <button type="submit" class="table-action-btn danger" title="Tolak" onclick="return confirm('Reject peminjaman ini?')">
-                                        <i class="bi bi-x-lg"></i>
-                                    </button>
-                                </form>
-                            </div>
-                            <?php else: ?>
-                            <span class="text-muted">—</span>
-                            <?php endif; ?>
+                            <a href="/index.php?page=admin_loans" class="btn btn-sm btn-outline-primary" title="Lihat Detail">
+                                <i class="bi bi-eye"></i>
+                            </a>
                         </td>
                     </tr>
                     <?php endforeach; ?>
@@ -614,7 +630,7 @@ $totalOutOfStockItems = $pdo->query("SELECT COUNT(*) FROM inventories WHERE stoc
             <table class="data-table">
                 <thead>
                     <tr>
-                        <th>ID</th>
+                        <th>No</th>
                         <th>Peminta</th>
                         <th>Barang</th>
                         <th>Jumlah</th>
@@ -637,12 +653,17 @@ $totalOutOfStockItems = $pdo->query("SELECT COUNT(*) FROM inventories WHERE stoc
                         </td>
                     </tr>
                     <?php else: ?>
-                    <?php foreach($recentRequests as $r): 
+                    <?php $requestNumber = 1; foreach($recentRequests as $r): 
                         $rowStatus = ($r['stage'] === 'pending') ? 'pending' : 
                                      (($r['stage'] === 'approved') ? 'approved' : 'other');
+                        // Truncate item names if too long
+                        $itemNames = $r['item_names'];
+                        if (strlen($itemNames) > 40) {
+                            $itemNames = substr($itemNames, 0, 37) . '...';
+                        }
                     ?>
                     <tr data-status="<?= $rowStatus ?>">
-                        <td><span class="badge bg-secondary">#<?= $r['id'] ?></span></td>
+                        <td><span class="badge bg-secondary"><?= $requestNumber++ ?></span></td>
                         <td>
                             <div class="d-flex align-items-center gap-2">
                                 <div class="topbar-avatar" style="width: 32px; height: 32px; font-size: 12px;">
@@ -651,8 +672,13 @@ $totalOutOfStockItems = $pdo->query("SELECT COUNT(*) FROM inventories WHERE stoc
                                 <?= htmlspecialchars($r['user_name']) ?>
                             </div>
                         </td>
-                        <td><?= htmlspecialchars($r['inventory_name']) ?></td>
-                        <td><strong><?= $r['quantity'] ?></strong></td>
+                        <td>
+                            <span title="<?= htmlspecialchars($r['item_names']) ?>"><?= htmlspecialchars($itemNames) ?></span>
+                            <?php if ($r['item_count'] > 1): ?>
+                            <span class="badge bg-info ms-1" style="font-size: 10px;"><?= $r['item_count'] ?> item</span>
+                            <?php endif; ?>
+                        </td>
+                        <td><strong><?= $r['total_quantity'] ?></strong></td>
                         <td><small><?= date('d M Y', strtotime($r['requested_at'])) ?></small></td>
                         <td>
                             <?php if($r['stage'] === 'pending'): ?>
@@ -666,13 +692,9 @@ $totalOutOfStockItems = $pdo->query("SELECT COUNT(*) FROM inventories WHERE stoc
                             <?php endif; ?>
                         </td>
                         <td>
-                            <?php if($r['stage'] === 'pending'): ?>
-                            <a href="/index.php?page=admin_requests" class="btn btn-sm btn-primary">
-                                <i class="bi bi-eye"></i> Proses
+                            <a href="/index.php?page=admin_requests" class="btn btn-sm btn-outline-primary" title="Lihat Detail">
+                                <i class="bi bi-eye"></i>
                             </a>
-                            <?php else: ?>
-                            <span class="text-muted">—</span>
-                            <?php endif; ?>
                         </td>
                     </tr>
                     <?php endforeach; ?>
