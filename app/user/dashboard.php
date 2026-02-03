@@ -33,17 +33,37 @@ $unreadNotifCount = $unreadNotifStmt->fetchColumn();
 // Get featured items
 $featuredItems = $pdo->query('SELECT * FROM inventories WHERE stock_available > 0 AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 6')->fetchAll();
 
-// My recent loans
+// My recent loans - grouped by group_id (transactions)
 $myRecentLoans = $pdo->prepare('
-    SELECT l.*, i.name as inventory_name, i.code as inventory_code 
+    SELECT l.group_id, l.requested_at, l.stage, l.status,
+           COUNT(l.id) as item_count,
+           SUM(l.quantity) as total_quantity,
+           GROUP_CONCAT(DISTINCT i.name ORDER BY i.name SEPARATOR ", ") as item_names
     FROM loans l 
     JOIN inventories i ON i.id = l.inventory_id 
     WHERE l.user_id = ? 
+    GROUP BY l.group_id 
     ORDER BY l.requested_at DESC 
     LIMIT 5
 ');
 $myRecentLoans->execute([$userId]);
 $recentLoans = $myRecentLoans->fetchAll();
+
+// My recent requests - grouped by group_id (transactions)
+$myRecentRequests = $pdo->prepare('
+    SELECT r.group_id, r.requested_at, r.stage, r.status,
+           COUNT(r.id) as item_count,
+           SUM(r.quantity) as total_quantity,
+           GROUP_CONCAT(DISTINCT i.name ORDER BY i.name SEPARATOR ", ") as item_names
+    FROM requests r 
+    JOIN inventories i ON i.id = r.inventory_id 
+    WHERE r.user_id = ? 
+    GROUP BY r.group_id 
+    ORDER BY r.requested_at DESC 
+    LIMIT 5
+');
+$myRecentRequests->execute([$userId]);
+$recentRequests = $myRecentRequests->fetchAll();
 
 // Top borrowed items (for chart) - Only count FINAL approved loans
 $topBorrowed = $pdo->query("
@@ -207,11 +227,11 @@ foreach ($topRequested as $item) {
 
 <!-- Content Grid -->
 <div class="content-grid">
-    <!-- Recent Loans -->
+    <!-- Recent Loans - Grouped by Transaction -->
     <div class="table-card">
         <div class="card-header" style="padding: 20px 24px; border-bottom: 1px solid var(--border-color);">
             <h3 class="card-title" style="margin: 0;">
-                <i class="bi bi-clock-history"></i> Peminjaman Terakhir
+                <i class="bi bi-clipboard-check"></i> Peminjaman Terakhir
             </h3>
             <a href="/index.php?page=history" class="btn btn-secondary btn-sm">Lihat Semua</a>
         </div>
@@ -234,23 +254,30 @@ foreach ($topRequested as $item) {
             <table class="data-table">
                 <thead>
                     <tr>
-                        <th>Barang</th>
-                        <th>Qty</th>
                         <th>Tanggal</th>
+                        <th>Barang</th>
+                        <th>Item</th>
+                        <th>Qty</th>
                         <th>Status</th>
                     </tr>
                 </thead>
                 <tbody>
-                    <?php foreach($recentLoans as $loan): ?>
+                    <?php foreach($recentLoans as $loan): 
+                        // Truncate item names if too long
+                        $itemNames = $loan['item_names'];
+                        if (strlen($itemNames) > 40) {
+                            $itemNames = substr($itemNames, 0, 40) . '...';
+                        }
+                    ?>
                     <tr>
+                        <td><small><?= date('d M Y', strtotime($loan['requested_at'])) ?></small></td>
                         <td>
-                            <div>
-                                <div style="font-weight: 500;"><?= htmlspecialchars($loan['inventory_name']) ?></div>
-                                <small style="color: var(--text-muted);"><?= htmlspecialchars($loan['inventory_code']) ?></small>
+                            <div title="<?= htmlspecialchars($loan['item_names']) ?>">
+                                <div style="font-weight: 500; font-size: 13px;"><?= htmlspecialchars($itemNames) ?></div>
                             </div>
                         </td>
-                        <td><strong><?= $loan['quantity'] ?></strong></td>
-                        <td><small><?= date('d M Y', strtotime($loan['requested_at'])) ?></small></td>
+                        <td><span class="badge bg-secondary"><?= $loan['item_count'] ?> item</span></td>
+                        <td><strong><?= $loan['total_quantity'] ?></strong></td>
                         <td>
                             <?php if($loan['stage'] === 'pending'): ?>
                                 <span class="status-badge warning">Pending</span>
@@ -274,48 +301,119 @@ foreach ($topRequested as $item) {
         <?php endif; ?>
     </div>
     
-    <!-- Featured Items -->
-    <div class="modern-card">
-        <div class="card-header">
-            <h3 class="card-title">
-                <i class="bi bi-star-fill"></i> Barang Terbaru
+    <!-- Recent Requests - Grouped by Transaction -->
+    <div class="table-card">
+        <div class="card-header" style="padding: 20px 24px; border-bottom: 1px solid var(--border-color);">
+            <h3 class="card-title" style="margin: 0;">
+                <i class="bi bi-cart-check"></i> Permintaan Terakhir
             </h3>
-            <a href="/index.php?page=catalog" style="color: var(--primary-light); font-size: 14px;">Lihat Semua</a>
+            <a href="/index.php?page=user_request_history" class="btn btn-secondary btn-sm">Lihat Semua</a>
         </div>
+        
+        <?php if (empty($recentRequests)): ?>
         <div class="card-body">
-            <?php if (empty($featuredItems)): ?>
-            <div class="empty-state" style="padding: 40px 20px;">
+            <div class="empty-state" style="padding: 40px;">
                 <div class="empty-state-icon" style="width: 60px; height: 60px; font-size: 24px;">
-                    <i class="bi bi-box-seam"></i>
+                    <i class="bi bi-bag"></i>
                 </div>
-                <h5 class="empty-state-title">Belum Ada Barang</h5>
-                <p class="empty-state-text mb-0">Barang akan muncul di sini</p>
+                <h5 class="empty-state-title">Belum Ada Permintaan</h5>
+                <p class="empty-state-text mb-0">Mulai ajukan permintaan pertama Anda</p>
+                <a href="/index.php?page=user_request_item" class="btn btn-success mt-3">
+                    <i class="bi bi-plus-lg me-1"></i> Ajukan Permintaan
+                </a>
             </div>
-            <?php else: ?>
-            <?php foreach(array_slice($featuredItems, 0, 5) as $item): ?>
-            <div class="product-item">
-                <?php if ($item['image']): ?>
-                <img src="/public/assets/uploads/<?= htmlspecialchars($item['image']) ?>" 
-                     alt="<?= htmlspecialchars($item['name']) ?>" 
-                     class="product-img"
-                     style="object-fit: cover;">
-                <?php else: ?>
-                <div class="product-img">
-                    <i class="bi bi-box-seam" style="color: var(--primary-light);"></i>
-                </div>
-                <?php endif; ?>
-                <div class="product-info">
-                    <p class="product-name"><?= htmlspecialchars($item['name']) ?></p>
-                    <p class="product-category"><?= htmlspecialchars($item['code']) ?></p>
-                </div>
-                <div class="product-stock">
-                    <p class="product-stock-value" style="color: var(--success);"><?= $item['stock_available'] ?></p>
-                    <p class="product-stock-label">tersedia</p>
+        </div>
+        <?php else: ?>
+        <div class="table-responsive">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Tanggal</th>
+                        <th>Barang</th>
+                        <th>Item</th>
+                        <th>Qty</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach($recentRequests as $request): 
+                        // Truncate item names if too long
+                        $itemNames = $request['item_names'];
+                        if (strlen($itemNames) > 40) {
+                            $itemNames = substr($itemNames, 0, 40) . '...';
+                        }
+                    ?>
+                    <tr>
+                        <td><small><?= date('d M Y', strtotime($request['requested_at'])) ?></small></td>
+                        <td>
+                            <div title="<?= htmlspecialchars($request['item_names']) ?>">
+                                <div style="font-weight: 500; font-size: 13px;"><?= htmlspecialchars($itemNames) ?></div>
+                            </div>
+                        </td>
+                        <td><span class="badge bg-secondary"><?= $request['item_count'] ?> item</span></td>
+                        <td><strong><?= $request['total_quantity'] ?></strong></td>
+                        <td>
+                            <?php if($request['stage'] === 'pending'): ?>
+                                <span class="status-badge warning">Pending</span>
+                            <?php elseif($request['stage'] === 'awaiting_document'): ?>
+                                <span class="status-badge info">Upload Dokumen</span>
+                            <?php elseif($request['stage'] === 'submitted'): ?>
+                                <span class="status-badge info">Menunggu Verifikasi</span>
+                            <?php elseif($request['stage'] === 'approved'): ?>
+                                <span class="status-badge success">Disetujui</span>
+                            <?php elseif($request['stage'] === 'rejected'): ?>
+                                <span class="status-badge danger">Ditolak</span>
+                            <?php else: ?>
+                                <span class="status-badge secondary"><?= htmlspecialchars($request['stage']) ?></span>
+                            <?php endif; ?>
+                        </td>
+                    </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+        <?php endif; ?>
+    </div>
+</div>
+
+<!-- Featured Items Section -->
+<div class="modern-card" style="margin-top: 24px;">
+    <div class="card-header">
+        <h3 class="card-title">
+            <i class="bi bi-star-fill"></i> Barang Terbaru
+        </h3>
+        <a href="/index.php?page=catalog" style="color: var(--primary-light); font-size: 14px;">Lihat Semua</a>
+    </div>
+    <div class="card-body">
+        <?php if (empty($featuredItems)): ?>
+        <div class="empty-state" style="padding: 40px 20px;">
+            <div class="empty-state-icon" style="width: 60px; height: 60px; font-size: 24px;">
+                <i class="bi bi-box-seam"></i>
+            </div>
+            <h5 class="empty-state-title">Belum Ada Barang</h5>
+            <p class="empty-state-text mb-0">Barang akan muncul di sini</p>
+        </div>
+        <?php else: ?>
+        <div class="row g-3">
+            <?php foreach(array_slice($featuredItems, 0, 6) as $item): ?>
+            <div class="col-md-4 col-lg-2">
+                <div class="product-item" style="flex-direction: column; text-align: center; padding: 16px;">
+                    <?php if ($item['image']): ?>
+                    <img src="/public/assets/uploads/<?= htmlspecialchars($item['image']) ?>" 
+                         alt="<?= htmlspecialchars($item['name']) ?>" 
+                         style="width: 60px; height: 60px; object-fit: cover; border-radius: 8px; margin-bottom: 10px;">
+                    <?php else: ?>
+                    <div style="width: 60px; height: 60px; background: var(--bg-main); border-radius: 8px; display: flex; align-items: center; justify-content: center; margin: 0 auto 10px;">
+                        <i class="bi bi-box-seam" style="color: var(--primary-light); font-size: 24px;"></i>
+                    </div>
+                    <?php endif; ?>
+                    <p class="product-name" style="margin: 0; font-size: 12px;"><?= htmlspecialchars($item['name']) ?></p>
+                    <p class="product-stock-value" style="color: var(--success); font-size: 14px; margin: 4px 0 0;"><?= $item['stock_available'] ?> tersedia</p>
                 </div>
             </div>
             <?php endforeach; ?>
-            <?php endif; ?>
         </div>
+        <?php endif; ?>
     </div>
 </div>
 

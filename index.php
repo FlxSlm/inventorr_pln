@@ -205,6 +205,19 @@ switch ($page) {
         require APP_PATH . 'admin/upload_generated_document.php';
         break;
 
+    case 'save_generated_document':
+        require APP_PATH . 'admin/save_generated_document.php';
+        break;
+
+    // ----- Saved Documents (Admin) -----
+    case 'admin_saved_documents':
+        view('admin/saved_documents.php');
+        break;
+
+    // ----- Settings (Admin) -----
+    case 'admin_settings':
+        view('admin/settings.php');
+        break;
 
 }
 ?>
