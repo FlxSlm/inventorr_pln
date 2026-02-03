@@ -130,7 +130,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 // Fetch all loans with return requests (return_stage not null and not 'none')
 $stmt = $pdo->query("
     SELECT l.*, u.name AS user_name, u.email AS user_email, 
-           i.name AS inventory_name, i.code AS inventory_code, i.image AS inventory_image
+           i.name AS inventory_name, i.code AS inventory_code, i.image AS inventory_image,
+           i.unit, i.item_condition, i.stock_available
     FROM loans l
     JOIN users u ON u.id = l.user_id
     JOIN inventories i ON i.id = l.inventory_id
@@ -419,26 +420,33 @@ $returnStageLabels = [
                     
                     <!-- Detail Rows for Multi-item -->
                     <?php if ($isMulti): ?>
-                    <?php foreach($group['items'] as $item): ?>
+                    <?php foreach($group['items'] as $idx => $item): ?>
                     <tr class="group-detail-row" data-parent="<?= $key ?>" data-status="<?= $filterClass ?>" style="display: none; background: var(--bg-secondary);">
                         <td></td>
                         <td></td>
                         <td>
-                            <div class="d-flex align-items-center" style="padding-left: 20px;">
+                            <div class="d-flex align-items-center gap-3" style="padding-left: 20px;">
                                 <?php if ($item['inventory_image']): ?>
-                                <img src="/public/assets/uploads/<?= htmlspecialchars($item['inventory_image']) ?>" alt="" class="rounded me-2" style="width: 32px; height: 32px; object-fit: cover;">
+                                <img src="/public/assets/uploads/<?= htmlspecialchars($item['inventory_image']) ?>" alt="" class="rounded" style="width: 50px; height: 50px; object-fit: cover;">
                                 <?php else: ?>
-                                <div class="rounded me-2 d-flex align-items-center justify-content-center" style="width: 32px; height: 32px; background: var(--bg-main);">
-                                    <i class="bi bi-box-seam text-muted" style="font-size: 12px;"></i>
+                                <div class="rounded d-flex align-items-center justify-content-center" style="width: 50px; height: 50px; background: var(--bg-main);">
+                                    <i class="bi bi-box-seam text-muted" style="font-size: 18px;"></i>
                                 </div>
                                 <?php endif; ?>
-                                <div>
-                                    <div style="font-size: 13px;"><?= htmlspecialchars($item['inventory_name']) ?></div>
-                                    <small class="text-muted"><?= htmlspecialchars($item['inventory_code']) ?></small>
+                                <div style="flex: 1;">
+                                    <div style="font-weight: 600; font-size: 14px;"><?= htmlspecialchars($item['inventory_name']) ?></div>
+                                    <div style="display: flex; gap: 12px; margin-top: 4px; flex-wrap: wrap;">
+                                        <small style="color: var(--text-muted);"><i class="bi bi-upc me-1"></i><?= htmlspecialchars($item['inventory_code']) ?></small>
+                                    </div>
+                                    <div style="display: flex; gap: 8px; margin-top: 6px;">
+                                        <?php if (!empty($item['item_condition']) && $item['item_condition'] !== 'Baik'): ?>
+                                        <span class="badge bg-warning" style="font-size: 10px;"><?= htmlspecialchars($item['item_condition']) ?></span>
+                                        <?php endif; ?>
+                                    </div>
                                 </div>
                             </div>
                         </td>
-                        <td><span class="badge bg-secondary"><?= $item['quantity'] ?></span></td>
+                        <td><span style="font-weight: 600; font-size: 16px;"><?= $item['quantity'] ?></span> <small style="color: var(--text-muted);"><?= htmlspecialchars($item['unit'] ?? 'unit') ?></small></td>
                         <td colspan="4"></td>
                     </tr>
                     <?php endforeach; ?>
@@ -506,8 +514,10 @@ $returnStageLabels = [
                     <input type="hidden" name="action" value="approve_return">
                     <?php if ($group['type'] === 'group'): ?>
                     <input type="hidden" name="group_id" value="<?= htmlspecialchars($group['group_id']) ?>">
+                    <?php $docRefId = $group['group_id']; ?>
                     <?php else: ?>
                     <input type="hidden" name="loan_id" value="<?= $group['items'][0]['id'] ?>">
+                    <?php $docRefId = 'single_' . $group['items'][0]['id']; ?>
                     <?php endif; ?>
                     
                     <!-- Borrower Info Card -->
@@ -559,27 +569,30 @@ $returnStageLabels = [
                     </div>
                     <?php endif; ?>
                     
-                    <!-- Upload Section -->
+                    <!-- Document Generation Section -->
                     <div style="background: var(--bg-main); border-radius: 12px; padding: 20px; margin-bottom: 20px; border: 2px dashed var(--border-color);">
                         <label class="form-label fw-semibold d-flex align-items-center gap-2">
-                            <i class="bi bi-cloud-arrow-up" style="font-size: 20px; color: var(--primary);"></i>
-                            Upload Dokumen BAST Pengembalian
+                            <i class="bi bi-file-earmark-text" style="font-size: 20px; color: var(--primary);"></i>
+                            Dokumen BAST Pengembalian
                         </label>
-                        <input type="file" name="bast_document" class="form-control" accept=".pdf,.xlsx,.xls,.doc,.docx" style="margin-top: 12px;">
-                        <small class="text-muted d-block mt-2">Format: PDF, Excel, Word. Maksimal 10MB. (Opsional)</small>
-                        <?php if ($bastTemplate): ?>
-                        <div class="mt-3 pt-3" style="border-top: 1px solid var(--border-color);">
-                            <a href="/public/assets/uploads/templates/<?= htmlspecialchars(basename($bastTemplate['file_path'])) ?>" target="_blank" class="btn btn-outline-primary btn-sm">
-                                <i class="bi bi-download me-1"></i>Download Template BAST
+                        <div class="d-flex gap-2 flex-wrap mb-3 mt-3">
+                            <a href="/index.php?page=admin_generate_document&type=return&ref=<?= urlencode($docRefId) ?>" target="_blank" class="btn btn-primary">
+                                <i class="bi bi-file-earmark-plus me-1"></i> Generate & Download Document
                             </a>
                         </div>
-                        <?php endif; ?>
+                        <div class="mt-2 pt-2" style="border-top: 1px solid var(--border-color);">
+                            <label class="form-label" style="font-size: 13px; margin-bottom: 6px;">
+                                <i class="bi bi-upload me-1"></i>Upload Dokumen BAST <span class="text-danger">*</span>
+                            </label>
+                            <input type="file" name="bast_document" class="form-control form-control-sm" accept=".pdf,.xlsx,.xls,.doc,.docx" required>
+                            <small class="text-muted d-block mt-2">Format: PDF, Excel, Word. Maksimal 10MB. <strong class="text-danger">Wajib diupload!</strong></small>
+                        </div>
                     </div>
                     
                     <!-- Info Alert -->
-                    <div style="background: linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(5, 150, 105, 0.05) 100%); border-radius: 12px; padding: 16px 20px; display: flex; align-items: center; gap: 12px;">
-                        <i class="bi bi-info-circle-fill" style="color: var(--success); font-size: 20px;"></i>
-                        <span>Dengan menyetujui, stok barang akan dikembalikan secara otomatis ke inventaris.</span>
+                    <div style="background: linear-gradient(135deg, rgba(245, 158, 11, 0.1) 0%, rgba(217, 119, 6, 0.05) 100%); border-radius: 12px; padding: 16px 20px; display: flex; align-items: center; gap: 12px;">
+                        <i class="bi bi-exclamation-triangle-fill" style="color: var(--warning); font-size: 20px;"></i>
+                        <span><strong>Wajib upload dokumen BAST!</strong> Dengan menyetujui, stok barang akan dikembalikan secara otomatis ke inventaris.</span>
                     </div>
                 </div>
                 <div class="modal-footer" style="padding: 20px 28px; border-top: 1px solid var(--border-color);">

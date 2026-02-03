@@ -41,30 +41,52 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 $stmt = $pdo->query('SELECT id, name, email, role, is_blacklisted, created_at FROM users ORDER BY created_at DESC');
 $users = $stmt->fetchAll();
 
-// Fetch transaction history for each user
+// Fetch transaction history for each user - grouped by transaction
 $userHistory = [];
 foreach ($users as $u) {
     $uid = $u['id'];
     
-    // Loans
+    // Loans - grouped by transaction
     $loansStmt = $pdo->prepare("
-        SELECT l.*, i.name as inventory_name, i.code as inventory_code
+        SELECT 
+            COALESCE(l.group_id, CONCAT('single_', l.id)) AS transaction_id,
+            MIN(l.id) as first_loan_id,
+            COUNT(*) as item_count,
+            SUM(l.quantity) as total_quantity,
+            GROUP_CONCAT(DISTINCT i.name SEPARATOR ', ') as item_names,
+            MIN(l.requested_at) as requested_at,
+            MAX(l.stage) as stage,
+            MAX(l.return_stage) as return_stage,
+            MAX(l.note) as note,
+            MAX(l.rejection_note) as rejection_note,
+            MAX(l.return_note) as return_note
         FROM loans l
         JOIN inventories i ON i.id = l.inventory_id
         WHERE l.user_id = ?
-        ORDER BY l.requested_at DESC
+        GROUP BY COALESCE(l.group_id, CONCAT('single_', l.id))
+        ORDER BY MIN(l.requested_at) DESC
         LIMIT 10
     ");
     $loansStmt->execute([$uid]);
     $userHistory[$uid]['loans'] = $loansStmt->fetchAll();
     
-    // Requests
+    // Requests - grouped by transaction
     $requestsStmt = $pdo->prepare("
-        SELECT r.*, i.name as inventory_name, i.code as inventory_code
+        SELECT 
+            COALESCE(r.group_id, CONCAT('single_', r.id)) AS transaction_id,
+            MIN(r.id) as first_request_id,
+            COUNT(*) as item_count,
+            SUM(r.quantity) as total_quantity,
+            GROUP_CONCAT(DISTINCT i.name SEPARATOR ', ') as item_names,
+            MIN(r.requested_at) as requested_at,
+            MAX(r.stage) as stage,
+            MAX(r.note) as note,
+            MAX(r.rejection_note) as rejection_note
         FROM requests r
         JOIN inventories i ON i.id = r.inventory_id
         WHERE r.user_id = ?
-        ORDER BY r.requested_at DESC
+        GROUP BY COALESCE(r.group_id, CONCAT('single_', r.id))
+        ORDER BY MIN(r.requested_at) DESC
         LIMIT 10
     ");
     $requestsStmt->execute([$uid]);
@@ -82,12 +104,12 @@ foreach ($users as $u) {
     $suggestionsStmt->execute([$uid]);
     $userHistory[$uid]['suggestions'] = $suggestionsStmt->fetchAll();
     
-    // Count totals
-    $countLoans = $pdo->prepare("SELECT COUNT(*) FROM loans WHERE user_id = ?");
+    // Count totals - count by transaction (group_id), not individual items
+    $countLoans = $pdo->prepare("SELECT COUNT(DISTINCT COALESCE(group_id, CONCAT('single_', id))) FROM loans WHERE user_id = ?");
     $countLoans->execute([$uid]);
     $userHistory[$uid]['total_loans'] = $countLoans->fetchColumn();
     
-    $countRequests = $pdo->prepare("SELECT COUNT(*) FROM requests WHERE user_id = ?");
+    $countRequests = $pdo->prepare("SELECT COUNT(DISTINCT COALESCE(group_id, CONCAT('single_', id))) FROM requests WHERE user_id = ?");
     $countRequests->execute([$uid]);
     $userHistory[$uid]['total_requests'] = $countRequests->fetchColumn();
     
@@ -450,17 +472,30 @@ function openUserHistory(userId) {
                             <p style="margin: 10px 0 0 0;">Belum ada riwayat peminjaman</p>
                         </div>
                         <?php else: ?>
-                        <?php foreach($history['loans'] as $loan): 
+                        <?php $loanNum = 1; foreach($history['loans'] as $loan): 
                             $stage = $loan['stage'] ?? 'pending';
                             $stageInfo = $stageLabels[$stage] ?? ['Unknown', 'secondary'];
                             $returnStage = $loan['return_stage'] ?? 'none';
                             $returnInfo = $returnStageLabels[$returnStage] ?? ['N/A', 'secondary'];
+                            // Truncate item names if too long
+                            $itemNames = $loan['item_names'];
+                            if (strlen($itemNames) > 50) {
+                                $itemNames = substr($itemNames, 0, 47) . '...';
+                            }
                         ?>
                         <div style="padding: 14px; border: 1px solid var(--border-color); border-radius: 10px; margin-bottom: 12px; background: var(--bg-card);">
                             <div class="d-flex justify-content-between align-items-start">
                                 <div>
-                                    <div style="font-weight: 600; color: var(--text-dark);"><?= htmlspecialchars($loan['inventory_name']) ?></div>
-                                    <small style="color: var(--text-muted);"><?= htmlspecialchars($loan['inventory_code']) ?> &bull; <?= $loan['quantity'] ?> unit</small>
+                                    <div class="d-flex align-items-center gap-2 mb-1">
+                                        <span class="badge bg-secondary"><?= $loanNum++ ?></span>
+                                        <span style="font-weight: 600; color: var(--text-dark);" title="<?= htmlspecialchars($loan['item_names']) ?>"><?= htmlspecialchars($itemNames) ?></span>
+                                    </div>
+                                    <small style="color: var(--text-muted);">
+                                        <?php if($loan['item_count'] > 1): ?>
+                                        <span class="badge bg-info me-1"><?= $loan['item_count'] ?> item</span>
+                                        <?php endif; ?>
+                                        Total: <?= $loan['total_quantity'] ?> unit
+                                    </small>
                                 </div>
                                 <div style="text-align: right;">
                                     <span class="badge bg-<?= $stageInfo[1] ?>"><?= $stageInfo[0] ?></span>
@@ -503,15 +538,28 @@ function openUserHistory(userId) {
                             <p style="margin: 10px 0 0 0;">Belum ada riwayat permintaan</p>
                         </div>
                         <?php else: ?>
-                        <?php foreach($history['requests'] as $req): 
+                        <?php $reqNum = 1; foreach($history['requests'] as $req): 
                             $stage = $req['stage'] ?? 'pending';
                             $stageInfo = $stageLabels[$stage] ?? ['Unknown', 'secondary'];
+                            // Truncate item names if too long
+                            $itemNames = $req['item_names'];
+                            if (strlen($itemNames) > 50) {
+                                $itemNames = substr($itemNames, 0, 47) . '...';
+                            }
                         ?>
                         <div style="padding: 14px; border: 1px solid var(--border-color); border-radius: 10px; margin-bottom: 12px; background: var(--bg-card);">
                             <div class="d-flex justify-content-between align-items-start">
                                 <div>
-                                    <div style="font-weight: 600; color: var(--text-dark);"><?= htmlspecialchars($req['inventory_name']) ?></div>
-                                    <small style="color: var(--text-muted);"><?= htmlspecialchars($req['inventory_code']) ?> &bull; <?= $req['quantity'] ?> unit</small>
+                                    <div class="d-flex align-items-center gap-2 mb-1">
+                                        <span class="badge bg-secondary"><?= $reqNum++ ?></span>
+                                        <span style="font-weight: 600; color: var(--text-dark);" title="<?= htmlspecialchars($req['item_names']) ?>"><?= htmlspecialchars($itemNames) ?></span>
+                                    </div>
+                                    <small style="color: var(--text-muted);">
+                                        <?php if($req['item_count'] > 1): ?>
+                                        <span class="badge bg-info me-1"><?= $req['item_count'] ?> item</span>
+                                        <?php endif; ?>
+                                        Total: <?= $req['total_quantity'] ?> unit
+                                    </small>
                                 </div>
                                 <span class="badge bg-<?= $stageInfo[1] ?>"><?= $stageInfo[0] ?></span>
                             </div>

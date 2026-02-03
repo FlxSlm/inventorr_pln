@@ -121,6 +121,12 @@ $pdo_temp = require __DIR__ . '/../config/database.php';
                                 <?php endif; ?>
                             </a>
                         </li>
+                        <li class="sidebar-menu-item">
+                            <a href="/index.php?page=admin_loan_tracking" class="sidebar-menu-link <?= (isset($_GET['page']) && $_GET['page'] === 'admin_loan_tracking') ? 'active' : '' ?>">
+                                <i class="bi bi-geo-alt-fill"></i>
+                                <span>Tracking Barang</span>
+                            </a>
+                        </li>
                     </ul>
                 </div>
                 
@@ -235,9 +241,9 @@ $pdo_temp = require __DIR__ . '/../config/database.php';
                         <p class="sidebar-user-name"><?= htmlspecialchars($_SESSION['user']['name']) ?></p>
                         <p class="sidebar-user-role"><?= ucfirst($_SESSION['user']['role']) ?></p>
                     </div>
-                    <a href="/index.php?page=logout" class="sidebar-logout-btn" title="Logout">
+                    <button type="button" class="sidebar-logout-btn" title="Logout" onclick="showLogoutConfirm()">
                         <i class="bi bi-box-arrow-right"></i>
-                    </a>
+                    </button>
                 </div>
             </div>
             <?php endif; ?>
@@ -295,7 +301,7 @@ $pdo_temp = require __DIR__ . '/../config/database.php';
                             <li><span class="dropdown-item-text fw-semibold"><?= htmlspecialchars($_SESSION['user']['name']) ?></span></li>
                             <li><span class="dropdown-item-text small"><?= htmlspecialchars($_SESSION['user']['email']) ?></span></li>
                             <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item text-danger" href="/index.php?page=logout"><i class="bi bi-box-arrow-right me-2"></i>Logout</a></li>
+                            <li><a class="dropdown-item text-danger" href="javascript:void(0)" onclick="showLogoutConfirm()"><i class="bi bi-box-arrow-right me-2"></i>Logout</a></li>
                             <?php else: ?>
                             <li><a class="dropdown-item" href="/index.php?page=login"><i class="bi bi-box-arrow-in-right me-2"></i>Login</a></li>
                             <li><a class="dropdown-item" href="/index.php?page=register"><i class="bi bi-person-plus me-2"></i>Register</a></li>

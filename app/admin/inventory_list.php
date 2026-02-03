@@ -10,6 +10,7 @@ $categories = $pdo->query('SELECT * FROM categories ORDER BY name ASC')->fetchAl
 $filterCategories = $_GET['categories'] ?? [];
 $filterConditions = $_GET['conditions'] ?? [];
 $filterLowStock = isset($_GET['low_stock']) ? true : false;
+$filterOutOfStock = isset($_GET['out_of_stock']) ? true : false;
 $filterSearch = trim($_GET['search'] ?? '');
 $conditionFilter = $_GET['condition'] ?? ''; // for dashboard link
 
@@ -40,7 +41,12 @@ if ($conditionFilter === 'damaged') {
 
 // Filter by low stock
 if ($filterLowStock) {
-    $where[] = 'i.stock_available <= COALESCE(i.low_stock_threshold, 5)';
+    $where[] = 'i.stock_available <= COALESCE(i.low_stock_threshold, 5) AND i.stock_available > 0';
+}
+
+// Filter by out of stock
+if ($filterOutOfStock) {
+    $where[] = 'i.stock_available = 0';
 }
 
 // Search filter
@@ -68,7 +74,7 @@ foreach ($items as $item) {
 }
 
 $msg = $_GET['msg'] ?? '';
-$hasFilters = !empty($filterCategories) || !empty($filterConditions) || $filterLowStock || !empty($filterSearch) || $conditionFilter === 'damaged';
+$hasFilters = !empty($filterCategories) || !empty($filterConditions) || $filterLowStock || $filterOutOfStock || !empty($filterSearch) || $conditionFilter === 'damaged';
 ?>
 
 <!-- Page Header -->
@@ -116,14 +122,14 @@ $hasFilters = !empty($filterCategories) || !empty($filterConditions) || $filterL
                 </div>
                 
                 <!-- Categories Filter -->
-                <div class="col-md-4">
+                <div class="col-md-3">
                     <label class="form-label fw-semibold"><i class="bi bi-tags me-1"></i>Kategori</label>
-                    <div class="filter-checkbox-group">
+                    <div class="d-flex flex-wrap gap-2">
                         <?php foreach($categories as $cat): ?>
-                        <div class="form-check form-check-inline">
+                        <div class="form-check" style="margin: 0;">
                             <input class="form-check-input" type="checkbox" name="categories[]" value="<?= $cat['id'] ?>" id="cat<?= $cat['id'] ?>" <?= in_array($cat['id'], $filterCategories) ? 'checked' : '' ?>>
-                            <label class="form-check-label" for="cat<?= $cat['id'] ?>">
-                                <span class="badge" style="background: <?= htmlspecialchars($cat['color']) ?>;"><?= htmlspecialchars($cat['name']) ?></span>
+                            <label class="form-check-label" for="cat<?= $cat['id'] ?>" style="font-size: 13px; color: var(--text-dark);">
+                                <?= htmlspecialchars($cat['name']) ?>
                             </label>
                         </div>
                         <?php endforeach; ?>
@@ -136,30 +142,38 @@ $hasFilters = !empty($filterCategories) || !empty($filterConditions) || $filterL
                 <!-- Condition Filter -->
                 <div class="col-md-2">
                     <label class="form-label fw-semibold"><i class="bi bi-heart-pulse me-1"></i>Kondisi</label>
-                    <div class="filter-checkbox-group">
-                        <div class="form-check">
+                    <div class="d-flex flex-column gap-1">
+                        <div class="form-check" style="margin: 0;">
                             <input class="form-check-input" type="checkbox" name="conditions[]" value="Baik" id="condBaik" <?= in_array('Baik', $filterConditions) ? 'checked' : '' ?>>
-                            <label class="form-check-label" for="condBaik"><span class="badge bg-success">Baik</span></label>
+                            <label class="form-check-label" for="condBaik" style="font-size: 13px;">Baik</label>
                         </div>
-                        <div class="form-check">
+                        <div class="form-check" style="margin: 0;">
                             <input class="form-check-input" type="checkbox" name="conditions[]" value="Rusak Ringan" id="condRR" <?= in_array('Rusak Ringan', $filterConditions) ? 'checked' : '' ?>>
-                            <label class="form-check-label" for="condRR"><span class="badge bg-warning">Rusak Ringan</span></label>
+                            <label class="form-check-label" for="condRR" style="font-size: 13px;">Rusak Ringan</label>
                         </div>
-                        <div class="form-check">
+                        <div class="form-check" style="margin: 0;">
                             <input class="form-check-input" type="checkbox" name="conditions[]" value="Rusak Berat" id="condRB" <?= in_array('Rusak Berat', $filterConditions) ? 'checked' : '' ?>>
-                            <label class="form-check-label" for="condRB"><span class="badge bg-danger">Rusak Berat</span></label>
+                            <label class="form-check-label" for="condRB" style="font-size: 13px;">Rusak Berat</label>
                         </div>
                     </div>
                 </div>
                 
                 <!-- Stock Filter -->
-                <div class="col-md-2">
+                <div class="col-md-3">
                     <label class="form-label fw-semibold"><i class="bi bi-box-seam me-1"></i>Stok</label>
-                    <div class="form-check">
-                        <input class="form-check-input" type="checkbox" name="low_stock" value="1" id="lowStock" <?= $filterLowStock ? 'checked' : '' ?>>
-                        <label class="form-check-label" for="lowStock">
-                            <span class="badge bg-warning"><i class="bi bi-exclamation-triangle me-1"></i>Stok Menipis</span>
-                        </label>
+                    <div class="d-flex flex-column gap-1">
+                        <div class="form-check" style="margin: 0;">
+                            <input class="form-check-input" type="checkbox" name="low_stock" value="1" id="lowStock" <?= $filterLowStock ? 'checked' : '' ?>>
+                            <label class="form-check-label" for="lowStock" style="font-size: 13px;">
+                                <i class="bi bi-exclamation-triangle text-warning me-1"></i>Stok Menipis
+                            </label>
+                        </div>
+                        <div class="form-check" style="margin: 0;">
+                            <input class="form-check-input" type="checkbox" name="out_of_stock" value="1" id="outOfStock" <?= $filterOutOfStock ? 'checked' : '' ?>>
+                            <label class="form-check-label" for="outOfStock" style="font-size: 13px;">
+                                <i class="bi bi-x-circle text-danger me-1"></i>Stok Habis
+                            </label>
+                        </div>
                     </div>
                 </div>
             </div>

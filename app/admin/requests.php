@@ -135,7 +135,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 // Fetch all requests
 $stmt = $pdo->query("
     SELECT r.*, u.name AS user_name, u.email AS user_email, 
-           i.name AS inventory_name, i.code AS inventory_code, i.image AS inventory_image
+           i.name AS inventory_name, i.code AS inventory_code, i.image AS inventory_image,
+           i.unit, i.item_condition, i.stock_available
     FROM requests r
     JOIN users u ON u.id = r.user_id
     JOIN inventories i ON i.id = r.inventory_id
@@ -429,22 +430,30 @@ try {
                     
                     <!-- Detail Rows for Multi-item -->
                     <?php if ($isMulti): ?>
-                    <?php foreach($group['items'] as $item): ?>
+                    <?php foreach($group['items'] as $idx => $item): ?>
                     <tr class="group-detail-row" data-parent="<?= $key ?>" data-status="<?= $filterClass ?>" style="display: none; background: var(--bg-secondary);">
                         <td></td>
                         <td></td>
                         <td>
-                            <div class="d-flex align-items-center" style="padding-left: 20px;">
+                            <div class="d-flex align-items-center gap-3" style="padding-left: 20px;">
                                 <?php if ($item['inventory_image']): ?>
-                                <img src="/public/assets/uploads/<?= htmlspecialchars($item['inventory_image']) ?>" alt="" class="rounded me-2" style="width: 32px; height: 32px; object-fit: cover;">
+                                <img src="/public/assets/uploads/<?= htmlspecialchars($item['inventory_image']) ?>" alt="" class="rounded" style="width: 50px; height: 50px; object-fit: cover;">
                                 <?php else: ?>
-                                <div class="rounded me-2 d-flex align-items-center justify-content-center" style="width: 32px; height: 32px; background: var(--bg-main);">
-                                    <i class="bi bi-box-seam text-muted" style="font-size: 12px;"></i>
+                                <div class="rounded d-flex align-items-center justify-content-center" style="width: 50px; height: 50px; background: var(--bg-main);">
+                                    <i class="bi bi-box-seam text-muted" style="font-size: 18px;"></i>
                                 </div>
                                 <?php endif; ?>
-                                <div>
-                                    <div style="font-size: 13px;"><?= htmlspecialchars($item['inventory_name']) ?></div>
-                                    <small class="text-muted"><?= htmlspecialchars($item['inventory_code']) ?></small>
+                                <div style="flex: 1;">
+                                    <div style="font-weight: 600; font-size: 14px;"><?= htmlspecialchars($item['inventory_name']) ?></div>
+                                    <div style="display: flex; gap: 12px; margin-top: 4px; flex-wrap: wrap;">
+                                        <small style="color: var(--text-muted);"><i class="bi bi-upc me-1"></i><?= htmlspecialchars($item['inventory_code']) ?></small>
+                                    </div>
+                                    <div style="display: flex; gap: 8px; margin-top: 6px;">
+                                        <span class="badge bg-secondary" style="font-size: 10px;">Stok: <?= $item['stock_available'] ?? '-' ?></span>
+                                        <?php if (!empty($item['item_condition']) && $item['item_condition'] !== 'Baik'): ?>
+                                        <span class="badge bg-warning" style="font-size: 10px;"><?= htmlspecialchars($item['item_condition']) ?></span>
+                                        <?php endif; ?>
+                                    </div>
                                 </div>
                             </div>
                         </td>
@@ -507,8 +516,10 @@ try {
                     <input type="hidden" name="action" value="approve">
                     <?php if ($group['type'] === 'group'): ?>
                     <input type="hidden" name="group_id" value="<?= htmlspecialchars($group['group_id']) ?>">
+                    <?php $docRefId = $group['group_id']; ?>
                     <?php else: ?>
                     <input type="hidden" name="request_id" value="<?= $group['items'][0]['id'] ?>">
+                    <?php $docRefId = 'single_' . $group['items'][0]['id']; ?>
                     <?php endif; ?>
                     
                     <div style="margin-bottom: 20px; padding: 16px; background: var(--bg-main); border-radius: var(--radius);">
@@ -528,22 +539,28 @@ try {
                         </div>
                     </div>
                     
+                    <!-- Document Generation Section -->
                     <div class="mb-3">
-                        <label class="form-label fw-semibold"><i class="bi bi-file-earmark-arrow-up me-1"></i>Upload Dokumen BAST</label>
-                        <input type="file" name="bast_document" class="form-control" accept=".pdf,.xlsx,.xls,.doc,.docx">
-                        <small class="text-muted">Format: PDF, Excel, Word. Maksimal 10MB. (Opsional)</small>
-                        <?php if ($bastTemplate): ?>
-                        <div class="mt-2">
-                            <a href="/public/assets/uploads/templates/<?= htmlspecialchars(basename($bastTemplate['file_path'])) ?>" target="_blank" class="btn btn-outline-secondary btn-sm">
-                                <i class="bi bi-download me-1"></i>Download Template
+                        <label class="form-label" style="font-weight: 600;">
+                            <i class="bi bi-file-earmark-text me-1"></i>Dokumen BAST (Berita Acara Serah Terima)
+                        </label>
+                        <div class="d-flex gap-2 flex-wrap mb-2">
+                            <a href="/index.php?page=admin_generate_document&type=request&ref=<?= urlencode($docRefId) ?>" target="_blank" class="btn btn-primary">
+                                <i class="bi bi-file-earmark-plus me-1"></i> Generate & Download Document
                             </a>
                         </div>
-                        <?php endif; ?>
+                        <div class="mt-2">
+                            <label class="form-label" style="font-size: 13px; margin-bottom: 6px;">
+                                <i class="bi bi-upload me-1"></i>Upload Dokumen BAST <span class="text-danger">*</span>
+                            </label>
+                            <input type="file" name="bast_document" class="form-control form-control-sm" accept=".pdf,.xlsx,.xls,.doc,.docx" required>
+                            <small class="text-muted">Format: PDF, Excel, Word. Maksimal 10MB. <strong class="text-danger">Wajib diupload!</strong></small>
+                        </div>
                     </div>
                     
                     <div class="alert alert-warning mb-0">
                         <i class="bi bi-exclamation-triangle me-2"></i>
-                        <strong>Perhatian:</strong> Permintaan barang bersifat permanen. Stok total akan dikurangi secara permanen.
+                        <strong>Wajib upload dokumen BAST!</strong> Permintaan barang bersifat permanen. Stok total akan dikurangi secara permanen.
                     </div>
                 </div>
                 <div class="modal-footer">
