@@ -30,24 +30,67 @@ function getIndonesianDay($date) {
 
 // Function to get next document number (resets monthly)
 // This function only PREVIEWS the next number - actual increment happens only when saving
+// Now considers actual saved documents to auto-correct numbering when documents are deleted
 function getNextDocumentNumber($pdo, $docType) {
     $year = date('Y');
     $month = date('n');
+    $romanMonth = getRomanMonth($month);
     
-    // Check current month's last number from document_numbers table
+    // First check if there are any actual saved documents for this month
+    // This ensures numbering resets properly when documents are deleted from database
+    $docTypeMap = [
+        'loan' => 'BAST-PJ',
+        'request' => 'BAST-PM', 
+        'return' => 'BAST-KM'
+    ];
+    $typeCode = $docTypeMap[$docType] ?? 'BAST';
+    
+    // Pattern to match: XXX/YYY/ZZZ/ROMAN/YEAR where XXX is the number we need
+    $searchPattern = "%/{$typeCode}/%/{$romanMonth}/{$year}";
+    
     $stmt = $pdo->prepare("
-        SELECT last_number FROM document_numbers 
+        SELECT document_number FROM generated_documents 
+        WHERE document_type = ? 
+        AND status IN ('saved', 'uploaded', 'sent')
+        AND document_number LIKE ?
+        ORDER BY id DESC
+    ");
+    $stmt->execute([$docType, $searchPattern]);
+    $existingDocs = $stmt->fetchAll();
+    
+    // If there are saved documents, get the highest number from them
+    if (!empty($existingDocs)) {
+        $maxNumber = 0;
+        foreach ($existingDocs as $doc) {
+            // Extract the number from document_number (first part before /)
+            $parts = explode('/', $doc['document_number']);
+            if (!empty($parts[0]) && is_numeric($parts[0])) {
+                $num = (int)$parts[0];
+                if ($num > $maxNumber) {
+                    $maxNumber = $num;
+                }
+            }
+        }
+        
+        // Update document_numbers table to match actual documents
+        $stmt = $pdo->prepare("
+            INSERT INTO document_numbers (document_type, year, month, last_number)
+            VALUES (?, ?, ?, ?)
+            ON DUPLICATE KEY UPDATE last_number = VALUES(last_number)
+        ");
+        $stmt->execute([$docType, $year, $month, $maxNumber]);
+        
+        return $maxNumber + 1;
+    }
+    
+    // No saved documents exist for this month - reset to 1
+    // Also clear the document_numbers record for this month
+    $stmt = $pdo->prepare("
+        DELETE FROM document_numbers 
         WHERE document_type = ? AND year = ? AND month = ?
     ");
     $stmt->execute([$docType, $year, $month]);
-    $row = $stmt->fetch();
     
-    if ($row) {
-        // Return last_number + 1 as preview (actual save will use this)
-        return $row['last_number'] + 1;
-    }
-    
-    // If no record exists for this month, start from 1
     return 1;
 }
 
@@ -231,12 +274,24 @@ $backUrl = $backUrls[$docType] ?? '/index.php?page=admin_loans';
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Generate Document - Berita Acara <?= $docTitle ?></title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
     <style>
         @page { size: A4; margin: 15mm; }
-        body { background: #e9ecef; font-family: 'Times New Roman', Times, serif; font-size: 12px; }
-        .toolbar { background: #fff; padding: 15px 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); position: sticky; top: 0; z-index: 100; }
+        body { background: #e9ecef; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 14px; }
+        .toolbar { 
+            background: #fff; 
+            padding: 15px 20px; 
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1); 
+            position: sticky; 
+            top: 0; 
+            z-index: 100;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+        }
+        .toolbar * {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+        }
         .document-wrapper { padding: 20px; display: flex; flex-direction: column; gap: 20px; align-items: center; }
         
         .page-container {
@@ -246,6 +301,9 @@ $backUrl = $backUrls[$docType] ?? '/index.php?page=admin_loans';
             padding: 15mm 20mm;
             box-shadow: 0 0 20px rgba(0,0,0,0.15);
             position: relative;
+            /* Document font - only applies to page content */
+            font-family: 'Times New Roman', Times, serif;
+            font-size: 12px;
         }
         
         .page-header-logo {
@@ -578,50 +636,74 @@ $backUrl = $backUrls[$docType] ?? '/index.php?page=admin_loans';
         </div>
     </div>
 
-    <!-- Upload Document Modal -->
+    <!-- Upload Document Modal - Auto-send PDF -->
     <div class="modal fade" id="uploadDocModal" tabindex="-1">
         <div class="modal-dialog">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title"><i class="bi bi-upload me-2"></i>Upload Dokumen ke Karyawan</h5>
+                    <h5 class="modal-title"><i class="bi bi-send me-2"></i>Kirim Dokumen ke Karyawan</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
-                <form id="uploadDocForm" method="POST" action="/index.php?page=upload_generated_document" enctype="multipart/form-data">
-                    <div class="modal-body">
-                        <input type="hidden" name="document_type" value="<?= $docType ?>">
-                        <input type="hidden" name="reference_id" value="<?= $refId ?>">
-                        <input type="hidden" name="document_number" value="<?= htmlspecialchars($previewNumber) ?>">
-                        
-                        <div class="alert alert-info">
-                            <i class="bi bi-info-circle me-2"></i>
-                            Upload dokumen yang sudah diedit/ditandatangani untuk dikirim ke karyawan.
-                        </div>
-                        
-                        <div class="mb-3">
-                            <label class="form-label fw-semibold">File Dokumen <span class="text-danger">*</span></label>
-                            <input type="file" name="document_file" class="form-control" accept=".pdf,.doc,.docx" required>
-                            <small class="text-muted">Format: PDF, DOC, DOCX (Max 10MB)</small>
-                        </div>
-                        
-                        <div class="mb-3">
-                            <label class="form-label fw-semibold">Catatan (Opsional)</label>
-                            <textarea name="upload_notes" class="form-control" rows="2" placeholder="Catatan untuk karyawan..."></textarea>
-                        </div>
-                        
-                        <div class="mb-3 form-check">
-                            <input type="checkbox" class="form-check-input" id="upload_notify" name="send_notification" value="1" checked>
-                            <label class="form-check-label" for="upload_notify">
-                                Kirim notifikasi ke karyawan
-                            </label>
-                        </div>
+                <div class="modal-body">
+                    <input type="hidden" id="uploadDocType" value="<?= $docType ?>">
+                    <input type="hidden" id="uploadRefId" value="<?= $refId ?>">
+                    <input type="hidden" id="uploadDocNumber" value="<?= htmlspecialchars($previewNumber) ?>">
+                    
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle me-2"></i>
+                        Dokumen akan digenerate sebagai PDF dan dikirim otomatis ke karyawan.
                     </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
-                        <button type="submit" class="btn btn-info">
-                            <i class="bi bi-upload me-1"></i>Upload & Kirim
-                        </button>
+                    
+                    <div id="uploadPreviewArea" class="text-center mb-3 p-4" style="background: #f8f9fa; border-radius: 8px;">
+                        <i class="bi bi-file-earmark-pdf text-danger" style="font-size: 48px;"></i>
+                        <p class="mt-2 mb-0">Berita_Acara_<?= str_replace(['/', ' '], ['_', '_'], $previewNumber) ?>.pdf</p>
+                        <small class="text-muted">Dokumen akan digenerate dari halaman ini</small>
                     </div>
-                </form>
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Catatan (Opsional)</label>
+                        <textarea id="uploadNotes" class="form-control" rows="2" placeholder="Catatan untuk karyawan..."></textarea>
+                    </div>
+                    
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" id="upload_notify" checked>
+                        <label class="form-check-label" for="upload_notify">
+                            Kirim notifikasi ke karyawan
+                        </label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+                    <button type="button" class="btn btn-warning" id="btnFirstConfirm" onclick="showUploadConfirm()">
+                        <i class="bi bi-check me-1"></i>Kirim Dokumen
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Final Confirmation Modal for Upload -->
+    <div class="modal fade" id="uploadConfirmModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-warning">
+                    <h5 class="modal-title"><i class="bi bi-exclamation-triangle me-2"></i>Konfirmasi Kirim</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body text-center">
+                    <div style="font-size: 4rem; color: var(--warning);">
+                        <i class="bi bi-send"></i>
+                    </div>
+                    <h5 class="mt-3">Kirim Dokumen ke Karyawan?</h5>
+                    <p class="text-muted">Dokumen akan digenerate dan dikirim ke <strong><?= htmlspecialchars($userName) ?></strong>.</p>
+                    <p class="text-warning"><strong>Pastikan dokumen sudah benar sebelum mengirim!</strong></p>
+                </div>
+                <div class="modal-footer justify-content-center">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+                    <button type="button" class="btn btn-success" id="btnFinalUpload" onclick="executeUpload()">
+                        <i class="bi bi-send me-1"></i>Ya, Kirim Sekarang
+                    </button>
+                </div>
             </div>
         </div>
     </div>
@@ -631,55 +713,108 @@ $backUrl = $backUrls[$docType] ?? '/index.php?page=admin_loans';
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
     <script>
-        async function downloadPDF() {
-            const { jsPDF } = window.jspdf;
-            // Use compression with smaller quality
-            const pdf = new jsPDF({
-                orientation: 'p',
-                unit: 'mm',
-                format: 'a4',
-                compress: true
+        // Preload all images to ensure they're available for PDF capture
+        async function preloadImages() {
+            const images = document.querySelectorAll('#page1 img, #page2 img');
+            const promises = [];
+            
+            images.forEach(img => {
+                if (!img.complete) {
+                    promises.push(new Promise((resolve, reject) => {
+                        img.onload = resolve;
+                        img.onerror = resolve; // Resolve even on error to not block
+                    }));
+                }
             });
             
-            // Remove editable styling for PDF
-            document.querySelectorAll('.editable').forEach(el => {
-                el.style.backgroundColor = 'transparent';
-                el.style.borderBottom = 'none';
-            });
-            
-            // Capture page 1 with optimized settings for smaller file size
-            const page1 = document.getElementById('page1');
-            const canvas1 = await html2canvas(page1, { 
-                scale: 1.5, // Reduced from 2 for smaller file size
-                useCORS: true, 
-                logging: false,
-                imageTimeout: 0
-            });
-            // Use JPEG with compression instead of PNG
-            const imgData1 = canvas1.toDataURL('image/jpeg', 0.8);
-            pdf.addImage(imgData1, 'JPEG', 0, 0, 210, 297, undefined, 'FAST');
-            
-            // Capture page 2
-            pdf.addPage();
-            const page2 = document.getElementById('page2');
-            const canvas2 = await html2canvas(page2, { 
-                scale: 1.5,
-                useCORS: true, 
-                logging: false,
-                imageTimeout: 0
-            });
-            const imgData2 = canvas2.toDataURL('image/jpeg', 0.8);
-            pdf.addImage(imgData2, 'JPEG', 0, 0, 210, 297, undefined, 'FAST');
-            
-            pdf.save('Berita_Acara_<?= str_replace(['/', ' '], ['_', '_'], $previewNumber) ?>.pdf');
-            
-            // Restore editable styling
-            document.querySelectorAll('.editable').forEach(el => {
-                el.style.backgroundColor = '#fffef0';
-                el.style.borderBottom = '1px dashed #ccc';
-            });
+            await Promise.all(promises);
         }
         
+        async function downloadPDF() {
+            // Show loading indicator
+            const downloadBtn = document.querySelector('[onclick="downloadPDF()"]');
+            const originalHTML = downloadBtn.innerHTML;
+            downloadBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Membuat PDF...';
+            downloadBtn.disabled = true;
+            
+            try {
+                const { jsPDF } = window.jspdf;
+                // Use compression with smaller quality
+                const pdf = new jsPDF({
+                    orientation: 'p',
+                    unit: 'mm',
+                    format: 'a4',
+                    compress: true
+                });
+                
+                // Preload all images first
+                await preloadImages();
+                
+                // Remove editable styling for PDF
+                document.querySelectorAll('.editable').forEach(el => {
+                    el.style.backgroundColor = 'transparent';
+                    el.style.borderBottom = 'none';
+                });
+                
+                // Capture page 1 with optimized settings
+                const page1 = document.getElementById('page1');
+                const canvas1 = await html2canvas(page1, { 
+                    scale: 2, // Higher scale for better image quality
+                    useCORS: true, 
+                    allowTaint: true, // Allow tainted canvas for local images
+                    logging: false,
+                    imageTimeout: 15000, // Wait up to 15 seconds for images
+                    onclone: function(clonedDoc) {
+                        // Make sure images in cloned document are visible
+                        clonedDoc.querySelectorAll('.photo-placeholder img').forEach(img => {
+                            img.style.maxWidth = '100%';
+                            img.style.maxHeight = '100%';
+                            img.style.display = 'block';
+                        });
+                    }
+                });
+                // Use JPEG with compression
+                const imgData1 = canvas1.toDataURL('image/jpeg', 0.85);
+                pdf.addImage(imgData1, 'JPEG', 0, 0, 210, 297, undefined, 'FAST');
+                
+                // Capture page 2 - Documentation with images
+                pdf.addPage();
+                const page2 = document.getElementById('page2');
+                const canvas2 = await html2canvas(page2, { 
+                    scale: 2,
+                    useCORS: true, 
+                    allowTaint: true,
+                    logging: false,
+                    imageTimeout: 15000,
+                    onclone: function(clonedDoc) {
+                        // Make sure images in cloned document are visible
+                        clonedDoc.querySelectorAll('.photo-placeholder img').forEach(img => {
+                            img.style.maxWidth = '100%';
+                            img.style.maxHeight = '100%';
+                            img.style.display = 'block';
+                        });
+                    }
+                });
+                const imgData2 = canvas2.toDataURL('image/jpeg', 0.85);
+                pdf.addImage(imgData2, 'JPEG', 0, 0, 210, 297, undefined, 'FAST');
+                
+                pdf.save('Berita_Acara_<?= str_replace(['/', ' '], ['_', '_'], $previewNumber) ?>.pdf');
+                
+                // Restore editable styling
+                document.querySelectorAll('.editable').forEach(el => {
+                    el.style.backgroundColor = '#fffef0';
+                    el.style.borderBottom = '1px dashed #ccc';
+                });
+            } catch (error) {
+                console.error('Error generating PDF:', error);
+                alert('Terjadi kesalahan saat membuat PDF. Silakan coba lagi.');
+            } finally {
+                // Restore button
+                downloadBtn.innerHTML = originalHTML;
+                downloadBtn.disabled = false;
+            }
+        }
+            
         function saveDocument() {
             // Capture current document content
             const page1HTML = document.getElementById('page1').innerHTML;
@@ -700,6 +835,121 @@ $backUrl = $backUrls[$docType] ?? '/index.php?page=admin_loans';
             submitBtn.disabled = true;
             submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Menyimpan...';
         });
+        
+        // Preload images on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            preloadImages();
+        });
+        
+        // Upload confirmation functions
+        function showUploadConfirm() {
+            // Hide first modal
+            bootstrap.Modal.getInstance(document.getElementById('uploadDocModal')).hide();
+            
+            // Show confirmation modal
+            setTimeout(function() {
+                new bootstrap.Modal(document.getElementById('uploadConfirmModal')).show();
+            }, 300);
+        }
+        
+        async function executeUpload() {
+            const btn = document.getElementById('btnFinalUpload');
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Mengirim...';
+            
+            try {
+                // Generate PDF as blob
+                const pdfBlob = await generatePDFBlob();
+                
+                // Prepare form data
+                const formData = new FormData();
+                formData.append('document_type', document.getElementById('uploadDocType').value);
+                formData.append('reference_id', document.getElementById('uploadRefId').value);
+                formData.append('document_number', document.getElementById('uploadDocNumber').value);
+                formData.append('upload_notes', document.getElementById('uploadNotes').value);
+                formData.append('send_notification', document.getElementById('upload_notify').checked ? '1' : '0');
+                formData.append('auto_generated', '1');
+                formData.append('document_file', pdfBlob, 'Berita_Acara_<?= str_replace(['/', ' '], ['_', '_'], $previewNumber) ?>.pdf');
+                
+                // Send to server
+                const response = await fetch('/index.php?page=upload_generated_document', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.text();
+                
+                // Check if redirect happened (success)
+                if (response.ok || response.redirected) {
+                    // Close modal and redirect
+                    bootstrap.Modal.getInstance(document.getElementById('uploadConfirmModal')).hide();
+                    
+                    // Show success and redirect
+                    alert('Dokumen berhasil dikirim ke karyawan!');
+                    window.location.href = '/index.php?page=admin_saved_documents&msg=sent';
+                } else {
+                    throw new Error('Gagal mengirim dokumen');
+                }
+            } catch (error) {
+                console.error('Upload error:', error);
+                alert('Terjadi kesalahan saat mengirim dokumen. Silakan coba lagi.');
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-send me-1"></i>Ya, Kirim Sekarang';
+            }
+        }
+        
+        async function generatePDFBlob() {
+            const { jsPDF } = window.jspdf;
+            const pdf = new jsPDF({
+                orientation: 'p',
+                unit: 'mm',
+                format: 'a4',
+                compress: true
+            });
+            
+            // Preload images
+            await preloadImages();
+            
+            // Remove editable styling for PDF
+            document.querySelectorAll('.editable').forEach(el => {
+                el.style.backgroundColor = 'transparent';
+                el.style.borderBottom = 'none';
+            });
+            
+            // Capture page 1
+            const page1 = document.getElementById('page1');
+            const canvas1 = await html2canvas(page1, { 
+                scale: 2,
+                useCORS: true, 
+                allowTaint: true,
+                logging: false,
+                imageTimeout: 15000
+            });
+            const imgData1 = canvas1.toDataURL('image/jpeg', 0.85);
+            pdf.addImage(imgData1, 'JPEG', 0, 0, 210, 297, undefined, 'FAST');
+            
+            // Capture page 2
+            pdf.addPage();
+            const page2 = document.getElementById('page2');
+            const canvas2 = await html2canvas(page2, { 
+                scale: 2,
+                useCORS: true, 
+                allowTaint: true,
+                logging: false,
+                imageTimeout: 15000
+            });
+            const imgData2 = canvas2.toDataURL('image/jpeg', 0.85);
+            pdf.addImage(imgData2, 'JPEG', 0, 0, 210, 297, undefined, 'FAST');
+            
+            // Restore editable styling
+            document.querySelectorAll('.editable').forEach(el => {
+                el.style.backgroundColor = '#fffef0';
+                el.style.borderBottom = '1px dashed #ccc';
+            });
+            
+            // Return as blob
+            return pdf.output('blob');
+        }
     </script>
 </body>
 </html>

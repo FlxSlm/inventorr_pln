@@ -276,15 +276,33 @@ if ($redirectAfterReply):
                 <div style="background: var(--bg-main); padding: 16px; border-radius: var(--radius); margin-bottom: 20px; border-left: 4px solid var(--primary-light);">
                     <p style="margin: 0; white-space: pre-line;"><?= htmlspecialchars($sug['message']) ?></p>
                     
-                    <?php if (!empty($sug['image'])): ?>
+                    <?php 
+                    // Collect all images
+                    $allImages = [];
+                    if (!empty($sug['image'])) {
+                        $allImages[] = $sug['image'];
+                    }
+                    if (!empty($sug['images_json'])) {
+                        $additionalImages = json_decode($sug['images_json'], true);
+                        if (is_array($additionalImages)) {
+                            $allImages = array_merge($allImages, $additionalImages);
+                        }
+                    }
+                    
+                    if (!empty($allImages)): 
+                    ?>
                     <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border-color);">
                         <small style="color: var(--text-muted); display: block; margin-bottom: 8px;">
-                            <i class="bi bi-image me-1"></i>Foto Barang yang Diusulkan:
+                            <i class="bi bi-images me-1"></i>Foto Barang yang Diusulkan (<?= count($allImages) ?>):
                         </small>
-                        <img src="/public/assets/uploads/suggestions/<?= htmlspecialchars($sug['image']) ?>" 
-                             alt="Foto Usulan" 
-                             style="max-width: 100%; max-height: 300px; border-radius: 8px; cursor: pointer;"
-                             onclick="window.open(this.src, '_blank')">
+                        <div class="d-flex flex-wrap gap-2">
+                            <?php foreach ($allImages as $img): ?>
+                            <img src="/public/assets/uploads/suggestions/<?= htmlspecialchars($img) ?>" 
+                                 alt="Foto Usulan" 
+                                 style="max-width: 150px; max-height: 150px; border-radius: 8px; cursor: pointer; object-fit: cover;"
+                                 onclick="window.open(this.src, '_blank')">
+                            <?php endforeach; ?>
+                        </div>
                     </div>
                     <?php endif; ?>
                 </div>

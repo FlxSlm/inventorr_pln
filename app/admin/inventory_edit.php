@@ -19,17 +19,69 @@ $itemCatStmt = $pdo->prepare('SELECT category_id FROM inventory_categories WHERE
 $itemCatStmt->execute([$id]);
 $itemCategories = array_column($itemCatStmt->fetchAll(), 'category_id');
 
+// Fetch item's images from inventory_images table
+$imgStmt = $pdo->prepare('SELECT * FROM inventory_images WHERE inventory_id = ? ORDER BY is_primary DESC, sort_order ASC');
+$imgStmt->execute([$id]);
+$itemImages = $imgStmt->fetchAll();
+
 $errors = [];
 $success = '';
 
 // Handle image delete
-if (isset($_GET['delete_image']) && $_GET['delete_image'] == 1) {
+if (isset($_GET['delete_image'])) {
     $uploadDir = 'C:/XAMPP/htdocs/inventory_pln/public/assets/uploads/';
-    if ($item['image'] && file_exists($uploadDir . $item['image'])) {
-        unlink($uploadDir . $item['image']);
+    
+    if ($_GET['delete_image'] === 'all' || $_GET['delete_image'] == 1) {
+        // Delete all images
+        if ($item['image'] && file_exists($uploadDir . $item['image'])) {
+            unlink($uploadDir . $item['image']);
+        }
+        // Delete from inventory_images table and files
+        $imgStmt = $pdo->prepare('SELECT image_path FROM inventory_images WHERE inventory_id = ?');
+        $imgStmt->execute([$id]);
+        while ($img = $imgStmt->fetch()) {
+            if (file_exists($uploadDir . $img['image_path'])) {
+                @unlink($uploadDir . $img['image_path']);
+            }
+        }
+        $pdo->prepare('DELETE FROM inventory_images WHERE inventory_id = ?')->execute([$id]);
+        $pdo->prepare('UPDATE inventories SET image = NULL, updated_at = NOW() WHERE id = ?')->execute([$id]);
+    } else {
+        // Delete specific image by ID
+        $imgId = (int)$_GET['delete_image'];
+        $imgStmt = $pdo->prepare('SELECT * FROM inventory_images WHERE id = ? AND inventory_id = ?');
+        $imgStmt->execute([$imgId, $id]);
+        $imgToDelete = $imgStmt->fetch();
+        
+        if ($imgToDelete) {
+            if (file_exists($uploadDir . $imgToDelete['image_path'])) {
+                @unlink($uploadDir . $imgToDelete['image_path']);
+            }
+            $pdo->prepare('DELETE FROM inventory_images WHERE id = ?')->execute([$imgId]);
+            
+            // If deleted image was primary, set another as primary
+            if ($imgToDelete['is_primary']) {
+                // Also update main inventories.image column
+                $nextPrimary = $pdo->prepare('SELECT * FROM inventory_images WHERE inventory_id = ? ORDER BY sort_order ASC LIMIT 1');
+                $nextPrimary->execute([$id]);
+                $nextImg = $nextPrimary->fetch();
+                
+                if ($nextImg) {
+                    $pdo->prepare('UPDATE inventory_images SET is_primary = 1 WHERE id = ?')->execute([$nextImg['id']]);
+                    $pdo->prepare('UPDATE inventories SET image = ?, updated_at = NOW() WHERE id = ?')->execute([$nextImg['image_path'], $id]);
+                } else {
+                    $pdo->prepare('UPDATE inventories SET image = NULL, updated_at = NOW() WHERE id = ?')->execute([$id]);
+                }
+            } elseif ($item['image'] === $imgToDelete['image_path']) {
+                // If the deleted image was the main one, update it
+                $nextPrimary = $pdo->prepare('SELECT image_path FROM inventory_images WHERE inventory_id = ? AND is_primary = 1 LIMIT 1');
+                $nextPrimary->execute([$id]);
+                $nextImg = $nextPrimary->fetch();
+                $pdo->prepare('UPDATE inventories SET image = ?, updated_at = NOW() WHERE id = ?')->execute([$nextImg ? $nextImg['image_path'] : null, $id]);
+            }
+        }
     }
-    $stmt = $pdo->prepare('UPDATE inventories SET image = NULL, updated_at = NOW() WHERE id = ?');
-    $stmt->execute([$id]);
+    
     $redirectUrl = '/index.php?page=admin_inventory_edit&id=' . $id . '&msg=image_deleted';
     if (!headers_sent()) {
         header('Location: ' . $redirectUrl);
@@ -78,41 +130,79 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
     
-    // Handle image upload
+    // Handle multiple image upload
     $imageName = $item['image'];
+    $uploadDir = 'C:/XAMPP/htdocs/inventory_pln/public/assets/uploads/';
+    $uploadedImages = [];
     
-    if (isset($_FILES['image']) && $_FILES['image']['error'] === UPLOAD_ERR_OK) {
-        $uploadDir = 'C:/XAMPP/htdocs/inventory_pln/public/assets/uploads/';
-        
+    // Handle multiple images upload
+    if (isset($_FILES['images']) && !empty($_FILES['images']['name'][0])) {
         if (!is_dir($uploadDir)) {
-            if (!mkdir($uploadDir, 0777, true)) {
-                $errors[] = 'Gagal membuat folder upload.';
-            }
+            mkdir($uploadDir, 0777, true);
         }
         
-        if (empty($errors)) {
-            $allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-            $fileType = mime_content_type($_FILES['image']['tmp_name']);
-            
-            if (!in_array($fileType, $allowedTypes)) {
-                $errors[] = 'Format gambar tidak valid. Gunakan JPG, PNG, GIF, atau WEBP.';
-            } else {
-                if ($item['image'] && file_exists($uploadDir . $item['image'])) {
-                    unlink($uploadDir . $item['image']);
-                }
+        $fileCount = count($_FILES['images']['name']);
+        $currentMaxSort = $pdo->prepare('SELECT MAX(sort_order) as max_sort FROM inventory_images WHERE inventory_id = ?');
+        $currentMaxSort->execute([$id]);
+        $sortStart = ($currentMaxSort->fetch()['max_sort'] ?? -1) + 1;
+        
+        for ($i = 0; $i < $fileCount; $i++) {
+            if ($_FILES['images']['error'][$i] === UPLOAD_ERR_OK) {
+                $file = [
+                    'name' => $_FILES['images']['name'][$i],
+                    'type' => $_FILES['images']['type'][$i],
+                    'tmp_name' => $_FILES['images']['tmp_name'][$i],
+                    'error' => $_FILES['images']['error'][$i],
+                    'size' => $_FILES['images']['size'][$i]
+                ];
                 
-                $ext = pathinfo($_FILES['image']['name'], PATHINFO_EXTENSION);
-                $imageName = 'inv_' . $id . '_' . time() . '.' . $ext;
+                $result = processUploadedImage($file, $uploadDir, 'inv');
                 
-                if (!move_uploaded_file($_FILES['image']['tmp_name'], $uploadDir . $imageName)) {
-                    $errors[] = 'Gagal mengupload gambar.';
-                    $imageName = $item['image'];
+                if ($result['success']) {
+                    $uploadedImages[] = [
+                        'filename' => $result['filename'],
+                        'sort_order' => $sortStart + $i
+                    ];
+                } else {
+                    $errors[] = "Gambar " . ($i + 1) . ": " . $result['error'];
                 }
             }
         }
     }
     
+    // Backward compatibility: single image upload
+    if (empty($uploadedImages) && isset($_FILES['image']) && $_FILES['image']['error'] === UPLOAD_ERR_OK) {
+        $result = processUploadedImage($_FILES['image'], $uploadDir, 'inv');
+        if ($result['success']) {
+            $uploadedImages[] = [
+                'filename' => $result['filename'],
+                'sort_order' => 0
+            ];
+        } else {
+            $errors[] = $result['error'];
+        }
+    }
+    
     if (empty($errors)) {
+        // Save new images to inventory_images table
+        if (!empty($uploadedImages)) {
+            // Check if there are existing images
+            $existingCount = $pdo->prepare('SELECT COUNT(*) FROM inventory_images WHERE inventory_id = ?');
+            $existingCount->execute([$id]);
+            $hasExisting = $existingCount->fetchColumn() > 0;
+            
+            $imgStmt = $pdo->prepare('INSERT INTO inventory_images (inventory_id, image_path, is_primary, sort_order) VALUES (?, ?, ?, ?)');
+            foreach ($uploadedImages as $idx => $img) {
+                $isPrimary = (!$hasExisting && $idx === 0) ? 1 : 0;
+                $imgStmt->execute([$id, $img['filename'], $isPrimary, $img['sort_order']]);
+            }
+            
+            // Update main image if no images existed before
+            if (!$hasExisting) {
+                $imageName = $uploadedImages[0]['filename'];
+            }
+        }
+        
         $stmt = $pdo->prepare('UPDATE inventories SET name=?, code=?, item_type=?, description=?, stock_total=?, stock_available=?, unit=?, year_acquired=?, year_manufactured=?, low_stock_threshold=?, item_condition=?, location=?, rack=?, notes=?, image=?, updated_at=NOW() WHERE id=?');
         $stmt->execute([$name, $code ?: null, $item_type ?: null, $description, $stock_total, $stock_available, $unit, $year_acquired ?: null, $year_manufactured ?: null, $low_stock_threshold, $item_condition, $location ?: null, $rack ?: null, $notes ?: null, $imageName, $id]);
         
@@ -135,6 +225,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $itemCatStmt = $pdo->prepare('SELECT category_id FROM inventory_categories WHERE inventory_id = ?');
         $itemCatStmt->execute([$id]);
         $itemCategories = array_column($itemCatStmt->fetchAll(), 'category_id');
+        
+        // Reload images
+        $imgStmt = $pdo->prepare('SELECT * FROM inventory_images WHERE inventory_id = ? ORDER BY is_primary DESC, sort_order ASC');
+        $imgStmt->execute([$id]);
+        $itemImages = $imgStmt->fetchAll();
     }
 }
 
@@ -382,32 +477,67 @@ $imageDeleted = isset($_GET['msg']) && $_GET['msg'] === 'image_deleted';
             <div class="card mb-4">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <h5 class="card-title mb-0">
-                        <i class="bi bi-image me-2"></i>Foto Barang
+                        <i class="bi bi-images me-2"></i>Foto Barang
                     </h5>
-                    <?php if ($item['image']): ?>
-                    <a href="/index.php?page=admin_inventory_edit&id=<?= $id ?>&delete_image=1" 
+                    <?php if (!empty($itemImages) || $item['image']): ?>
+                    <a href="/index.php?page=admin_inventory_edit&id=<?= $id ?>&delete_image=all" 
                        class="btn btn-sm btn-outline-danger"
-                       onclick="return confirm('Hapus foto ini?')">
-                        <i class="bi bi-trash"></i>
+                       onclick="return confirm('Hapus semua foto?')">
+                        <i class="bi bi-trash me-1"></i>Hapus Semua
                     </a>
                     <?php endif; ?>
                 </div>
                 <div class="card-body">
-                    <?php if ($item['image']): ?>
-                    <div class="current-image mb-3">
-                        <img src="/public/assets/uploads/<?= htmlspecialchars($item['image']) ?>" 
-                             alt="<?= htmlspecialchars($item['name']) ?>" 
-                             class="img-fluid rounded">
+                    <?php if (!empty($itemImages)): ?>
+                    <!-- Display all images with delete button -->
+                    <div class="row g-2 mb-3" id="existingImages">
+                        <?php foreach ($itemImages as $img): ?>
+                        <div class="col-6">
+                            <div class="existing-image-item <?= $img['is_primary'] ? 'primary' : '' ?>">
+                                <img src="/public/assets/uploads/<?= htmlspecialchars($img['image_path']) ?>" 
+                                     alt="<?= htmlspecialchars($item['name']) ?>">
+                                <button type="button" class="btn btn-danger btn-remove-existing" 
+                                        onclick="if(confirm('Hapus foto ini?')) window.location.href='/index.php?page=admin_inventory_edit&id=<?= $id ?>&delete_image=<?= $img['id'] ?>'">
+                                    <i class="bi bi-x"></i>
+                                </button>
+                                <?php if ($img['is_primary']): ?>
+                                <span class="primary-badge"><i class="bi bi-star-fill me-1"></i>Utama</span>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+                        <?php endforeach; ?>
                     </div>
-                    <label class="form-label small text-muted">Ganti foto:</label>
+                    <label class="form-label small text-muted">Tambah foto lain:</label>
+                    <?php elseif ($item['image']): ?>
+                    <!-- Legacy single image display -->
+                    <div class="row g-2 mb-3">
+                        <div class="col-6">
+                            <div class="existing-image-item primary">
+                                <img src="/public/assets/uploads/<?= htmlspecialchars($item['image']) ?>" 
+                                     alt="<?= htmlspecialchars($item['name']) ?>">
+                                <button type="button" class="btn btn-danger btn-remove-existing" 
+                                        onclick="if(confirm('Hapus foto ini?')) window.location.href='/index.php?page=admin_inventory_edit&id=<?= $id ?>&delete_image=1'">
+                                    <i class="bi bi-x"></i>
+                                </button>
+                                <span class="primary-badge"><i class="bi bi-star-fill me-1"></i>Utama</span>
+                            </div>
+                        </div>
+                    </div>
+                    <label class="form-label small text-muted">Tambah foto lain:</label>
                     <?php else: ?>
-                    <div class="image-upload-area mb-3" id="imagePreviewContainer">
+                    <div class="image-upload-area mb-3" id="imageDropZone">
                         <i class="bi bi-cloud-upload"></i>
                         <p>Klik atau drag gambar</p>
-                        <small>JPG, PNG, GIF, WEBP (Max 5MB)</small>
+                        <small>Dapat upload lebih dari satu gambar</small>
                     </div>
                     <?php endif; ?>
-                    <input type="file" name="image" class="form-control" accept="image/*" id="imageInput">
+                    
+                    <!-- Multi-image upload input -->
+                    <input type="file" name="images[]" class="form-control" accept="image/*" id="imageInput" multiple>
+                    <small class="text-muted">JPG, PNG, GIF, WEBP (Max 5MB/gambar)</small>
+                    
+                    <!-- Preview container for new uploads -->
+                    <div id="newImagePreview" class="row g-2 mt-2"></div>
                 </div>
             </div>
 
@@ -506,86 +636,151 @@ $imageDeleted = isset($_GET['msg']) && $_GET['msg'] === 'image_deleted';
 .image-upload-area small {
     color: var(--text-muted);
 }
+
+/* Multi-image styles */
+.existing-image-item {
+    position: relative;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 2px solid transparent;
+    transition: all 0.3s ease;
+}
+.existing-image-item.primary {
+    border-color: var(--primary);
+}
+.existing-image-item img {
+    width: 100%;
+    height: 100px;
+    object-fit: cover;
+}
+.existing-image-item .btn-remove-existing {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border-radius: 50%;
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+.existing-image-item:hover .btn-remove-existing {
+    opacity: 1;
+}
+.existing-image-item .primary-badge {
+    position: absolute;
+    bottom: 4px;
+    left: 4px;
+    background: var(--primary);
+    color: white;
+    font-size: 9px;
+    padding: 2px 6px;
+    border-radius: 4px;
+}
+.new-image-preview {
+    position: relative;
+}
+.new-image-preview img {
+    width: 100%;
+    height: 80px;
+    object-fit: cover;
+    border-radius: 6px;
+}
+.new-image-preview .btn-remove-new {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    border-radius: 50%;
+    font-size: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
 </style>
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    const container = document.getElementById('imagePreviewContainer');
+    const dropZone = document.getElementById('imageDropZone');
     const input = document.getElementById('imageInput');
+    const previewContainer = document.getElementById('newImagePreview');
+    let selectedFiles = [];
     
-    if (container) {
-        // Click to select file
-        container.addEventListener('click', () => input.click());
+    // Click to select
+    if (dropZone) {
+        dropZone.addEventListener('click', () => input.click());
         
-        // Drag & Drop functionality
-        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-            container.addEventListener(eventName, preventDefaults, false);
-        });
-        
-        function preventDefaults(e) {
-            e.preventDefault();
-            e.stopPropagation();
-        }
-        
-        // Highlight on drag
-        ['dragenter', 'dragover'].forEach(eventName => {
-            container.addEventListener(eventName, () => {
-                container.style.borderColor = 'var(--primary)';
-                container.style.background = 'rgba(26, 154, 170, 0.1)';
+        // Drag & drop handlers
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(event => {
+            dropZone.addEventListener(event, e => {
+                e.preventDefault();
+                e.stopPropagation();
             });
         });
         
-        ['dragleave', 'drop'].forEach(eventName => {
-            container.addEventListener(eventName, () => {
-                container.style.borderColor = 'var(--border-color)';
-                container.style.background = 'var(--bg-tertiary)';
-            });
-        });
-        
-        // Handle dropped files
-        container.addEventListener('drop', function(e) {
-            const dt = e.dataTransfer;
-            const files = dt.files;
-            
-            if (files.length > 0) {
-                const file = files[0];
-                if (file.type.startsWith('image/')) {
-                    // Transfer file to input
-                    const dataTransfer = new DataTransfer();
-                    dataTransfer.items.add(file);
-                    input.files = dataTransfer.files;
-                    
-                    // Preview
-                    previewImage(file);
-                } else {
-                    alert('Mohon pilih file gambar (JPG, PNG, GIF, WEBP)');
-                }
-            }
+        dropZone.addEventListener('dragenter', () => dropZone.style.borderColor = 'var(--primary)');
+        dropZone.addEventListener('dragleave', () => dropZone.style.borderColor = 'var(--border-color)');
+        dropZone.addEventListener('drop', e => {
+            dropZone.style.borderColor = 'var(--border-color)';
+            handleFiles(e.dataTransfer.files);
         });
     }
     
-    // Preview on file select
     if (input) {
-        input.addEventListener('change', function() {
-            if (this.files && this.files[0]) {
-                previewImage(this.files[0]);
+        input.addEventListener('change', e => handleFiles(e.target.files));
+    }
+    
+    function handleFiles(files) {
+        Array.from(files).forEach(file => {
+            if (file.type.startsWith('image/')) {
+                if (file.size > 5 * 1024 * 1024) {
+                    alert('File ' + file.name + ' terlalu besar (max 5MB)');
+                    return;
+                }
+                selectedFiles.push(file);
             }
+        });
+        updatePreview();
+        updateFileInput();
+    }
+    
+    function updatePreview() {
+        previewContainer.innerHTML = '';
+        selectedFiles.forEach((file, index) => {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const col = document.createElement('div');
+                col.className = 'col-4';
+                col.innerHTML = `
+                    <div class="new-image-preview">
+                        <img src="${e.target.result}" alt="Preview">
+                        <button type="button" class="btn btn-danger btn-remove-new" onclick="removeNewImage(${index})">
+                            <i class="bi bi-x"></i>
+                        </button>
+                    </div>
+                `;
+                previewContainer.appendChild(col);
+            };
+            reader.readAsDataURL(file);
         });
     }
     
-    function previewImage(file) {
-        const reader = new FileReader();
-        reader.onload = function(e) {
-            if (container) {
-                container.innerHTML = `
-                    <img src="${e.target.result}" style="max-width: 100%; max-height: 200px; border-radius: 8px; object-fit: cover;">
-                    <p style="margin-top: 10px; color: var(--text-muted); font-size: 13px;">
-                        <i class="bi bi-check-circle text-success me-1"></i>${file.name}
-                    </p>
-                `;
-            }
-        };
-        reader.readAsDataURL(file);
+    function updateFileInput() {
+        const dt = new DataTransfer();
+        selectedFiles.forEach(file => dt.items.add(file));
+        input.files = dt.files;
     }
+    
+    window.removeNewImage = function(index) {
+        selectedFiles.splice(index, 1);
+        updatePreview();
+        updateFileInput();
+    };
 });
 </script>

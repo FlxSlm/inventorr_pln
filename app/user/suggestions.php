@@ -293,15 +293,33 @@ $suggestions = $stmt->fetchAll();
                     </small>
                     <p style="margin: 0; white-space: pre-line;"><?= htmlspecialchars($sug['message']) ?></p>
                     
-                    <?php if (!empty($sug['image'])): ?>
+                    <?php 
+                    // Collect all images
+                    $allImages = [];
+                    if (!empty($sug['image'])) {
+                        $allImages[] = $sug['image'];
+                    }
+                    if (!empty($sug['images_json'])) {
+                        $additionalImages = json_decode($sug['images_json'], true);
+                        if (is_array($additionalImages)) {
+                            $allImages = array_merge($allImages, $additionalImages);
+                        }
+                    }
+                    
+                    if (!empty($allImages)): 
+                    ?>
                     <div style="margin-top: 12px;">
                         <small style="color: var(--text-muted); display: block; margin-bottom: 8px;">
-                            <i class="bi bi-image me-1"></i>Foto Lampiran:
+                            <i class="bi bi-images me-1"></i>Foto Lampiran (<?= count($allImages) ?>):
                         </small>
-                        <img src="/public/assets/uploads/suggestions/<?= htmlspecialchars($sug['image']) ?>" 
-                             alt="Foto Usulan" 
-                             style="max-width: 100%; max-height: 300px; border-radius: 8px; cursor: pointer;"
-                             onclick="window.open(this.src, '_blank')">
+                        <div class="d-flex flex-wrap gap-2">
+                            <?php foreach ($allImages as $img): ?>
+                            <img src="/public/assets/uploads/suggestions/<?= htmlspecialchars($img) ?>" 
+                                 alt="Foto Usulan" 
+                                 style="max-width: 150px; max-height: 150px; border-radius: 8px; cursor: pointer; object-fit: cover;"
+                                 onclick="window.open(this.src, '_blank')">
+                            <?php endforeach; ?>
+                        </div>
                     </div>
                     <?php endif; ?>
                 </div>
@@ -350,29 +368,57 @@ document.getElementById('suggestionImages')?.addEventListener('change', function
     const container = document.getElementById('imagePreviewContainer');
     container.innerHTML = '';
     
-    const files = Array.from(e.target.files).slice(0, 5);
+    // Store files in a global array for manipulation
+    window.suggestionFiles = Array.from(e.target.files).slice(0, 5);
     
-    files.forEach((file, idx) => {
+    renderPreviews();
+    
+    if (e.target.files.length > 5) {
+        alert('Maksimal 5 gambar. Hanya 5 gambar pertama yang akan diupload.');
+    }
+});
+
+function renderPreviews() {
+    const container = document.getElementById('imagePreviewContainer');
+    container.innerHTML = '';
+    
+    window.suggestionFiles.forEach((file, idx) => {
         if (file.type.startsWith('image/')) {
             const reader = new FileReader();
             reader.onload = function(e) {
                 const wrapper = document.createElement('div');
-                wrapper.style.cssText = 'position: relative;';
+                wrapper.style.cssText = 'position: relative; display: inline-block;';
+                wrapper.className = 'suggestion-preview-item';
                 
                 const img = document.createElement('img');
                 img.src = e.target.result;
                 img.className = 'preview-image';
                 img.title = file.name;
                 
+                const removeBtn = document.createElement('button');
+                removeBtn.type = 'button';
+                removeBtn.className = 'btn btn-danger btn-sm';
+                removeBtn.style.cssText = 'position: absolute; top: -5px; right: -5px; width: 22px; height: 22px; padding: 0; border-radius: 50%; font-size: 10px; display: flex; align-items: center; justify-content: center;';
+                removeBtn.innerHTML = '<i class="bi bi-x"></i>';
+                removeBtn.onclick = function() { removeSuggestionImage(idx); };
+                
                 wrapper.appendChild(img);
+                wrapper.appendChild(removeBtn);
                 container.appendChild(wrapper);
             };
             reader.readAsDataURL(file);
         }
     });
+}
+
+function removeSuggestionImage(index) {
+    window.suggestionFiles.splice(index, 1);
     
-    if (files.length > 5) {
-        alert('Maksimal 5 gambar. Hanya 5 gambar pertama yang akan diupload.');
-    }
-});
+    // Rebuild file input
+    const dt = new DataTransfer();
+    window.suggestionFiles.forEach(file => dt.items.add(file));
+    document.getElementById('suggestionImages').files = dt.files;
+    
+    renderPreviews();
+}
 </script>
