@@ -1,8 +1,16 @@
 <?php
-// app/auth/login_new.php - Modern Login Page
+// app/auth/login_new.php - Modern Login Page with Rate Limiting
 $pdo = require __DIR__ . '/../config/database.php';
 $errors = [];
 $msg = $_GET['msg'] ?? '';
+$lockoutMessage = '';
+$lockoutSeconds = 0;
+
+// ===== TOGGLE FITUR LOGIN SECURITY =====
+// Set ke false untuk mematikan fitur rate limiting
+// Set ke true untuk menyalakan fitur rate limiting
+define('ENABLE_LOGIN_SECURITY', true); // <-- Ubah ke false untuk matikan
+// ========================================
 
 // Handle session expired message
 $sessionExpiredMsg = '';
@@ -10,11 +18,104 @@ if ($msg === 'session_expired') {
     $sessionExpiredMsg = 'Sesi Anda telah berakhir karena tidak aktif selama 30 menit. Silakan login kembali.';
 }
 
+// Get client IP address
+function getClientIP() {
+    $ipKeys = ['HTTP_CLIENT_IP', 'HTTP_X_FORWARDED_FOR', 'HTTP_X_FORWARDED', 'HTTP_X_CLUSTER_CLIENT_IP', 'HTTP_FORWARDED_FOR', 'HTTP_FORWARDED', 'REMOTE_ADDR'];
+    foreach ($ipKeys as $key) {
+        if (isset($_SERVER[$key]) && filter_var($_SERVER[$key], FILTER_VALIDATE_IP)) {
+            return $_SERVER[$key];
+        }
+    }
+    return $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
+}
+
+// Rate limiting functions
+function getFailedAttempts($pdo, $ip, $minutes = 60) {
+    // Ensure table exists
+    try {
+        $pdo->exec("CREATE TABLE IF NOT EXISTS login_attempts (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            ip_address VARCHAR(45) NOT NULL,
+            email VARCHAR(150) NULL,
+            attempted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            success TINYINT(1) DEFAULT 0,
+            INDEX idx_ip_address (ip_address),
+            INDEX idx_attempted_at (attempted_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+    } catch (Exception $e) {
+        // Table might already exist
+    }
+    
+    $stmt = $pdo->prepare("SELECT COUNT(*) FROM login_attempts WHERE ip_address = ? AND success = 0 AND attempted_at > DATE_SUB(NOW(), INTERVAL ? MINUTE)");
+    $stmt->execute([$ip, $minutes]);
+    return (int)$stmt->fetchColumn();
+}
+
+function getLockoutDuration($failedAttempts) {
+    // Progressive lockout: 5 attempts = 1 min, then increases exponentially
+    if ($failedAttempts < 5) return 0;
+    
+    $lockoutLevels = [
+        5 => 60,      // 5 attempts = 1 minute
+        6 => 120,     // 6 attempts = 2 minutes
+        7 => 300,     // 7 attempts = 5 minutes
+        8 => 600,     // 8 attempts = 10 minutes
+        9 => 900,     // 9 attempts = 15 minutes
+        10 => 1800,   // 10+ attempts = 30 minutes
+    ];
+    
+    if ($failedAttempts >= 10) return 1800;
+    return $lockoutLevels[$failedAttempts] ?? 60;
+}
+
+function getLastAttemptTime($pdo, $ip) {
+    $stmt = $pdo->prepare("SELECT attempted_at FROM login_attempts WHERE ip_address = ? AND success = 0 ORDER BY attempted_at DESC LIMIT 1");
+    $stmt->execute([$ip]);
+    $result = $stmt->fetchColumn();
+    return $result ? strtotime($result) : 0;
+}
+
+function recordLoginAttempt($pdo, $ip, $email, $success) {
+    $stmt = $pdo->prepare("INSERT INTO login_attempts (ip_address, email, success, attempted_at) VALUES (?, ?, ?, NOW())");
+    $stmt->execute([$ip, $email, $success ? 1 : 0]);
+    
+    // If successful, clear failed attempts for this IP
+    if ($success) {
+        $stmt = $pdo->prepare("DELETE FROM login_attempts WHERE ip_address = ? AND success = 0");
+        $stmt->execute([$ip]);
+    }
+}
+
+function cleanOldAttempts($pdo) {
+    // Clean attempts older than 24 hours
+    $pdo->exec("DELETE FROM login_attempts WHERE attempted_at < DATE_SUB(NOW(), INTERVAL 24 HOUR)");
+}
+
+// Get client IP
+$clientIP = getClientIP();
+
+// Check for lockout (only if security is enabled)
+if (ENABLE_LOGIN_SECURITY) {
+    $failedAttempts = getFailedAttempts($pdo, $clientIP);
+    $lockoutDuration = getLockoutDuration($failedAttempts);
+    $lastAttemptTime = getLastAttemptTime($pdo, $clientIP);
+    $timeSinceLastAttempt = time() - $lastAttemptTime;
+
+    if ($lockoutDuration > 0 && $timeSinceLastAttempt < $lockoutDuration) {
+        $lockoutSeconds = $lockoutDuration - $timeSinceLastAttempt;
+        $lockoutMinutes = ceil($lockoutSeconds / 60);
+        $lockoutMessage = "Terlalu banyak percobaan login gagal. Silakan tunggu $lockoutMinutes menit sebelum mencoba lagi.";
+    }
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $email = trim($_POST['email'] ?? '');
     $password = $_POST['password'] ?? '';
 
-    if ($email === '' || $password === '') {
+    // Check if locked out
+    if ($lockoutMessage) {
+        $errors[] = $lockoutMessage;
+    } elseif ($email === '' || $password === '') {
         $errors[] = 'Email dan password wajib diisi.';
     } else {
         $stmt = $pdo->prepare('SELECT * FROM users WHERE email = ? LIMIT 1');
@@ -24,7 +125,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($user && password_verify($password, $user['password'])) {
             if (!empty($user['is_blacklisted'])) {
                 $errors[] = 'Akun Anda diblokir. Hubungi admin.';
+                if (ENABLE_LOGIN_SECURITY) {
+                    recordLoginAttempt($pdo, $clientIP, $email, false);
+                }
             } else {
+                // Successful login
+                if (ENABLE_LOGIN_SECURITY) {
+                    recordLoginAttempt($pdo, $clientIP, $email, true);
+                }
+                
                 $_SESSION['user'] = [
                     'id' => $user['id'],
                     'name' => $user['name'],
@@ -37,8 +146,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 exit;
             }
         } else {
-            $errors[] = 'Email atau password salah';
+            // Failed login
+            if (ENABLE_LOGIN_SECURITY) {
+                recordLoginAttempt($pdo, $clientIP, $email, false);
+                
+                // Update failed attempts count
+                $failedAttempts = getFailedAttempts($pdo, $clientIP);
+                $remainingAttempts = max(0, 5 - $failedAttempts);
+                
+                if ($remainingAttempts > 0) {
+                    $errors[] = "Email atau password salah. Sisa percobaan: $remainingAttempts kali.";
+                } else {
+                    $lockoutDuration = getLockoutDuration($failedAttempts);
+                    $lockoutMinutes = ceil($lockoutDuration / 60);
+                    $errors[] = "Email atau password salah. Akun terkunci selama $lockoutMinutes menit.";
+                    $lockoutSeconds = $lockoutDuration;
+                }
+            } else {
+                $errors[] = 'Email atau password salah';
+            }
         }
+    }
+    
+    // Clean old attempts occasionally (1% chance)
+    if (rand(1, 100) === 1) {
+        cleanOldAttempts($pdo);
     }
 }
 ?>
@@ -478,6 +610,13 @@ body::before {
                 </div>
                 <?php endif; ?>
 
+                <?php if($lockoutMessage && $_SERVER['REQUEST_METHOD'] !== 'POST'): ?>
+                <div class="alert alert-danger">
+                    <i class="bi bi-shield-lock me-2"></i><?= htmlspecialchars($lockoutMessage) ?>
+                    <div id="lockoutTimer" class="mt-2 fw-bold"></div>
+                </div>
+                <?php endif; ?>
+
                 <?php if($msg && $msg !== 'session_expired'): ?>
                 <div class="alert alert-success">
                     <i class="bi bi-check-circle me-2"></i><?= htmlspecialchars($msg) ?>
@@ -490,14 +629,15 @@ body::before {
                 </div>
                 <?php endforeach; ?>
 
-                <form method="POST" action="/index.php?page=login">
+                <form method="POST" action="/index.php?page=login" id="loginForm">
                     <div class="mb-3">
                         <label class="form-label">
                             <i class="bi bi-envelope me-1"></i>Email
                         </label>
                         <input name="email" type="email" class="form-control" 
                                placeholder="nama@email.com" required
-                               value="<?= htmlspecialchars($_POST['email'] ?? '') ?>">
+                               value="<?= htmlspecialchars($_POST['email'] ?? '') ?>"
+                               <?= $lockoutSeconds > 0 ? 'disabled' : '' ?>>
                     </div>
                     
                     <div class="mb-4">
@@ -506,7 +646,8 @@ body::before {
                         </label>
                         <div class="input-group">
                             <input name="password" type="password" class="form-control" 
-                                   placeholder="Masukkan password" required id="passwordInput">
+                                   placeholder="Masukkan password" required id="passwordInput"
+                                   <?= $lockoutSeconds > 0 ? 'disabled' : '' ?>>
                             <span class="input-icon" onclick="togglePassword()">
                                 <i class="bi bi-eye" id="eyeIcon"></i>
                             </span>
@@ -514,8 +655,12 @@ body::before {
                         
                     </div>
                     
-                    <button type="submit" class="btn btn-login w-100">
-                        <i class="bi bi-box-arrow-in-right me-2"></i>Masuk
+                    <button type="submit" class="btn btn-login w-100" id="submitBtn" <?= $lockoutSeconds > 0 ? 'disabled' : '' ?>>
+                        <?php if ($lockoutSeconds > 0): ?>
+                        <i class="bi bi-hourglass-split me-2"></i><span id="btnText">Tunggu...</span>
+                        <?php else: ?>
+                        <i class="bi bi-box-arrow-in-right me-2"></i><span id="btnText">Masuk</span>
+                        <?php endif; ?>
                     </button>
                 </form>
             </div>
@@ -538,6 +683,41 @@ function togglePassword() {
         icon.classList.add('bi-eye');
     }
 }
+
+// Lockout countdown timer
+<?php if ($lockoutSeconds > 0): ?>
+(function() {
+    let seconds = <?= $lockoutSeconds ?>;
+    const timerDiv = document.getElementById('lockoutTimer');
+    const submitBtn = document.getElementById('submitBtn');
+    const btnText = document.getElementById('btnText');
+    const form = document.getElementById('loginForm');
+    const inputs = form.querySelectorAll('input');
+    
+    function updateTimer() {
+        if (seconds <= 0) {
+            // Enable form
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = '<i class="bi bi-box-arrow-in-right me-2"></i><span id="btnText">Masuk</span>';
+            inputs.forEach(input => input.disabled = false);
+            if (timerDiv) timerDiv.innerHTML = '<span class="text-success"><i class="bi bi-check-circle me-1"></i>Anda dapat mencoba login kembali.</span>';
+            return;
+        }
+        
+        const mins = Math.floor(seconds / 60);
+        const secs = seconds % 60;
+        const timeStr = mins > 0 ? `${mins} menit ${secs} detik` : `${secs} detik`;
+        
+        if (timerDiv) timerDiv.innerHTML = `<i class="bi bi-clock me-1"></i>Waktu tersisa: ${timeStr}`;
+        btnText.textContent = `Tunggu ${timeStr}`;
+        
+        seconds--;
+        setTimeout(updateTimer, 1000);
+    }
+    
+    updateTimer();
+})();
+<?php endif; ?>
 </script>
 </body>
 </html>

@@ -203,6 +203,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
         
+        // Ensure imageName matches the current primary in inventory_images
+        $primaryStmt = $pdo->prepare('SELECT image_path FROM inventory_images WHERE inventory_id = ? AND is_primary = 1 LIMIT 1');
+        $primaryStmt->execute([$id]);
+        $currentPrimary = $primaryStmt->fetch();
+        if ($currentPrimary) {
+            $imageName = $currentPrimary['image_path'];
+        }
+        
         $stmt = $pdo->prepare('UPDATE inventories SET name=?, code=?, item_type=?, description=?, stock_total=?, stock_available=?, unit=?, year_acquired=?, year_manufactured=?, low_stock_threshold=?, item_condition=?, location=?, rack=?, notes=?, image=?, updated_at=NOW() WHERE id=?');
         $stmt->execute([$name, $code ?: null, $item_type ?: null, $description, $stock_total, $stock_available, $unit, $year_acquired ?: null, $year_manufactured ?: null, $low_stock_threshold, $item_condition, $location ?: null, $rack ?: null, $notes ?: null, $imageName, $id]);
         

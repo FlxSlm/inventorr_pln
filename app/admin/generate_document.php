@@ -357,8 +357,8 @@ $backUrl = $backUrls[$docType] ?? '/index.php?page=admin_loans';
         .doc-photo { flex: 1; }
         
         .photo-placeholder { 
-            width: 120px; 
-            height: 90px; 
+            width: 200px; 
+            height: 150px; 
             border: 1px dashed #ccc; 
             display: inline-flex; 
             align-items: center; 
@@ -366,8 +366,14 @@ $backUrl = $backUrls[$docType] ?? '/index.php?page=admin_loans';
             background: #f9f9f9;
             font-size: 9px;
             color: #999;
+            overflow: hidden;
         }
-        .photo-placeholder img { max-width: 100%; max-height: 100%; object-fit: contain; }
+        .photo-placeholder img { 
+            width: 100%; 
+            height: 100%; 
+            object-fit: contain;
+            display: block;
+        }
         
         @media print {
             body { background: white; }
@@ -559,7 +565,7 @@ $backUrl = $backUrls[$docType] ?? '/index.php?page=admin_loans';
             <div class="page-header-logo">
                 <img src="/public/assets/img/logopln.png" alt="PLN Logo" class="pln-logo-img"><br>
                 <span class="company-name editable" contenteditable="true">PT PLN (PERSERO)</span><br>
-                <span class="editable" contenteditable="true">LENGAN SULAWESI</span><br>
+                <span class="editable" contenteditable="true">UIP3B Sulawesi</span><br>
                 <span class="editable" contenteditable="true">UPT MANADO</span>
             </div>
             
@@ -575,13 +581,37 @@ $backUrl = $backUrls[$docType] ?? '/index.php?page=admin_loans';
             
             <div class="doc-list" style="margin-top: 10px;">
                 <?php foreach ($items as $idx => $item): ?>
-                <div class="doc-row">
+                <div class="doc-row" style="margin-bottom: 20px;">
                     <div class="doc-no editable" contenteditable="true"><?= $idx + 1 ?></div>
                     <div class="doc-material editable" contenteditable="true"><?= htmlspecialchars($item['item_name']) ?></div>
                     <div class="doc-photo">
-                        <?php if (!empty($item['image'])): ?>
-                        <div class="photo-placeholder">
-                            <img src="/public/assets/uploads/<?= htmlspecialchars($item['image']) ?>" alt="">
+                        <?php if (!empty($item['image'])): 
+                            $imagePath = __DIR__ . '/../../public/assets/uploads/' . $item['image'];
+                            $imageBase64 = '';
+                            $mimeType = 'image/jpeg';
+                            if (file_exists($imagePath)) {
+                                $imageData = file_get_contents($imagePath);
+                                $imageBase64 = base64_encode($imageData);
+                                $finfo = new finfo(FILEINFO_MIME_TYPE);
+                                $mimeType = $finfo->file($imagePath);
+                            }
+                        ?>
+                        <div class="photo-placeholder" style="width: 200px; height: 150px;">
+                            <?php if ($imageBase64): ?>
+                            <img src="data:<?= $mimeType ?>;base64,<?= $imageBase64 ?>" 
+                                 alt="<?= htmlspecialchars($item['item_name']) ?>"
+                                 style="width: 100%; height: 100%; object-fit: contain;"
+                                 crossorigin="anonymous">
+                            <?php else: ?>
+                            <img src="/public/assets/uploads/<?= htmlspecialchars($item['image']) ?>" 
+                                 alt="<?= htmlspecialchars($item['item_name']) ?>"
+                                 style="width: 100%; height: 100%; object-fit: contain;"
+                                 crossorigin="anonymous">
+                            <?php endif; ?>
+                        </div>
+                        <?php else: ?>
+                        <div class="photo-placeholder" style="width: 200px; height: 150px;">
+                            <span style="color: #999; font-size: 11px;">Tidak ada foto</span>
                         </div>
                         <?php endif; ?>
                     </div>
@@ -728,6 +758,9 @@ $backUrl = $backUrls[$docType] ?? '/index.php?page=admin_loans';
             });
             
             await Promise.all(promises);
+            
+            // Additional wait to ensure images are fully rendered
+            await new Promise(resolve => setTimeout(resolve, 500));
         }
         
         async function downloadPDF() {
@@ -759,43 +792,47 @@ $backUrl = $backUrls[$docType] ?? '/index.php?page=admin_loans';
                 // Capture page 1 with optimized settings
                 const page1 = document.getElementById('page1');
                 const canvas1 = await html2canvas(page1, { 
-                    scale: 2, // Higher scale for better image quality
+                    scale: 2.5, // Higher scale for better image quality
                     useCORS: true, 
                     allowTaint: true, // Allow tainted canvas for local images
                     logging: false,
-                    imageTimeout: 15000, // Wait up to 15 seconds for images
+                    imageTimeout: 30000, // Wait up to 30 seconds for images
+                    backgroundColor: '#ffffff',
                     onclone: function(clonedDoc) {
                         // Make sure images in cloned document are visible
                         clonedDoc.querySelectorAll('.photo-placeholder img').forEach(img => {
-                            img.style.maxWidth = '100%';
-                            img.style.maxHeight = '100%';
+                            img.style.width = '100%';
+                            img.style.height = '100%';
+                            img.style.objectFit = 'contain';
                             img.style.display = 'block';
                         });
                     }
                 });
                 // Use JPEG with compression
-                const imgData1 = canvas1.toDataURL('image/jpeg', 0.85);
+                const imgData1 = canvas1.toDataURL('image/jpeg', 0.92);
                 pdf.addImage(imgData1, 'JPEG', 0, 0, 210, 297, undefined, 'FAST');
                 
                 // Capture page 2 - Documentation with images
                 pdf.addPage();
                 const page2 = document.getElementById('page2');
                 const canvas2 = await html2canvas(page2, { 
-                    scale: 2,
+                    scale: 2.5,
                     useCORS: true, 
                     allowTaint: true,
                     logging: false,
-                    imageTimeout: 15000,
+                    imageTimeout: 30000,
+                    backgroundColor: '#ffffff',
                     onclone: function(clonedDoc) {
                         // Make sure images in cloned document are visible
                         clonedDoc.querySelectorAll('.photo-placeholder img').forEach(img => {
-                            img.style.maxWidth = '100%';
-                            img.style.maxHeight = '100%';
+                            img.style.width = '100%';
+                            img.style.height = '100%';
+                            img.style.objectFit = 'contain';
                             img.style.display = 'block';
                         });
                     }
                 });
-                const imgData2 = canvas2.toDataURL('image/jpeg', 0.85);
+                const imgData2 = canvas2.toDataURL('image/jpeg', 0.92);
                 pdf.addImage(imgData2, 'JPEG', 0, 0, 210, 297, undefined, 'FAST');
                 
                 pdf.save('Berita_Acara_<?= str_replace(['/', ' '], ['_', '_'], $previewNumber) ?>.pdf');
@@ -919,26 +956,44 @@ $backUrl = $backUrls[$docType] ?? '/index.php?page=admin_loans';
             // Capture page 1
             const page1 = document.getElementById('page1');
             const canvas1 = await html2canvas(page1, { 
-                scale: 2,
+                scale: 2.5,
                 useCORS: true, 
                 allowTaint: true,
                 logging: false,
-                imageTimeout: 15000
+                imageTimeout: 30000,
+                backgroundColor: '#ffffff',
+                onclone: function(clonedDoc) {
+                    clonedDoc.querySelectorAll('.photo-placeholder img').forEach(img => {
+                        img.style.width = '100%';
+                        img.style.height = '100%';
+                        img.style.objectFit = 'contain';
+                        img.style.display = 'block';
+                    });
+                }
             });
-            const imgData1 = canvas1.toDataURL('image/jpeg', 0.85);
+            const imgData1 = canvas1.toDataURL('image/jpeg', 0.92);
             pdf.addImage(imgData1, 'JPEG', 0, 0, 210, 297, undefined, 'FAST');
             
             // Capture page 2
             pdf.addPage();
             const page2 = document.getElementById('page2');
             const canvas2 = await html2canvas(page2, { 
-                scale: 2,
+                scale: 2.5,
                 useCORS: true, 
                 allowTaint: true,
                 logging: false,
-                imageTimeout: 15000
+                imageTimeout: 30000,
+                backgroundColor: '#ffffff',
+                onclone: function(clonedDoc) {
+                    clonedDoc.querySelectorAll('.photo-placeholder img').forEach(img => {
+                        img.style.width = '100%';
+                        img.style.height = '100%';
+                        img.style.objectFit = 'contain';
+                        img.style.display = 'block';
+                    });
+                }
             });
-            const imgData2 = canvas2.toDataURL('image/jpeg', 0.85);
+            const imgData2 = canvas2.toDataURL('image/jpeg', 0.92);
             pdf.addImage(imgData2, 'JPEG', 0, 0, 210, 297, undefined, 'FAST');
             
             // Restore editable styling

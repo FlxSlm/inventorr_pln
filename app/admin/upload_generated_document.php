@@ -125,18 +125,43 @@ try {
         $stmt->execute([$documentType, $referenceId, $generatedNumber, $relativePath]);
     }
     
-    // Also update the respective transaction table
+    // Also update the respective transaction table and status
     if ($documentType === 'loan') {
         if (strpos($referenceId, 'single_') === 0) {
             $loanId = (int)str_replace('single_', '', $referenceId);
-            $stmt = $pdo->prepare("UPDATE loans SET admin_document_path = ? WHERE id = ?");
+            
+            // Get loan info to reduce stock
+            $stmt = $pdo->prepare("SELECT l.*, i.stock_available FROM loans l JOIN inventories i ON i.id = l.inventory_id WHERE l.id = ? AND l.stage = 'pending'");
+            $stmt->execute([$loanId]);
+            $loan = $stmt->fetch();
+            
+            if ($loan) {
+                // Reduce stock
+                $stmt = $pdo->prepare('UPDATE inventories SET stock_available = stock_available - ? WHERE id = ?');
+                $stmt->execute([$loan['quantity'], $loan['inventory_id']]);
+            }
+            
+            // Update loan status to approved
+            $stmt = $pdo->prepare("UPDATE loans SET admin_document_path = ?, stage = 'approved', status = 'approved', approved_at = NOW() WHERE id = ?");
             $stmt->execute([$relativePath, $loanId]);
             
             // Get user ID for notification
             $stmt = $pdo->prepare("SELECT user_id FROM loans WHERE id = ?");
             $stmt->execute([$loanId]);
         } else {
-            $stmt = $pdo->prepare("UPDATE loans SET admin_document_path = ? WHERE group_id = ?");
+            // Get loans info to reduce stock
+            $stmt = $pdo->prepare("SELECT l.*, i.stock_available FROM loans l JOIN inventories i ON i.id = l.inventory_id WHERE l.group_id = ? AND l.stage = 'pending'");
+            $stmt->execute([$referenceId]);
+            $loans = $stmt->fetchAll();
+            
+            foreach ($loans as $loan) {
+                // Reduce stock
+                $stmt = $pdo->prepare('UPDATE inventories SET stock_available = stock_available - ? WHERE id = ?');
+                $stmt->execute([$loan['quantity'], $loan['inventory_id']]);
+            }
+            
+            // Update all loans in group to approved
+            $stmt = $pdo->prepare("UPDATE loans SET admin_document_path = ?, stage = 'approved', status = 'approved', approved_at = NOW() WHERE group_id = ?");
             $stmt->execute([$relativePath, $referenceId]);
             
             // Get user ID for notification
@@ -148,13 +173,38 @@ try {
     } elseif ($documentType === 'return') {
         if (strpos($referenceId, 'single_') === 0) {
             $loanId = (int)str_replace('single_', '', $referenceId);
-            $stmt = $pdo->prepare("UPDATE loans SET return_admin_document_path = ? WHERE id = ?");
+            
+            // Get loan info to restore stock
+            $stmt = $pdo->prepare("SELECT l.*, i.stock_available FROM loans l JOIN inventories i ON i.id = l.inventory_id WHERE l.id = ? AND l.return_stage = 'pending'");
+            $stmt->execute([$loanId]);
+            $loan = $stmt->fetch();
+            
+            if ($loan) {
+                // Restore stock
+                $stmt = $pdo->prepare('UPDATE inventories SET stock_available = stock_available + ? WHERE id = ?');
+                $stmt->execute([$loan['quantity'], $loan['inventory_id']]);
+            }
+            
+            // Update return status to completed
+            $stmt = $pdo->prepare("UPDATE loans SET return_admin_document_path = ?, return_stage = 'completed', return_approved_at = NOW() WHERE id = ?");
             $stmt->execute([$relativePath, $loanId]);
             
             $stmt = $pdo->prepare("SELECT user_id FROM loans WHERE id = ?");
             $stmt->execute([$loanId]);
         } else {
-            $stmt = $pdo->prepare("UPDATE loans SET return_admin_document_path = ? WHERE group_id = ?");
+            // Get loans info to restore stock
+            $stmt = $pdo->prepare("SELECT l.*, i.stock_available FROM loans l JOIN inventories i ON i.id = l.inventory_id WHERE l.group_id = ? AND l.return_stage = 'pending'");
+            $stmt->execute([$referenceId]);
+            $loans = $stmt->fetchAll();
+            
+            foreach ($loans as $loan) {
+                // Restore stock
+                $stmt = $pdo->prepare('UPDATE inventories SET stock_available = stock_available + ? WHERE id = ?');
+                $stmt->execute([$loan['quantity'], $loan['inventory_id']]);
+            }
+            
+            // Update all loans in group return status to completed
+            $stmt = $pdo->prepare("UPDATE loans SET return_admin_document_path = ?, return_stage = 'completed', return_approved_at = NOW() WHERE group_id = ?");
             $stmt->execute([$relativePath, $referenceId]);
             
             $stmt = $pdo->prepare("SELECT user_id FROM loans WHERE group_id = ? LIMIT 1");
@@ -165,13 +215,38 @@ try {
     } elseif ($documentType === 'request') {
         if (strpos($referenceId, 'single_') === 0) {
             $requestId = (int)str_replace('single_', '', $referenceId);
-            $stmt = $pdo->prepare("UPDATE requests SET admin_document_path = ? WHERE id = ?");
+            
+            // Get request info to reduce stock (permanent request)
+            $stmt = $pdo->prepare("SELECT r.*, i.stock_available FROM requests r JOIN inventories i ON i.id = r.inventory_id WHERE r.id = ? AND r.stage = 'pending'");
+            $stmt->execute([$requestId]);
+            $request = $stmt->fetch();
+            
+            if ($request) {
+                // Reduce both total and available stock for permanent requests
+                $stmt = $pdo->prepare('UPDATE inventories SET stock_total = stock_total - ?, stock_available = stock_available - ? WHERE id = ?');
+                $stmt->execute([$request['quantity'], $request['quantity'], $request['inventory_id']]);
+            }
+            
+            // Update request status to approved/completed
+            $stmt = $pdo->prepare("UPDATE requests SET admin_document_path = ?, stage = 'approved', status = 'completed', approved_at = NOW(), completed_at = NOW() WHERE id = ?");
             $stmt->execute([$relativePath, $requestId]);
             
             $stmt = $pdo->prepare("SELECT user_id FROM requests WHERE id = ?");
             $stmt->execute([$requestId]);
         } else {
-            $stmt = $pdo->prepare("UPDATE requests SET admin_document_path = ? WHERE group_id = ?");
+            // Get requests info to reduce stock
+            $stmt = $pdo->prepare("SELECT r.*, i.stock_available FROM requests r JOIN inventories i ON i.id = r.inventory_id WHERE r.group_id = ? AND r.stage = 'pending'");
+            $stmt->execute([$referenceId]);
+            $requests = $stmt->fetchAll();
+            
+            foreach ($requests as $request) {
+                // Reduce both total and available stock for permanent requests
+                $stmt = $pdo->prepare('UPDATE inventories SET stock_total = stock_total - ?, stock_available = stock_available - ? WHERE id = ?');
+                $stmt->execute([$request['quantity'], $request['quantity'], $request['inventory_id']]);
+            }
+            
+            // Update all requests in group to approved/completed
+            $stmt = $pdo->prepare("UPDATE requests SET admin_document_path = ?, stage = 'approved', status = 'completed', approved_at = NOW(), completed_at = NOW() WHERE group_id = ?");
             $stmt->execute([$relativePath, $referenceId]);
             
             $stmt = $pdo->prepare("SELECT user_id FROM requests WHERE group_id = ? LIMIT 1");

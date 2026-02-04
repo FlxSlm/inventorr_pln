@@ -4,6 +4,9 @@
 
 $pdo = require __DIR__ . '/../config/database.php';
 
+// Base path for uploaded documents
+$baseUploadPath = __DIR__ . '/../../public/assets/';
+
 // Handle delete action - Must be before any output
 if (isset($_GET['delete']) && is_numeric($_GET['delete'])) {
     $deleteId = (int)$_GET['delete'];
@@ -14,8 +17,12 @@ if (isset($_GET['delete']) && is_numeric($_GET['delete'])) {
     $doc = $stmt->fetch();
     
     // Delete file from disk if exists
-    if ($doc && $doc['file_path'] && file_exists($doc['file_path'])) {
-        @unlink($doc['file_path']);
+    if ($doc && $doc['file_path']) {
+        // Build full path
+        $fullPath = $baseUploadPath . $doc['file_path'];
+        if (file_exists($fullPath)) {
+            @unlink($fullPath);
+        }
     }
     
     // Delete from database
@@ -32,11 +39,14 @@ if (isset($_GET['download']) && is_numeric($_GET['download'])) {
     $stmt->execute([$downloadId]);
     $doc = $stmt->fetch();
     
-    if ($doc && $doc['file_path'] && file_exists($doc['file_path'])) {
-        header('Content-Type: application/pdf');
-        header('Content-Disposition: attachment; filename="' . basename($doc['file_path']) . '"');
-        readfile($doc['file_path']);
-        exit;
+    if ($doc && $doc['file_path']) {
+        $fullPath = $baseUploadPath . $doc['file_path'];
+        if (file_exists($fullPath)) {
+            header('Content-Type: application/pdf');
+            header('Content-Disposition: attachment; filename="' . basename($doc['file_path']) . '"');
+            readfile($fullPath);
+            exit;
+        }
     }
 }
 
@@ -199,7 +209,10 @@ $statusLabels = [
                                        class="btn btn-outline-primary" title="Lihat/Edit">
                                         <i class="bi bi-eye"></i>
                                     </a>
-                                    <?php if ($doc['file_path'] && file_exists($doc['file_path'])): ?>
+                                    <?php 
+                                    $docFilePath = $baseUploadPath . $doc['file_path'];
+                                    if ($doc['file_path'] && file_exists($docFilePath)): 
+                                    ?>
                                     <a href="/index.php?page=admin_saved_documents&download=<?= $doc['id'] ?>" 
                                        class="btn btn-outline-success" title="Download BAST">
                                         <i class="bi bi-download"></i>

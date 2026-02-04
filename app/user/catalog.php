@@ -65,6 +65,19 @@ foreach ($items as $item) {
     $catStmt->execute([$item['id']]);
     $itemCategories[$item['id']] = $catStmt->fetchAll();
 }
+
+// Fetch all images for each item
+$itemImages = [];
+foreach ($items as $item) {
+    $imgStmt = $pdo->prepare('SELECT * FROM inventory_images WHERE inventory_id = ? ORDER BY is_primary DESC, sort_order ASC');
+    $imgStmt->execute([$item['id']]);
+    $images = $imgStmt->fetchAll();
+    // If no images in inventory_images, use the main image field
+    if (empty($images) && !empty($item['image'])) {
+        $images = [['image_path' => $item['image'], 'is_primary' => 1]];
+    }
+    $itemImages[$item['id']] = $images;
+}
 ?>
 
 <!-- Page Header -->
@@ -205,15 +218,15 @@ foreach ($items as $item) {
                     <?= $stockText ?>
                 </span>
                 
-                <!-- Low Stock Warning Ribbon -->
+                <!-- Low Stock Warning Ribbon - Simplified to badge -->
                 <?php if ($isLowStock && $item['stock_available'] > 0): ?>
-                <div class="low-stock-ribbon">
-                    <i class="bi bi-exclamation-triangle-fill me-1"></i>Stok Menipis
-                </div>
+                <span class="low-stock-badge warning">
+                    <i class="bi bi-exclamation-triangle-fill me-1"></i>Menipis
+                </span>
                 <?php elseif ($item['stock_available'] <= 0): ?>
-                <div class="low-stock-ribbon danger">
-                    <i class="bi bi-x-circle-fill me-1"></i>Stok Habis
-                </div>
+                <span class="low-stock-badge danger">
+                    <i class="bi bi-x-circle-fill me-1"></i>Habis
+                </span>
                 <?php endif; ?>
                 
                 <!-- Condition Badge -->
@@ -304,9 +317,45 @@ foreach ($items as $item) {
     <div class="modal fade" id="detailModal<?= $item['id'] ?>" tabindex="-1">
         <div class="modal-dialog modal-lg">
             <div class="modal-content" style="border: none; border-radius: 16px; overflow: hidden;">
-                <!-- Header with Image -->
+                <!-- Header with Image Carousel -->
                 <div style="position: relative; background: linear-gradient(135deg, var(--bg-main) 0%, var(--border-color) 100%);">
-                    <?php if ($item['image']): ?>
+                    <?php if (!empty($itemImages[$item['id']])): ?>
+                    <?php $images = $itemImages[$item['id']]; ?>
+                    <?php if (count($images) > 1): ?>
+                    <!-- Image Carousel for multiple images -->
+                    <div id="carousel<?= $item['id'] ?>" class="carousel slide" data-bs-ride="carousel">
+                        <div class="carousel-indicators">
+                            <?php foreach ($images as $imgIdx => $img): ?>
+                            <button type="button" data-bs-target="#carousel<?= $item['id'] ?>" data-bs-slide-to="<?= $imgIdx ?>" <?= $imgIdx === 0 ? 'class="active"' : '' ?>></button>
+                            <?php endforeach; ?>
+                        </div>
+                        <div class="carousel-inner">
+                            <?php foreach ($images as $imgIdx => $img): ?>
+                            <div class="carousel-item <?= $imgIdx === 0 ? 'active' : '' ?>">
+                                <div style="display: flex; justify-content: center; align-items: center; padding: 20px; min-height: 200px; max-height: 280px;">
+                                    <img src="/public/assets/uploads/<?= htmlspecialchars($img['image_path']) ?>" 
+                                         alt="<?= htmlspecialchars($item['name']) ?>" 
+                                         style="max-width: 100%; max-height: 240px; object-fit: contain; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
+                                </div>
+                            </div>
+                            <?php endforeach; ?>
+                        </div>
+                        <button class="carousel-control-prev" type="button" data-bs-target="#carousel<?= $item['id'] ?>" data-bs-slide="prev">
+                            <span class="carousel-control-prev-icon" style="background-color: rgba(0,0,0,0.5); border-radius: 50%; padding: 15px;"></span>
+                        </button>
+                        <button class="carousel-control-next" type="button" data-bs-target="#carousel<?= $item['id'] ?>" data-bs-slide="next">
+                            <span class="carousel-control-next-icon" style="background-color: rgba(0,0,0,0.5); border-radius: 50%; padding: 15px;"></span>
+                        </button>
+                    </div>
+                    <?php else: ?>
+                    <!-- Single image -->
+                    <div style="display: flex; justify-content: center; align-items: center; padding: 20px; min-height: 200px; max-height: 280px;">
+                        <img src="/public/assets/uploads/<?= htmlspecialchars($images[0]['image_path']) ?>" 
+                             alt="<?= htmlspecialchars($item['name']) ?>" 
+                             style="max-width: 100%; max-height: 240px; object-fit: contain; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
+                    </div>
+                    <?php endif; ?>
+                    <?php elseif ($item['image']): ?>
                     <div style="display: flex; justify-content: center; align-items: center; padding: 20px; min-height: 200px; max-height: 280px;">
                         <img src="/public/assets/uploads/<?= htmlspecialchars($item['image']) ?>" 
                              alt="<?= htmlspecialchars($item['name']) ?>" 
@@ -500,22 +549,23 @@ foreach ($items as $item) {
 .catalog-stock-badge.success { background: var(--success); }
 .catalog-stock-badge.warning { background: var(--warning); }
 .catalog-stock-badge.danger { background: var(--danger); }
-.low-stock-ribbon {
+.low-stock-badge {
     position: absolute;
     top: 12px;
-    left: -35px;
-    background: linear-gradient(135deg, #f59e0b, #d97706);
-    color: #fff;
-    padding: 6px 40px;
+    left: 12px;
+    padding: 5px 10px;
+    border-radius: 6px;
     font-size: 11px;
     font-weight: 600;
-    transform: rotate(-45deg);
-    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-    z-index: 10;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
+    color: #fff;
+    display: inline-flex;
+    align-items: center;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.15);
 }
-.low-stock-ribbon.danger {
+.low-stock-badge.warning {
+    background: linear-gradient(135deg, #f59e0b, #d97706);
+}
+.low-stock-badge.danger {
     background: linear-gradient(135deg, #ef4444, #dc2626);
 }
 .catalog-condition-badge {
