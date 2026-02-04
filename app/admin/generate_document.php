@@ -470,18 +470,24 @@ $backUrl = $backUrls[$docType] ?? '/index.php?page=admin_loans';
                             <strong class="editable" contenteditable="true">PIHAK PERTAMA</strong>
                             <div class="signature-box"></div>
                             <div class="signature-line"></div>
+                            <div style="margin-top: 5px;">
+                                <span class="editable" contenteditable="true" style="font-weight: 600;">(...............................)</span>
+                            </div>
                         </td>
                         <td style="width: 50%;">
                             <strong class="editable" contenteditable="true">PIHAK KEDUA</strong>
                             <div class="signature-box"></div>
                             <div class="signature-line"></div>
+                            <div style="margin-top: 5px;">
+                                <span class="editable" contenteditable="true" style="font-weight: 600;">(<?= htmlspecialchars($userName) ?>)</span>
+                            </div>
                         </td>
                     </tr>
                 </table>
                 
                 <div style="text-align: center; margin-top: 20px;">
                     <p style="margin-bottom:3px;"><strong class="editable" contenteditable="true">Mengetahui,</strong></p>
-                    <p style="margin-bottom:0;" class="editable" contenteditable="true">AtMan Konstruksi</p>
+                    <p style="margin-bottom:0;" class="editable" contenteditable="true">Asmen Konstruksi</p>
                     <div class="signature-box"></div>
                     <div class="signature-line" style="width: 35%;"></div>
                     <p style="margin-top: 3px;" class="editable" contenteditable="true">NAMA</p>

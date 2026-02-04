@@ -226,9 +226,9 @@ foreach ($topRequested as $item) {
 
 
 <!-- Content Grid -->
-<div class="content-grid">
+<div class="content-grid" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 24px;">
     <!-- Recent Loans - Grouped by Transaction -->
-    <div class="table-card">
+    <div class="table-card" style="display: flex; flex-direction: column; min-height: 400px;">
         <div class="card-header" style="padding: 20px 24px; border-bottom: 1px solid var(--border-color);">
             <h3 class="card-title" style="margin: 0;">
                 <i class="bi bi-clipboard-check"></i> Peminjaman Terakhir
@@ -237,7 +237,7 @@ foreach ($topRequested as $item) {
         </div>
         
         <?php if (empty($recentLoans)): ?>
-        <div class="card-body">
+        <div class="card-body" style="flex: 1; display: flex; align-items: center; justify-content: center;">
             <div class="empty-state" style="padding: 40px;">
                 <div class="empty-state-icon" style="width: 60px; height: 60px; font-size: 24px;">
                     <i class="bi bi-inbox"></i>
@@ -302,7 +302,7 @@ foreach ($topRequested as $item) {
     </div>
     
     <!-- Recent Requests - Grouped by Transaction -->
-    <div class="table-card">
+    <div class="table-card" style="display: flex; flex-direction: column; min-height: 400px;">
         <div class="card-header" style="padding: 20px 24px; border-bottom: 1px solid var(--border-color);">
             <h3 class="card-title" style="margin: 0;">
                 <i class="bi bi-cart-check"></i> Permintaan Terakhir
@@ -311,7 +311,7 @@ foreach ($topRequested as $item) {
         </div>
         
         <?php if (empty($recentRequests)): ?>
-        <div class="card-body">
+        <div class="card-body" style="flex: 1; display: flex; align-items: center; justify-content: center;">
             <div class="empty-state" style="padding: 40px;">
                 <div class="empty-state-icon" style="width: 60px; height: 60px; font-size: 24px;">
                     <i class="bi bi-bag"></i>

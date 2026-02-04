@@ -3,6 +3,14 @@
 // Helper functions for image compression and processing
 
 /**
+ * Check if GD library is available with required functions
+ * @return bool
+ */
+function isGdAvailable() {
+    return extension_loaded('gd') && function_exists('imagecreatefromjpeg');
+}
+
+/**
  * Compress and save an uploaded image
  * @param string $sourcePath Temporary file path
  * @param string $destPath Destination file path  
@@ -11,6 +19,12 @@
  * @return bool Success status
  */
 function compressImage($sourcePath, $destPath, $maxWidth = 1200, $quality = 80) {
+    // Check if GD library is available
+    if (!isGdAvailable()) {
+        // Fallback: just copy the file without compression
+        return copy($sourcePath, $destPath);
+    }
+    
     // Get image info
     $imageInfo = getimagesize($sourcePath);
     if (!$imageInfo) {
@@ -22,25 +36,40 @@ function compressImage($sourcePath, $destPath, $maxWidth = 1200, $quality = 80) 
     $origHeight = $imageInfo[1];
     
     // Create image resource based on type
+    $sourceImage = null;
     switch ($mimeType) {
         case 'image/jpeg':
-            $sourceImage = imagecreatefromjpeg($sourcePath);
+            if (function_exists('imagecreatefromjpeg')) {
+                $sourceImage = @imagecreatefromjpeg($sourcePath);
+            }
             break;
         case 'image/png':
-            $sourceImage = imagecreatefrompng($sourcePath);
+            if (function_exists('imagecreatefrompng')) {
+                $sourceImage = @imagecreatefrompng($sourcePath);
+            }
             break;
         case 'image/gif':
-            $sourceImage = imagecreatefromgif($sourcePath);
+            if (function_exists('imagecreatefromgif')) {
+                $sourceImage = @imagecreatefromgif($sourcePath);
+            }
             break;
         case 'image/webp':
-            $sourceImage = imagecreatefromwebp($sourcePath);
+            if (function_exists('imagecreatefromwebp')) {
+                $sourceImage = @imagecreatefromwebp($sourcePath);
+            }
             break;
         default:
-            return false;
+            return copy($sourcePath, $destPath);
     }
     
+    // If image creation failed, just copy the file
     if (!$sourceImage) {
-        return false;
+        return copy($sourcePath, $destPath);
+    }
+    
+    // If image creation failed, just copy the file
+    if (!$sourceImage) {
+        return copy($sourcePath, $destPath);
     }
     
     // Calculate new dimensions if image is larger than max width
@@ -53,7 +82,12 @@ function compressImage($sourcePath, $destPath, $maxWidth = 1200, $quality = 80) 
     }
     
     // Create new image with new dimensions
-    $newImage = imagecreatetruecolor($newWidth, $newHeight);
+    $newImage = @imagecreatetruecolor($newWidth, $newHeight);
+    
+    if (!$newImage) {
+        imagedestroy($sourceImage);
+        return copy($sourcePath, $destPath);
+    }
     
     // Preserve transparency for PNG and GIF
     if ($mimeType === 'image/png' || $mimeType === 'image/gif') {

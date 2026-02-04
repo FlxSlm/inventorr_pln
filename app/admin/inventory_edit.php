@@ -203,7 +203,7 @@ $imageDeleted = isset($_GET['msg']) && $_GET['msg'] === 'image_deleted';
                         </div>
                         <div class="col-md-12">
                             <label class="form-label fw-semibold">
-                                <i class="bi bi-diagram-3 me-1"></i>Tipe Barang
+                                <i class="bi bi-diagram-3 me-1"></i>Merek/Tipe Barang
                             </label>
                             <input name="item_type" class="form-control" 
                                    value="<?= htmlspecialchars($item['item_type'] ?? '') ?>" 
@@ -419,10 +419,6 @@ $imageDeleted = isset($_GET['msg']) && $_GET['msg'] === 'image_deleted';
                     </h5>
                 </div>
                 <div class="card-body">
-                    <div class="mb-2">
-                        <small class="text-muted">ID:</small>
-                        <div class="fw-semibold">#<?= $item['id'] ?></div>
-                    </div>
                     <div class="mb-2">
                         <small class="text-muted">Dibuat:</small>
                         <div class="fw-semibold"><?= date('d M Y H:i', strtotime($item['created_at'])) ?></div>

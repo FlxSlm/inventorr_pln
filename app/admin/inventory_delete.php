@@ -12,8 +12,26 @@ if ($c > 0) {
     exit;
 }
 
-// soft delete
-$stmt = $pdo->prepare('UPDATE inventories SET deleted_at = NOW() WHERE id = ?');
+// Get item info to delete image file
+$stmt = $pdo->prepare('SELECT image FROM inventories WHERE id = ?');
 $stmt->execute([$id]);
+$item = $stmt->fetch();
+
+// Delete image file if exists
+if ($item && $item['image']) {
+    $imagePath = 'C:/XAMPP/htdocs/inventory_pln/public/assets/uploads/' . $item['image'];
+    if (file_exists($imagePath)) {
+        @unlink($imagePath);
+    }
+}
+
+// Delete from inventory_categories first (foreign key)
+$stmt = $pdo->prepare('DELETE FROM inventory_categories WHERE inventory_id = ?');
+$stmt->execute([$id]);
+
+// Permanently delete from database
+$stmt = $pdo->prepare('DELETE FROM inventories WHERE id = ?');
+$stmt->execute([$id]);
+
 header('Location: /index.php?page=admin_inventory_list');
 exit;

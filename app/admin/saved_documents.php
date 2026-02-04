@@ -7,6 +7,18 @@ $pdo = require __DIR__ . '/../config/database.php';
 // Handle delete action - Must be before any output
 if (isset($_GET['delete']) && is_numeric($_GET['delete'])) {
     $deleteId = (int)$_GET['delete'];
+    
+    // Get document info first to delete the file
+    $stmt = $pdo->prepare("SELECT file_path FROM generated_documents WHERE id = ?");
+    $stmt->execute([$deleteId]);
+    $doc = $stmt->fetch();
+    
+    // Delete file from disk if exists
+    if ($doc && $doc['file_path'] && file_exists($doc['file_path'])) {
+        @unlink($doc['file_path']);
+    }
+    
+    // Delete from database
     $stmt = $pdo->prepare("DELETE FROM generated_documents WHERE id = ?");
     $stmt->execute([$deleteId]);
     header('Location: /index.php?page=admin_saved_documents&deleted=1');
@@ -213,18 +225,48 @@ $statusLabels = [
 <div class="modal fade" id="deleteModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title"><i class="bi bi-exclamation-triangle text-danger me-2"></i>Konfirmasi Hapus</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title"><i class="bi bi-exclamation-triangle me-2"></i>Konfirmasi Hapus Dokumen</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-                <p>Apakah Anda yakin ingin menghapus dokumen ini?</p>
-                <p class="mb-0"><strong>Nomor: <span id="deleteDocNumber"></span></strong></p>
+                <div class="alert alert-warning">
+                    <i class="bi bi-exclamation-circle me-2"></i>
+                    <strong>Perhatian!</strong> Dokumen yang dihapus tidak dapat dikembalikan.
+                </div>
+                <p>Apakah Anda yakin ingin menghapus dokumen ini secara permanen dari database?</p>
+                <p class="mb-0"><strong>Nomor Surat: <span id="deleteDocNumber"></span></strong></p>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+                <button type="button" class="btn btn-warning" id="confirmFirstBtn" onclick="showFinalConfirm()">
+                    <i class="bi bi-check me-1"></i>Ya, Lanjutkan
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Final Delete Confirmation Modal -->
+<div class="modal fade" id="finalDeleteModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title"><i class="bi bi-trash me-2"></i>Konfirmasi Akhir</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body text-center">
+                <div style="font-size: 4rem; color: var(--danger);">
+                    <i class="bi bi-trash"></i>
+                </div>
+                <h5 class="mt-3">Hapus Permanen?</h5>
+                <p class="text-muted">Dokumen <strong id="finalDocNumber"></strong> akan dihapus permanen dari database.</p>
+                <p class="text-danger"><strong>Tindakan ini tidak dapat dibatalkan!</strong></p>
+            </div>
+            <div class="modal-footer justify-content-center">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
                 <a href="#" id="deleteLink" class="btn btn-danger">
-                    <i class="bi bi-trash me-1"></i>Hapus
+                    <i class="bi bi-trash me-1"></i>Hapus Permanen
                 </a>
             </div>
         </div>
@@ -232,9 +274,26 @@ $statusLabels = [
 </div>
 
 <script>
+var currentDeleteId = null;
+var currentDocNumber = '';
+
 function confirmDelete(id, docNumber) {
+    currentDeleteId = id;
+    currentDocNumber = docNumber;
     document.getElementById('deleteDocNumber').textContent = docNumber;
-    document.getElementById('deleteLink').href = '/index.php?page=admin_saved_documents&delete=' + id;
     new bootstrap.Modal(document.getElementById('deleteModal')).show();
+}
+
+function showFinalConfirm() {
+    // Hide first modal
+    bootstrap.Modal.getInstance(document.getElementById('deleteModal')).hide();
+    
+    // Show final confirmation
+    document.getElementById('finalDocNumber').textContent = currentDocNumber;
+    document.getElementById('deleteLink').href = '/index.php?page=admin_saved_documents&delete=' + currentDeleteId;
+    
+    setTimeout(function() {
+        new bootstrap.Modal(document.getElementById('finalDeleteModal')).show();
+    }, 300);
 }
 </script>

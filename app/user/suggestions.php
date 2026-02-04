@@ -23,9 +23,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (empty($subject) || empty($message)) {
         $error = 'Mohon isi semua field yang wajib diisi.';
     } else {
-        // Handle image upload
-        $imageName = null;
-        if (isset($_FILES['image']) && $_FILES['image']['error'] === UPLOAD_ERR_OK) {
+        // Handle multiple image upload
+        $imageNames = [];
+        if (isset($_FILES['images']) && is_array($_FILES['images']['name'])) {
             $uploadDir = 'C:/XAMPP/htdocs/inventory_pln/public/assets/uploads/suggestions/';
             
             // Create directory if not exists
@@ -33,32 +33,64 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 mkdir($uploadDir, 0777, true);
             }
             
-            // Validate file type
             $allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-            $fileType = mime_content_type($_FILES['image']['tmp_name']);
+            $totalFiles = count($_FILES['images']['name']);
+            $maxFiles = 5; // Maximum 5 images per suggestion
             
-            if (!in_array($fileType, $allowedTypes)) {
-                $error = 'Format gambar tidak valid. Gunakan JPG, PNG, GIF, atau WEBP.';
-            } elseif ($_FILES['image']['size'] > 5 * 1024 * 1024) {
-                $error = 'Ukuran file terlalu besar. Maksimal 5MB.';
-            } else {
-                $ext = pathinfo($_FILES['image']['name'], PATHINFO_EXTENSION);
-                $imageName = 'sug_' . $userId . '_' . time() . '.' . $ext;
-                
-                if (!move_uploaded_file($_FILES['image']['tmp_name'], $uploadDir . $imageName)) {
-                    $error = 'Gagal mengupload gambar.';
-                    $imageName = null;
+            for ($i = 0; $i < min($totalFiles, $maxFiles); $i++) {
+                if ($_FILES['images']['error'][$i] === UPLOAD_ERR_OK) {
+                    $fileType = mime_content_type($_FILES['images']['tmp_name'][$i]);
+                    
+                    if (!in_array($fileType, $allowedTypes)) {
+                        continue; // Skip invalid file types
+                    }
+                    
+                    if ($_FILES['images']['size'][$i] > 5 * 1024 * 1024) {
+                        continue; // Skip files over 5MB
+                    }
+                    
+                    $ext = pathinfo($_FILES['images']['name'][$i], PATHINFO_EXTENSION);
+                    $imageName = 'sug_' . $userId . '_' . time() . '_' . $i . '.' . $ext;
+                    
+                    if (move_uploaded_file($_FILES['images']['tmp_name'][$i], $uploadDir . $imageName)) {
+                        $imageNames[] = $imageName;
+                    }
                 }
             }
         }
         
+        // Also support single image upload for backward compatibility
+        if (empty($imageNames) && isset($_FILES['image']) && $_FILES['image']['error'] === UPLOAD_ERR_OK) {
+            $uploadDir = 'C:/XAMPP/htdocs/inventory_pln/public/assets/uploads/suggestions/';
+            
+            if (!is_dir($uploadDir)) {
+                mkdir($uploadDir, 0777, true);
+            }
+            
+            $allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+            $fileType = mime_content_type($_FILES['image']['tmp_name']);
+            
+            if (in_array($fileType, $allowedTypes) && $_FILES['image']['size'] <= 5 * 1024 * 1024) {
+                $ext = pathinfo($_FILES['image']['name'], PATHINFO_EXTENSION);
+                $imageName = 'sug_' . $userId . '_' . time() . '.' . $ext;
+                
+                if (move_uploaded_file($_FILES['image']['tmp_name'], $uploadDir . $imageName)) {
+                    $imageNames[] = $imageName;
+                }
+            }
+        }
+        
+        // Store first image in main column, rest in images_json column
+        $primaryImage = !empty($imageNames) ? $imageNames[0] : null;
+        $additionalImages = count($imageNames) > 1 ? json_encode(array_slice($imageNames, 1)) : null;
+        
         if (empty($error)) {
             try {
                 $stmt = $pdo->prepare("
-                    INSERT INTO material_suggestions (user_id, category_id, subject, message, image)
-                    VALUES (?, ?, ?, ?, ?)
+                    INSERT INTO material_suggestions (user_id, category_id, subject, message, image, images_json)
+                    VALUES (?, ?, ?, ?, ?, ?)
                 ");
-                $stmt->execute([$userId, $categoryId, $subject, $message, $imageName]);
+                $stmt->execute([$userId, $categoryId, $subject, $message, $primaryImage, $additionalImages]);
                 $success = 'Usulan material berhasil dikirim! Admin akan segera merespon usulan Anda.';
                 
                 // Clear form
@@ -157,10 +189,11 @@ $suggestions = $stmt->fetchAll();
                     
                     <div class="mb-3">
                         <label class="form-label" style="color: var(--text-dark); font-weight: 500;">
-                            <i class="bi bi-image me-1"></i>Foto Barang (Opsional)
+                            <i class="bi bi-images me-1"></i>Foto Barang (Opsional)
                         </label>
-                        <input type="file" name="image" class="form-control" accept="image/*">
-                        <small style="color: var(--text-muted);">Upload foto barang yang diusulkan. Format: JPG, PNG, GIF, WEBP. Maks 5MB</small>
+                        <input type="file" name="images[]" class="form-control" accept="image/*" multiple id="suggestionImages">
+                        <small style="color: var(--text-muted);">Upload hingga 5 foto barang yang diusulkan. Format: JPG, PNG, GIF, WEBP. Maks 5MB per file</small>
+                        <div id="imagePreviewContainer" class="d-flex flex-wrap gap-2 mt-2"></div>
                     </div>
                     
                     <div class="d-grid">
@@ -303,4 +336,43 @@ $suggestions = $stmt->fetchAll();
 .suggestion-item.has-reply {
     border-left: 3px solid var(--success);
 }
+.preview-image {
+    width: 80px;
+    height: 80px;
+    object-fit: cover;
+    border-radius: 8px;
+    border: 2px solid var(--border-color);
+}
 </style>
+
+<script>
+document.getElementById('suggestionImages')?.addEventListener('change', function(e) {
+    const container = document.getElementById('imagePreviewContainer');
+    container.innerHTML = '';
+    
+    const files = Array.from(e.target.files).slice(0, 5);
+    
+    files.forEach((file, idx) => {
+        if (file.type.startsWith('image/')) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const wrapper = document.createElement('div');
+                wrapper.style.cssText = 'position: relative;';
+                
+                const img = document.createElement('img');
+                img.src = e.target.result;
+                img.className = 'preview-image';
+                img.title = file.name;
+                
+                wrapper.appendChild(img);
+                container.appendChild(wrapper);
+            };
+            reader.readAsDataURL(file);
+        }
+    });
+    
+    if (files.length > 5) {
+        alert('Maksimal 5 gambar. Hanya 5 gambar pertama yang akan diupload.');
+    }
+});
+</script>

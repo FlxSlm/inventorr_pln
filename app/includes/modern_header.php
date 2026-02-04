@@ -152,12 +152,6 @@ $pdo_temp = require __DIR__ . '/../config/database.php';
                             </a>
                         </li>
                         <li class="sidebar-menu-item">
-                            <a href="/index.php?page=admin_templates" class="sidebar-menu-link <?= (isset($_GET['page']) && $_GET['page'] === 'admin_templates') ? 'active' : '' ?>">
-                                <i class="bi bi-file-earmark-text-fill"></i>
-                                <span>Template Dokumen</span>
-                            </a>
-                        </li>
-                        <li class="sidebar-menu-item">
                             <a href="/index.php?page=admin_saved_documents" class="sidebar-menu-link <?= (isset($_GET['page']) && $_GET['page'] === 'admin_saved_documents') ? 'active' : '' ?>">
                                 <i class="bi bi-file-earmark-check-fill"></i>
                                 <span>Dokumen Tersimpan</span>

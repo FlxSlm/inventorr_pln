@@ -170,7 +170,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     </div>
                     
                     <div class="mb-3">
-                        <label class="form-label"><i class="bi bi-diagram-3 me-1"></i> Tipe Barang</label>
+                        <label class="form-label"><i class="bi bi-diagram-3 me-1"></i> Merek/Tipe Barang</label>
                         <input name="item_type" class="form-control" placeholder="Contoh: Elektronik, Furniture, dll (opsional)">
                     </div>
                     
