@@ -511,6 +511,11 @@ body::before {
                                 <i class="bi bi-eye" id="eyeIcon"></i>
                             </span>
                         </div>
+                        <div class="text-end mt-2">
+                            <a href="/index.php?page=forgot_password" style="color: var(--accent); font-size: 0.875rem; text-decoration: none;">
+                                <i class="bi bi-key me-1"></i>Lupa Password?
+                            </a>
+                        </div>
                     </div>
                     
                     <button type="submit" class="btn btn-login w-100">

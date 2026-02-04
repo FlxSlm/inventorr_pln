@@ -349,11 +349,11 @@ $backUrl = $backUrls[$docType] ?? '/index.php?page=admin_loans';
                     <button type="button" class="btn btn-primary btn-sm" onclick="downloadPDF()">
                         <i class="bi bi-file-pdf me-1"></i>Download PDF
                     </button>
-                    <button type="button" class="btn btn-info btn-sm text-white" onclick="downloadExcel()">
-                        <i class="bi bi-file-earmark-excel me-1"></i>Download Excel
-                    </button>
                     <button type="button" class="btn btn-success btn-sm" onclick="saveDocument()">
                         <i class="bi bi-save me-1"></i>Simpan Dokumen
+                    </button>
+                    <button type="button" class="btn btn-info btn-sm text-white" data-bs-toggle="modal" data-bs-target="#uploadDocModal">
+                        <i class="bi bi-upload me-1"></i>Upload Dokumen
                     </button>
                     <a href="<?= $backUrl ?>" class="btn btn-secondary btn-sm">
                         <i class="bi bi-arrow-left me-1"></i>Kembali
@@ -572,10 +572,57 @@ $backUrl = $backUrls[$docType] ?? '/index.php?page=admin_loans';
         </div>
     </div>
 
+    <!-- Upload Document Modal -->
+    <div class="modal fade" id="uploadDocModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-upload me-2"></i>Upload Dokumen ke Karyawan</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form id="uploadDocForm" method="POST" action="/index.php?page=upload_generated_document" enctype="multipart/form-data">
+                    <div class="modal-body">
+                        <input type="hidden" name="document_type" value="<?= $docType ?>">
+                        <input type="hidden" name="reference_id" value="<?= $refId ?>">
+                        <input type="hidden" name="document_number" value="<?= htmlspecialchars($previewNumber) ?>">
+                        
+                        <div class="alert alert-info">
+                            <i class="bi bi-info-circle me-2"></i>
+                            Upload dokumen yang sudah diedit/ditandatangani untuk dikirim ke karyawan.
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">File Dokumen <span class="text-danger">*</span></label>
+                            <input type="file" name="document_file" class="form-control" accept=".pdf,.doc,.docx" required>
+                            <small class="text-muted">Format: PDF, DOC, DOCX (Max 10MB)</small>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Catatan (Opsional)</label>
+                            <textarea name="upload_notes" class="form-control" rows="2" placeholder="Catatan untuk karyawan..."></textarea>
+                        </div>
+                        
+                        <div class="mb-3 form-check">
+                            <input type="checkbox" class="form-check-input" id="upload_notify" name="send_notification" value="1" checked>
+                            <label class="form-check-label" for="upload_notify">
+                                Kirim notifikasi ke karyawan
+                            </label>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+                        <button type="submit" class="btn btn-info">
+                            <i class="bi bi-upload me-1"></i>Upload & Kirim
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
     <script>
         async function downloadPDF() {
@@ -625,76 +672,6 @@ $backUrl = $backUrls[$docType] ?? '/index.php?page=admin_loans';
                 el.style.backgroundColor = '#fffef0';
                 el.style.borderBottom = '1px dashed #ccc';
             });
-        }
-        
-        function downloadExcel() {
-            // Prepare data for Excel
-            const items = <?= json_encode($items) ?>;
-            const docInfo = {
-                type: '<?= $docTitle ?>',
-                number: '<?= $previewNumber ?>',
-                date: '<?= $dayName ?>, <?= $dateFormatted ?> <?= $monthFormatted ?> <?= $yearFormatted ?>',
-                location: 'Gudang Tanggari',
-                userName: '<?= htmlspecialchars($userName) ?>'
-            };
-            
-            // Create workbook
-            const wb = XLSX.utils.book_new();
-            
-            // Header data
-            const headerData = [
-                ['PT PLN (PERSERO)'],
-                ['LENGAN SULAWESI'],
-                ['UPT MANADO'],
-                [''],
-                ['FORMULIR'],
-                ['BERITA ACARA SERAH TERIMA MATERIAL'],
-                [''],
-                ['Pada hari ini', ':', docInfo.date],
-                ['Tempat', ':', docInfo.location],
-                ['Nomor', ':', docInfo.number],
-                [''],
-                ['Pihak Pertama', ':', 'Admin'],
-                ['Pihak Kedua', ':', docInfo.userName],
-                [''],
-                ['NO', 'Nama Barang', 'Merek/Type', 'No Seri', 'Jumlah', 'Satuan', 'Keterangan']
-            ];
-            
-            // Add items
-            items.forEach((item, idx) => {
-                headerData.push([
-                    idx + 1,
-                    item.item_name || '',
-                    item.item_type || '-',
-                    item.code || '-',
-                    item.quantity || 1,
-                    item.unit || 'unit',
-                    ''
-                ]);
-            });
-            
-            // Footer
-            headerData.push(['']);
-            headerData.push(['PIHAK PERTAMA telah menyerahkan kepada PIHAK KEDUA dan PIHAK KEDUA telah menerima dari PIHAK PERTAMA.']);
-            headerData.push(['Demikian Berita Acara ini dibuat dengan sesungguhnya untuk dipergunakan sebagaimana mestinya.']);
-            
-            const ws = XLSX.utils.aoa_to_sheet(headerData);
-            
-            // Set column widths
-            ws['!cols'] = [
-                { wch: 5 },   // NO
-                { wch: 25 },  // Nama Barang
-                { wch: 15 },  // Merek/Type
-                { wch: 15 },  // No Seri
-                { wch: 10 },  // Jumlah
-                { wch: 10 },  // Satuan
-                { wch: 20 }   // Keterangan
-            ];
-            
-            XLSX.utils.book_append_sheet(wb, ws, 'Berita Acara');
-            
-            // Download
-            XLSX.writeFile(wb, 'Berita_Acara_<?= str_replace(['/', ' '], ['_', '_'], $previewNumber) ?>.xlsx');
         }
         
         function saveDocument() {

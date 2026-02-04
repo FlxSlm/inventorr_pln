@@ -194,7 +194,7 @@ $statusLabels = [
                                     </a>
                                     <?php endif; ?>
                                     <button type="button" class="btn btn-outline-danger" title="Hapus"
-                                            onclick="confirmDelete(<?= $doc['id'] ?>, '<?= htmlspecialchars($doc['document_number']) ?>')">
+                                            onclick="confirmDelete(<?= $doc['id'] ?>, '<?= htmlspecialchars(addslashes($doc['document_number']), ENT_QUOTES) ?>')">
                                         <i class="bi bi-trash"></i>
                                     </button>
                                 </div>

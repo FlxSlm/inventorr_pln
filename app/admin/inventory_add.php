@@ -1,5 +1,6 @@
 <?php
 $pdo = require __DIR__ . '/../config/database.php';
+require_once __DIR__ . '/../includes/image_helper.php';
 $errors = [];
 
 // Fetch categories for dropdown
@@ -20,6 +21,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $rack = trim($_POST['rack'] ?? '');
     $notes = trim($_POST['notes'] ?? '');
     $selectedCategories = $_POST['categories'] ?? [];
+    $primaryImageIndex = (int)($_POST['primary_image'] ?? 0);
     
     // Validate item_condition
     $validConditions = ['Baik', 'Rusak Ringan', 'Rusak Berat'];
@@ -59,35 +61,58 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
     
-    // Handle image upload
-    $imageName = null;
-    if (isset($_FILES['image']) && $_FILES['image']['error'] === UPLOAD_ERR_OK) {
-        // Use absolute path
-        $uploadDir = 'C:/XAMPP/htdocs/inventory_pln/public/assets/uploads/';
+    // Handle multiple image upload with compression
+    $uploadedImages = [];
+    $uploadDir = 'C:/XAMPP/htdocs/inventory_pln/public/assets/uploads/';
+    
+    if (isset($_FILES['images']) && !empty($_FILES['images']['name'][0])) {
+        $fileCount = count($_FILES['images']['name']);
         
-        // Create directory if not exists
-        if (!is_dir($uploadDir)) {
-            if (!mkdir($uploadDir, 0777, true)) {
-                $errors[] = 'Gagal membuat folder upload.';
-            }
-        }
-        
-        if (empty($errors)) {
-            // Validate file type
-            $allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-            $fileType = mime_content_type($_FILES['image']['tmp_name']);
-            
-            if (!in_array($fileType, $allowedTypes)) {
-                $errors[] = 'Format gambar tidak valid. Gunakan JPG, PNG, GIF, atau WEBP.';
-            } else {
-                $ext = pathinfo($_FILES['image']['name'], PATHINFO_EXTENSION);
-                $imageName = 'inv_' . uniqid() . '_' . time() . '.' . $ext;
+        for ($i = 0; $i < $fileCount; $i++) {
+            if ($_FILES['images']['error'][$i] === UPLOAD_ERR_OK) {
+                $file = [
+                    'name' => $_FILES['images']['name'][$i],
+                    'type' => $_FILES['images']['type'][$i],
+                    'tmp_name' => $_FILES['images']['tmp_name'][$i],
+                    'error' => $_FILES['images']['error'][$i],
+                    'size' => $_FILES['images']['size'][$i]
+                ];
                 
-                if (!move_uploaded_file($_FILES['image']['tmp_name'], $uploadDir . $imageName)) {
-                    $errors[] = 'Gagal mengupload gambar.';
-                    $imageName = null;
+                $result = processUploadedImage($file, $uploadDir, 'inv');
+                
+                if ($result['success']) {
+                    $uploadedImages[] = [
+                        'filename' => $result['filename'],
+                        'is_primary' => ($i == $primaryImageIndex) ? 1 : 0,
+                        'sort_order' => $i
+                    ];
+                } else {
+                    $errors[] = "Gambar " . ($i + 1) . ": " . $result['error'];
                 }
             }
+        }
+    }
+    
+    // Set first image as primary if none selected
+    if (!empty($uploadedImages)) {
+        $hasPrimary = false;
+        foreach ($uploadedImages as $img) {
+            if ($img['is_primary']) {
+                $hasPrimary = true;
+                break;
+            }
+        }
+        if (!$hasPrimary) {
+            $uploadedImages[0]['is_primary'] = 1;
+        }
+    }
+    
+    // Get primary image for main inventory table (backward compatibility)
+    $imageName = null;
+    foreach ($uploadedImages as $img) {
+        if ($img['is_primary']) {
+            $imageName = $img['filename'];
+            break;
         }
     }
     
@@ -95,6 +120,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt = $pdo->prepare('INSERT INTO inventories (name, code, item_type, description, stock_total, stock_available, unit, year_acquired, year_manufactured, low_stock_threshold, item_condition, location, rack, notes, image) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
         $stmt->execute([$name, $code ?: null, $item_type ?: null, $description, $stock_total, $stock_total, $unit, $year_acquired ?: null, $year_manufactured ?: null, $low_stock_threshold, $item_condition, $location ?: null, $rack ?: null, $notes ?: null, $imageName]);
         $inventoryId = $pdo->lastInsertId();
+        
+        // Save multiple images to inventory_images table
+        if (!empty($uploadedImages)) {
+            $imgStmt = $pdo->prepare('INSERT INTO inventory_images (inventory_id, image_path, is_primary, sort_order) VALUES (?, ?, ?, ?)');
+            foreach ($uploadedImages as $img) {
+                $imgStmt->execute([$inventoryId, $img['filename'], $img['is_primary'], $img['sort_order']]);
+            }
+        }
         
         // Save categories
         if (!empty($selectedCategories)) {
@@ -234,13 +267,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 
                 <div class="col-md-4">
                     <div class="mb-3">
-                        <label class="form-label"><i class="bi bi-image me-1"></i> Foto Barang</label>
-                        <div class="text-center p-4 mb-3" style="background: rgba(255,255,255,0.05); border: 2px dashed rgba(255,255,255,0.2); border-radius: 10px;" id="imagePreviewContainer">
+                        <label class="form-label"><i class="bi bi-images me-1"></i> Foto Barang (Multiple)</label>
+                        <div class="text-center p-4 mb-3" style="background: rgba(255,255,255,0.05); border: 2px dashed rgba(255,255,255,0.2); border-radius: 10px;" id="imageDropZone">
                             <i class="bi bi-cloud-upload text-secondary" style="font-size: 3rem;"></i>
-                            <p class="text-secondary mt-2 mb-0">Pilih gambar untuk diupload</p>
+                            <p class="text-secondary mt-2 mb-0">Drag & drop atau klik untuk memilih</p>
+                            <small class="text-muted">Dapat upload lebih dari satu gambar</small>
                         </div>
-                        <input type="file" name="image" class="form-control" accept="image/*" id="imageInput">
-                        <small class="text-secondary">Format: JPG, PNG, GIF, WEBP. Max 5MB</small>
+                        <input type="file" name="images[]" class="form-control" accept="image/*" id="imageInput" multiple style="display:none;">
+                        <small class="text-secondary">Format: JPG, PNG, GIF, WEBP. Max 10MB/gambar. Gambar akan dikompres otomatis.</small>
+                        
+                        <!-- Preview Container -->
+                        <div id="imagePreviewContainer" class="mt-3">
+                            <div class="row g-2" id="previewImages"></div>
+                        </div>
+                        <input type="hidden" name="primary_image" id="primaryImageInput" value="0">
                     </div>
                 </div>
             </div>
@@ -259,76 +299,158 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </div>
 </div>
 
+<style>
+.image-preview-item {
+    position: relative;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 2px solid transparent;
+    transition: all 0.3s ease;
+}
+.image-preview-item.primary {
+    border-color: var(--primary);
+}
+.image-preview-item img {
+    width: 100%;
+    height: 120px;
+    object-fit: cover;
+}
+.image-preview-item .overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0,0,0,0.5);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+.image-preview-item:hover .overlay {
+    opacity: 1;
+}
+.image-preview-item .btn-set-primary {
+    font-size: 11px;
+    padding: 4px 8px;
+}
+.image-preview-item .btn-remove {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border-radius: 50%;
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.primary-badge {
+    position: absolute;
+    bottom: 4px;
+    left: 4px;
+    background: var(--primary);
+    color: white;
+    font-size: 10px;
+    padding: 2px 6px;
+    border-radius: 4px;
+}
+</style>
+
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    const container = document.getElementById('imagePreviewContainer');
+    const dropZone = document.getElementById('imageDropZone');
     const input = document.getElementById('imageInput');
-
-    if (!container || !input) return;
-
-    function preventDefaults(e) {
-        e.preventDefault();
-        e.stopPropagation();
-    }
-
-    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-        container.addEventListener(eventName, preventDefaults, false);
+    const previewContainer = document.getElementById('previewImages');
+    const primaryInput = document.getElementById('primaryImageInput');
+    let selectedFiles = [];
+    
+    // Click to select
+    dropZone.addEventListener('click', () => input.click());
+    
+    // Drag & drop handlers
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(event => {
+        dropZone.addEventListener(event, e => {
+            e.preventDefault();
+            e.stopPropagation();
+        });
     });
-
-    function highlight() {
-        container.classList.add('drag-over');
-        container.style.borderColor = 'rgba(255,255,255,0.4)';
-        container.style.background = 'rgba(255,255,255,0.02)';
-    }
-
-    function unhighlight() {
-        container.classList.remove('drag-over');
-        container.style.borderColor = 'rgba(255,255,255,0.2)';
-        container.style.background = '';
-    }
-
-    ['dragenter', 'dragover'].forEach(evt => container.addEventListener(evt, highlight, false));
-    ['dragleave', 'drop'].forEach(evt => container.addEventListener(evt, unhighlight, false));
-
-    container.addEventListener('drop', function(e) {
-        const dt = e.dataTransfer;
-        const files = dt && dt.files;
-        if (files && files.length) {
-            const file = files[0];
-
-            // 5MB limit
-            if (file.size > 5 * 1024 * 1024) {
-                alert('File terlalu besar. Maks 5MB.');
-                return;
+    
+    dropZone.addEventListener('dragenter', () => dropZone.style.borderColor = 'var(--primary)');
+    dropZone.addEventListener('dragleave', () => dropZone.style.borderColor = 'rgba(255,255,255,0.2)');
+    dropZone.addEventListener('drop', e => {
+        dropZone.style.borderColor = 'rgba(255,255,255,0.2)';
+        handleFiles(e.dataTransfer.files);
+    });
+    
+    input.addEventListener('change', e => handleFiles(e.target.files));
+    
+    function handleFiles(files) {
+        Array.from(files).forEach(file => {
+            if (file.type.startsWith('image/')) {
+                if (file.size > 10 * 1024 * 1024) {
+                    alert('File ' + file.name + ' terlalu besar (max 10MB)');
+                    return;
+                }
+                selectedFiles.push(file);
             }
-
-            // Put file into the input so form submission works
-            try {
-                const dataTransfer = new DataTransfer();
-                dataTransfer.items.add(file);
-                input.files = dataTransfer.files;
-            } catch (err) {
-                // older browsers: fallback to not setting input.files
-            }
-
-            // show preview
+        });
+        updatePreview();
+        updateFileInput();
+    }
+    
+    function updatePreview() {
+        previewContainer.innerHTML = '';
+        selectedFiles.forEach((file, index) => {
             const reader = new FileReader();
-            reader.onload = function(ev) {
-                container.innerHTML = '<img src="' + ev.target.result + '" alt="Preview" style="max-height: 200px; max-width: 100%; border-radius: 10px;">';
+            reader.onload = function(e) {
+                const isPrimary = parseInt(primaryInput.value) === index;
+                const col = document.createElement('div');
+                col.className = 'col-6';
+                col.innerHTML = `
+                    <div class="image-preview-item ${isPrimary ? 'primary' : ''}" data-index="${index}">
+                        <img src="${e.target.result}" alt="Preview">
+                        <button type="button" class="btn btn-danger btn-remove" onclick="removeImage(${index})">
+                            <i class="bi bi-x"></i>
+                        </button>
+                        ${isPrimary ? '<span class="primary-badge"><i class="bi bi-star-fill me-1"></i>Utama</span>' : ''}
+                        <div class="overlay">
+                            ${!isPrimary ? `<button type="button" class="btn btn-light btn-set-primary" onclick="setPrimary(${index})">
+                                <i class="bi bi-star me-1"></i>Jadikan Utama
+                            </button>` : '<span class="text-white"><i class="bi bi-star-fill me-1"></i>Gambar Utama</span>'}
+                        </div>
+                    </div>
+                `;
+                previewContainer.appendChild(col);
             };
             reader.readAsDataURL(file);
+        });
+    }
+    
+    function updateFileInput() {
+        const dt = new DataTransfer();
+        selectedFiles.forEach(file => dt.items.add(file));
+        input.files = dt.files;
+    }
+    
+    window.removeImage = function(index) {
+        selectedFiles.splice(index, 1);
+        if (parseInt(primaryInput.value) === index) {
+            primaryInput.value = 0;
+        } else if (parseInt(primaryInput.value) > index) {
+            primaryInput.value = parseInt(primaryInput.value) - 1;
         }
-    });
-
-    input.addEventListener('change', function(e) {
-        const file = e.target.files[0];
-        if (file) {
-            const reader = new FileReader();
-            reader.onload = function(ev) {
-                container.innerHTML = '<img src="' + ev.target.result + '" alt="Preview" style="max-height: 200px; max-width: 100%; border-radius: 10px;">';
-            };
-            reader.readAsDataURL(file);
-        }
-    });
+        updatePreview();
+        updateFileInput();
+    };
+    
+    window.setPrimary = function(index) {
+        primaryInput.value = index;
+        updatePreview();
+    };
 });
 </script>

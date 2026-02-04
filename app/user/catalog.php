@@ -34,8 +34,9 @@ if ($categoryFilter) {
 }
 
 if ($search) {
-    $where[] = '(i.name LIKE ? OR i.code LIKE ? OR i.description LIKE ?)';
+    $where[] = '(i.name LIKE ? OR i.code LIKE ? OR i.description LIKE ? OR i.notes LIKE ?)';
     $searchParam = "%{$search}%";
+    $params[] = $searchParam;
     $params[] = $searchParam;
     $params[] = $searchParam;
     $params[] = $searchParam;

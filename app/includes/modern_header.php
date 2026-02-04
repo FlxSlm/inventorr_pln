@@ -307,6 +307,7 @@ $pdo_temp = require __DIR__ . '/../config/database.php';
                             <li><span class="dropdown-item-text fw-semibold"><?= htmlspecialchars($_SESSION['user']['name']) ?></span></li>
                             <li><span class="dropdown-item-text small"><?= htmlspecialchars($_SESSION['user']['email']) ?></span></li>
                             <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="/index.php?page=change_password"><i class="bi bi-key me-2"></i>Ganti Password</a></li>
                             <li><a class="dropdown-item text-danger" href="javascript:void(0)" onclick="showLogoutConfirm()"><i class="bi bi-box-arrow-right me-2"></i>Logout</a></li>
                             <?php else: ?>
                             <li><a class="dropdown-item" href="/index.php?page=login"><i class="bi bi-box-arrow-in-right me-2"></i>Login</a></li>

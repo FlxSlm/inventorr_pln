@@ -219,5 +219,10 @@ switch ($page) {
         view('admin/settings.php');
         break;
 
+    // ----- Change Password (All Users) -----
+    case 'change_password':
+        view('user/change_password.php');
+        break;
+
 }
 ?>

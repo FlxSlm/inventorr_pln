@@ -6,12 +6,16 @@ $pdo = require __DIR__ . '/../config/database.php';
 // Fetch all categories for filter
 $categories = $pdo->query('SELECT * FROM categories ORDER BY name ASC')->fetchAll();
 
+// Fetch all distinct locations for filter
+$locations = $pdo->query("SELECT DISTINCT location FROM inventories WHERE location IS NOT NULL AND location != '' AND deleted_at IS NULL ORDER BY location ASC")->fetchAll(PDO::FETCH_COLUMN);
+
 // Get filter parameters
 $filterCategories = $_GET['categories'] ?? [];
 $filterConditions = $_GET['conditions'] ?? [];
 $filterLowStock = isset($_GET['low_stock']) ? true : false;
 $filterOutOfStock = isset($_GET['out_of_stock']) ? true : false;
 $filterSearch = trim($_GET['search'] ?? '');
+$filterLocation = trim($_GET['location'] ?? '');
 $conditionFilter = $_GET['condition'] ?? ''; // for dashboard link
 
 // Build query with filters
@@ -51,11 +55,18 @@ if ($filterOutOfStock) {
 
 // Search filter
 if (!empty($filterSearch)) {
-    $where[] = '(i.name LIKE ? OR i.code LIKE ? OR i.description LIKE ?)';
+    $where[] = '(i.name LIKE ? OR i.code LIKE ? OR i.description LIKE ? OR i.notes LIKE ?)';
     $searchParam = "%{$filterSearch}%";
     $params[] = $searchParam;
     $params[] = $searchParam;
     $params[] = $searchParam;
+    $params[] = $searchParam;
+}
+
+// Location filter
+if (!empty($filterLocation)) {
+    $where[] = 'i.location = ?';
+    $params[] = $filterLocation;
 }
 
 $sql .= ' WHERE ' . implode(' AND ', $where);
@@ -74,7 +85,7 @@ foreach ($items as $item) {
 }
 
 $msg = $_GET['msg'] ?? '';
-$hasFilters = !empty($filterCategories) || !empty($filterConditions) || $filterLowStock || $filterOutOfStock || !empty($filterSearch) || $conditionFilter === 'damaged';
+$hasFilters = !empty($filterCategories) || !empty($filterConditions) || $filterLowStock || $filterOutOfStock || !empty($filterSearch) || !empty($filterLocation) || $conditionFilter === 'damaged';
 ?>
 
 <!-- Page Header -->
@@ -116,9 +127,22 @@ $hasFilters = !empty($filterCategories) || !empty($filterConditions) || $filterL
             
             <div class="row g-3">
                 <!-- Search -->
-                <div class="col-md-4">
+                <div class="col-md-3">
                     <label class="form-label fw-semibold"><i class="bi bi-search me-1"></i>Cari Barang</label>
                     <input type="text" name="search" class="form-control" placeholder="Nama, kode, atau deskripsi..." value="<?= htmlspecialchars($filterSearch) ?>">
+                </div>
+                
+                <!-- Location Filter -->
+                <div class="col-md-2">
+                    <label class="form-label fw-semibold"><i class="bi bi-geo-alt me-1"></i>Lokasi</label>
+                    <select name="location" class="form-select">
+                        <option value="">Semua Lokasi</option>
+                        <?php foreach($locations as $loc): ?>
+                        <option value="<?= htmlspecialchars($loc) ?>" <?= $filterLocation === $loc ? 'selected' : '' ?>>
+                            <?= htmlspecialchars($loc) ?>
+                        </option>
+                        <?php endforeach; ?>
+                    </select>
                 </div>
                 
                 <!-- Categories Filter -->
@@ -159,7 +183,7 @@ $hasFilters = !empty($filterCategories) || !empty($filterConditions) || $filterL
                 </div>
                 
                 <!-- Stock Filter -->
-                <div class="col-md-3">
+                <div class="col-md-2">
                     <label class="form-label fw-semibold"><i class="bi bi-box-seam me-1"></i>Stok</label>
                     <div class="d-flex flex-column gap-1">
                         <div class="form-check" style="margin: 0;">

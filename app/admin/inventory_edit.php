@@ -1,6 +1,7 @@
 <?php
 // app/admin/inventory_edit_new.php - Modern Edit Inventory Page
 $pdo = require __DIR__ . '/../config/database.php';
+require_once __DIR__ . '/../includes/image_helper.php';
 $id = (int)($_GET['id'] ?? 0);
 $stmt = $pdo->prepare('SELECT * FROM inventories WHERE id = ?');
 $stmt->execute([$id]);

@@ -17,6 +17,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 $documentType = $_POST['document_type'] ?? '';
 $referenceId = $_POST['reference_id'] ?? '';
 $documentNumber = $_POST['document_number'] ?? '';
+$uploadNotes = $_POST['upload_notes'] ?? '';
 $sendNotification = isset($_POST['send_notification']);
 
 $errors = [];
@@ -27,11 +28,19 @@ try {
         throw new Exception('Data tidak lengkap.');
     }
     
-    if (!isset($_FILES['final_document']) || $_FILES['final_document']['error'] !== UPLOAD_ERR_OK) {
+    // Check for both possible field names
+    $fileField = null;
+    if (isset($_FILES['document_file']) && $_FILES['document_file']['error'] === UPLOAD_ERR_OK) {
+        $fileField = 'document_file';
+    } elseif (isset($_FILES['final_document']) && $_FILES['final_document']['error'] === UPLOAD_ERR_OK) {
+        $fileField = 'final_document';
+    }
+    
+    if (!$fileField) {
         throw new Exception('Gagal upload file.');
     }
     
-    $file = $_FILES['final_document'];
+    $file = $_FILES[$fileField];
     $allowedExt = ['pdf', 'xlsx', 'xls', 'doc', 'docx'];
     $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
     
