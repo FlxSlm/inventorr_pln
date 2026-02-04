@@ -441,8 +441,8 @@ body::before {
                     <div class="brand-icon"><img src="/public/assets/img/logopln.png" alt="PLN Logo"></div>
                     <div class="brand-icon danantara"><img src="/public/assets/img/danantara.png" alt="Danantara Logo"></div>
                 </div>
-                <h2>PLN Inventory</h2>
-                <p>Sistem Manajemen Inventaris PT PLN (Persero) UPT MANADO</p>
+                <h2>SIPINTAR</h2>
+                <p>Sistem pengelolaan inventaris dan material</p>
                 
                 <div class="login-features">
                     <div class="feature-item">
@@ -455,7 +455,7 @@ body::before {
                     </div>
                     <div class="feature-item">
                         <i class="bi bi-clock-history"></i>
-                        <span>Tracking peminjaman terintegrasi</span>
+                        <span>Tracking peminjaman & permintaan terintegrasi</span>
                     </div>
                 </div>
             </div>
@@ -511,11 +511,7 @@ body::before {
                                 <i class="bi bi-eye" id="eyeIcon"></i>
                             </span>
                         </div>
-                        <div class="text-end mt-2">
-                            <a href="/index.php?page=forgot_password" style="color: var(--accent); font-size: 0.875rem; text-decoration: none;">
-                                <i class="bi bi-key me-1"></i>Lupa Password?
-                            </a>
-                        </div>
+                        
                     </div>
                     
                     <button type="submit" class="btn btn-login w-100">

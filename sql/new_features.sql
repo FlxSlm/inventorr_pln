@@ -1,5 +1,5 @@
 -- new_features.sql
--- New features: Multiple images, Forgot password, Change password
+-- New features: Multiple images, Change password
 
 -- Table for multiple inventory images
 CREATE TABLE IF NOT EXISTS inventory_images (

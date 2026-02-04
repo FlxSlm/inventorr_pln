@@ -51,7 +51,7 @@ $pdo_temp = require __DIR__ . '/../config/database.php';
                     <div class="brand-icons">
                         <img src="/public/assets/img/logopln.png" alt="PLN Logo">
                     </div>
-                    <span class="sidebar-logo-text">PLN Inventory</span>
+                    <span class="sidebar-logo-text">SIPINTAR</span>
                 </a>
             </div>
             
