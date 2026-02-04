@@ -52,6 +52,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $year_manufactured = trim($_POST['year_manufactured'] ?? '');
     $low_stock_threshold = (int)($_POST['low_stock_threshold'] ?? 5);
     $item_condition = trim($_POST['item_condition'] ?? 'Baik');
+    $location = trim($_POST['location'] ?? '');
+    $rack = trim($_POST['rack'] ?? '');
+    $notes = trim($_POST['notes'] ?? '');
     $selectedCategories = $_POST['categories'] ?? [];
     
     // Validate item_condition
@@ -109,8 +112,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     
     if (empty($errors)) {
-        $stmt = $pdo->prepare('UPDATE inventories SET name=?, code=?, item_type=?, description=?, stock_total=?, stock_available=?, unit=?, year_acquired=?, year_manufactured=?, low_stock_threshold=?, item_condition=?, image=?, updated_at=NOW() WHERE id=?');
-        $stmt->execute([$name, $code ?: null, $item_type ?: null, $description, $stock_total, $stock_available, $unit, $year_acquired ?: null, $year_manufactured ?: null, $low_stock_threshold, $item_condition, $imageName, $id]);
+        $stmt = $pdo->prepare('UPDATE inventories SET name=?, code=?, item_type=?, description=?, stock_total=?, stock_available=?, unit=?, year_acquired=?, year_manufactured=?, low_stock_threshold=?, item_condition=?, location=?, rack=?, notes=?, image=?, updated_at=NOW() WHERE id=?');
+        $stmt->execute([$name, $code ?: null, $item_type ?: null, $description, $stock_total, $stock_available, $unit, $year_acquired ?: null, $year_manufactured ?: null, $low_stock_threshold, $item_condition, $location ?: null, $rack ?: null, $notes ?: null, $imageName, $id]);
         
         $pdo->prepare('DELETE FROM inventory_categories WHERE inventory_id = ?')->execute([$id]);
         if (!empty($selectedCategories)) {
@@ -285,6 +288,38 @@ $imageDeleted = isset($_GET['msg']) && $_GET['msg'] === 'image_deleted';
                                 <option value="Rusak Berat" <?= ($item['item_condition'] ?? '') === 'Rusak Berat' ? 'selected' : '' ?>>Rusak Berat</option>
                             </select>
                             <small class="text-muted">Kondisi fisik barang saat ini</small>
+                        </div>
+                    </div>
+                    
+                    <div class="row mt-3">
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">
+                                <i class="bi bi-geo-alt me-1"></i>Lokasi Barang
+                            </label>
+                            <input name="location" class="form-control" 
+                                   value="<?= htmlspecialchars($item['location'] ?? '') ?>" 
+                                   placeholder="Contoh: Gudang A (opsional)">
+                            <small class="text-muted">Lokasi penyimpanan barang</small>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">
+                                <i class="bi bi-grid-3x3-gap me-1"></i>Rak
+                            </label>
+                            <input name="rack" class="form-control" 
+                                   value="<?= htmlspecialchars($item['rack'] ?? '') ?>" 
+                                   placeholder="Contoh: Rak A1 (opsional)">
+                            <small class="text-muted">Posisi rak</small>
+                        </div>
+                    </div>
+                    
+                    <div class="row mt-3">
+                        <div class="col-12">
+                            <label class="form-label fw-semibold">
+                                <i class="bi bi-journal-text me-1"></i>Keterangan
+                            </label>
+                            <textarea name="notes" class="form-control" rows="2" 
+                                      placeholder="Keterangan tambahan (opsional)"><?= htmlspecialchars($item['notes'] ?? '') ?></textarea>
+                            <small class="text-muted">Catatan yang dapat dilihat oleh semua pengguna</small>
                         </div>
                     </div>
                     

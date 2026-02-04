@@ -233,21 +233,21 @@ $totalOutOfStockItems = $pdo->query("SELECT COUNT(*) FROM inventories WHERE stoc
     <div class="stat-card info">
         <div class="stat-card-header">
             <div>
-                <p class="stat-card-title">Pengembalian</p>
-                <p class="stat-card-period">Menunggu Proses</p>
+                <p class="stat-card-title">Stok Habis</p>
+                <p class="stat-card-period">Barang Tidak Tersedia</p>
             </div>
             <div class="stat-card-icon info">
-                <i class="bi bi-box-arrow-in-left"></i>
+                <i class="bi bi-x-circle"></i>
             </div>
         </div>
-        <p class="stat-card-value"><?= number_format($totalPendingReturns) ?></p>
+        <p class="stat-card-value"><?= number_format($totalOutOfStockItems) ?></p>
         <div class="stat-card-footer">
-            <span class="stat-card-change <?= $totalPendingReturns > 0 ? 'down' : 'up' ?>">
-                <i class="bi bi-<?= $totalPendingReturns > 0 ? 'clock' : 'check' ?>"></i> 
-                <?= $totalPendingReturns > 0 ? 'Perlu Verifikasi' : 'Semua Selesai' ?>
+            <span class="stat-card-change <?= $totalOutOfStockItems > 0 ? 'down' : 'up' ?>">
+                <i class="bi bi-<?= $totalOutOfStockItems > 0 ? 'exclamation' : 'check' ?>"></i> 
+                <?= $totalOutOfStockItems > 0 ? 'Perlu Restock' : 'Semua Tersedia' ?>
             </span>
         </div>
-        <a href="/index.php?page=admin_returns" class="stat-card-btn">
+        <a href="/index.php?page=admin_inventory_list&out_of_stock=1" class="stat-card-btn">
             <i class="bi bi-eye"></i> Lihat Detail
         </a>
     </div>

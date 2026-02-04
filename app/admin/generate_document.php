@@ -370,7 +370,7 @@ $backUrl = $backUrls[$docType] ?? '/index.php?page=admin_loans';
             <div class="page-header-logo">
                 <img src="/public/assets/img/logopln.png" alt="PLN Logo" class="pln-logo-img"><br>
                 <span class="company-name editable" contenteditable="true">PT PLN (PERSERO)</span><br>
-                <span class="editable" contenteditable="true">LENGAN SULAWESI</span><br>
+                <span class="editable" contenteditable="true">UIP3B Sulawesi</span><br>
                 <span class="editable" contenteditable="true">UPT MANADO</span>
             </div>
             
@@ -410,16 +410,16 @@ $backUrl = $backUrls[$docType] ?? '/index.php?page=admin_loans';
             <div class="info-section">
                 <p style="margin-bottom: 3px;" class="editable" contenteditable="true">Kami yang bertanda tangan dibawah ini :</p>
                 <table>
-                    <tr><td style="width:15px;">1.</td><td style="width:60px;">Nama</td><td style="width:10px;">:</td><td><span class="editable" contenteditable="true">Dairwansa</span></td></tr>
+                    <tr><td style="width:15px;">1.</td><td style="width:60px;">Nama</td><td style="width:10px;">:</td><td><span class="editable" contenteditable="true">Nama Siapa</span></td></tr>
                     <tr><td></td><td>Jabatan</td><td>:</td><td><span class="editable" contenteditable="true"></span></td></tr>
                 </table>
-                <p style="margin: 3px 0;">Untuk selanjutnya disebut <span class="editable" contenteditable="true">PIHAK PERTAMA</span> dari <span class="editable" contenteditable="true" style="font-weight:bold;">Dairwansa</span></p>
+                <p style="margin: 3px 0;">Untuk selanjutnya disebut <span class="editable" contenteditable="true">PIHAK PERTAMA</span> dari <span class="editable" contenteditable="true" style="font-weight:bold;">Darimana</span></p>
                 
                 <table>
                     <tr><td style="width:15px;">2.</td><td style="width:60px;">Nama</td><td style="width:10px;">:</td><td><span class="editable" contenteditable="true"><?= htmlspecialchars($userName) ?></span></td></tr>
                     <tr><td></td><td>Jabatan</td><td>:</td><td><span class="editable" contenteditable="true"></span></td></tr>
                 </table>
-                <p style="margin: 3px 0;">Untuk selanjutnya disebut <span class="editable" contenteditable="true">PIHAK KEDUA</span> dari <span class="editable" contenteditable="true" style="font-weight:bold;">Dairwansa</span></p>
+                <p style="margin: 3px 0;">Untuk selanjutnya disebut <span class="editable" contenteditable="true">PIHAK KEDUA</span> dari <span class="editable" contenteditable="true" style="font-weight:bold;">Darimana</span></p>
             </div>
             
             <!-- Items Table -->
@@ -654,7 +654,7 @@ $backUrl = $backUrls[$docType] ?? '/index.php?page=admin_loans';
                 ['Tempat', ':', docInfo.location],
                 ['Nomor', ':', docInfo.number],
                 [''],
-                ['Pihak Pertama', ':', 'Dairwansa'],
+                ['Pihak Pertama', ':', 'Admin'],
                 ['Pihak Kedua', ':', docInfo.userName],
                 [''],
                 ['NO', 'Nama Barang', 'Merek/Type', 'No Seri', 'Jumlah', 'Satuan', 'Keterangan']

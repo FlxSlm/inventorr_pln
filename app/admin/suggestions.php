@@ -275,6 +275,18 @@ if ($redirectAfterReply):
                 
                 <div style="background: var(--bg-main); padding: 16px; border-radius: var(--radius); margin-bottom: 20px; border-left: 4px solid var(--primary-light);">
                     <p style="margin: 0; white-space: pre-line;"><?= htmlspecialchars($sug['message']) ?></p>
+                    
+                    <?php if (!empty($sug['image'])): ?>
+                    <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border-color);">
+                        <small style="color: var(--text-muted); display: block; margin-bottom: 8px;">
+                            <i class="bi bi-image me-1"></i>Foto Barang yang Diusulkan:
+                        </small>
+                        <img src="/public/assets/uploads/suggestions/<?= htmlspecialchars($sug['image']) ?>" 
+                             alt="Foto Usulan" 
+                             style="max-width: 100%; max-height: 300px; border-radius: 8px; cursor: pointer;"
+                             onclick="window.open(this.src, '_blank')">
+                    </div>
+                    <?php endif; ?>
                 </div>
                 
                 <?php if ($sug['status'] === 'replied' && $sug['admin_reply']): ?>

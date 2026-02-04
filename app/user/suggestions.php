@@ -23,19 +23,50 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (empty($subject) || empty($message)) {
         $error = 'Mohon isi semua field yang wajib diisi.';
     } else {
-        try {
-            $stmt = $pdo->prepare("
-                INSERT INTO material_suggestions (user_id, category_id, subject, message)
-                VALUES (?, ?, ?, ?)
-            ");
-            $stmt->execute([$userId, $categoryId, $subject, $message]);
-            $success = 'Usulan material berhasil dikirim! Admin akan segera merespon usulan Anda.';
+        // Handle image upload
+        $imageName = null;
+        if (isset($_FILES['image']) && $_FILES['image']['error'] === UPLOAD_ERR_OK) {
+            $uploadDir = 'C:/XAMPP/htdocs/inventory_pln/public/assets/uploads/suggestions/';
             
-            // Clear form
-            $subject = $message = '';
-            $categoryId = null;
-        } catch (PDOException $e) {
-            $error = 'Gagal mengirim usulan. Silakan coba lagi.';
+            // Create directory if not exists
+            if (!is_dir($uploadDir)) {
+                mkdir($uploadDir, 0777, true);
+            }
+            
+            // Validate file type
+            $allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+            $fileType = mime_content_type($_FILES['image']['tmp_name']);
+            
+            if (!in_array($fileType, $allowedTypes)) {
+                $error = 'Format gambar tidak valid. Gunakan JPG, PNG, GIF, atau WEBP.';
+            } elseif ($_FILES['image']['size'] > 5 * 1024 * 1024) {
+                $error = 'Ukuran file terlalu besar. Maksimal 5MB.';
+            } else {
+                $ext = pathinfo($_FILES['image']['name'], PATHINFO_EXTENSION);
+                $imageName = 'sug_' . $userId . '_' . time() . '.' . $ext;
+                
+                if (!move_uploaded_file($_FILES['image']['tmp_name'], $uploadDir . $imageName)) {
+                    $error = 'Gagal mengupload gambar.';
+                    $imageName = null;
+                }
+            }
+        }
+        
+        if (empty($error)) {
+            try {
+                $stmt = $pdo->prepare("
+                    INSERT INTO material_suggestions (user_id, category_id, subject, message, image)
+                    VALUES (?, ?, ?, ?, ?)
+                ");
+                $stmt->execute([$userId, $categoryId, $subject, $message, $imageName]);
+                $success = 'Usulan material berhasil dikirim! Admin akan segera merespon usulan Anda.';
+                
+                // Clear form
+                $subject = $message = '';
+                $categoryId = null;
+            } catch (PDOException $e) {
+                $error = 'Gagal mengirim usulan. Silakan coba lagi.';
+            }
         }
     }
 }
@@ -89,7 +120,7 @@ $suggestions = $stmt->fetchAll();
                 </h5>
             </div>
             <div class="card-body" style="padding: 20px;">
-                <form method="POST">
+                <form method="POST" enctype="multipart/form-data">
                     <div class="mb-3">
                         <label class="form-label" style="color: var(--text-dark); font-weight: 500;">
                             Kategori Barang
@@ -119,9 +150,17 @@ $suggestions = $stmt->fetchAll();
                         <label class="form-label" style="color: var(--text-dark); font-weight: 500;">
                             Detail Usulan <span class="text-danger">*</span>
                         </label>
-                        <textarea name="message" class="form-control" rows="5"
+                        <textarea name="message" class="form-control" rows="4"
                                   placeholder="Jelaskan detail usulan Anda, termasuk alasan mengapa material ini dibutuhkan..."
                                   required><?= htmlspecialchars($message ?? '') ?></textarea>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label" style="color: var(--text-dark); font-weight: 500;">
+                            <i class="bi bi-image me-1"></i>Foto Barang (Opsional)
+                        </label>
+                        <input type="file" name="image" class="form-control" accept="image/*">
+                        <small style="color: var(--text-muted);">Upload foto barang yang diusulkan. Format: JPG, PNG, GIF, WEBP. Maks 5MB</small>
                     </div>
                     
                     <div class="d-grid">
@@ -220,6 +259,18 @@ $suggestions = $stmt->fetchAll();
                         <i class="bi bi-clock me-1"></i>Dikirim pada <?= date('d M Y H:i', strtotime($sug['created_at'])) ?>
                     </small>
                     <p style="margin: 0; white-space: pre-line;"><?= htmlspecialchars($sug['message']) ?></p>
+                    
+                    <?php if (!empty($sug['image'])): ?>
+                    <div style="margin-top: 12px;">
+                        <small style="color: var(--text-muted); display: block; margin-bottom: 8px;">
+                            <i class="bi bi-image me-1"></i>Foto Lampiran:
+                        </small>
+                        <img src="/public/assets/uploads/suggestions/<?= htmlspecialchars($sug['image']) ?>" 
+                             alt="Foto Usulan" 
+                             style="max-width: 100%; max-height: 300px; border-radius: 8px; cursor: pointer;"
+                             onclick="window.open(this.src, '_blank')">
+                    </div>
+                    <?php endif; ?>
                 </div>
                 
                 <?php if ($sug['status'] === 'replied' && $sug['admin_reply']): ?>

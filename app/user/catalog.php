@@ -13,9 +13,13 @@ $pdo = require __DIR__ . '/../config/database.php';
 // Get search query and category filter
 $search = trim($_GET['search'] ?? '');
 $categoryFilter = (int)($_GET['category'] ?? 0);
+$locationFilter = trim($_GET['location'] ?? '');
 
 // Fetch all categories for filter
 $categories = $pdo->query('SELECT * FROM categories ORDER BY name ASC')->fetchAll();
+
+// Fetch all distinct locations for filter
+$locations = $pdo->query("SELECT DISTINCT location FROM inventories WHERE location IS NOT NULL AND location != '' AND deleted_at IS NULL ORDER BY location ASC")->fetchAll(PDO::FETCH_COLUMN);
 
 // Build query
 $sql = 'SELECT DISTINCT i.* FROM inventories i';
@@ -35,6 +39,11 @@ if ($search) {
     $params[] = $searchParam;
     $params[] = $searchParam;
     $params[] = $searchParam;
+}
+
+if ($locationFilter) {
+    $where[] = 'i.location = ?';
+    $params[] = $locationFilter;
 }
 
 $sql .= ' WHERE ' . implode(' AND ', $where);
@@ -75,7 +84,7 @@ foreach ($items as $item) {
     <div class="card-body" style="padding: 20px;">
         <form method="GET" action="/index.php" class="row g-3 align-items-end">
             <input type="hidden" name="page" value="catalog">
-            <div class="col-md-5">
+            <div class="col-md-4">
                 <label class="form-label">Cari Barang</label>
                 <div class="topbar-search" style="max-width: 100%;">
                     <i class="bi bi-search"></i>
@@ -84,7 +93,7 @@ foreach ($items as $item) {
                            value="<?= htmlspecialchars($search) ?>">
                 </div>
             </div>
-            <div class="col-md-4">
+            <div class="col-md-3">
                 <label class="form-label">Kategori</label>
                 <select name="category" class="form-select">
                     <option value="0">-- Semua Kategori --</option>
@@ -96,6 +105,17 @@ foreach ($items as $item) {
                 </select>
             </div>
             <div class="col-md-3">
+                <label class="form-label">Lokasi Barang</label>
+                <select name="location" class="form-select">
+                    <option value="">-- Semua Lokasi --</option>
+                    <?php foreach($locations as $loc): ?>
+                    <option value="<?= htmlspecialchars($loc) ?>" <?= $locationFilter === $loc ? 'selected' : '' ?>>
+                        <?= htmlspecialchars($loc) ?>
+                    </option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div class="col-md-2">
                 <button type="submit" class="btn btn-primary w-100">
                     <i class="bi bi-search me-1"></i> Cari
                 </button>
@@ -380,7 +400,7 @@ foreach ($items as $item) {
                     </div>
                     
                     <!-- Additional Info -->
-                    <?php if (!empty($item['item_type']) || !empty($item['year_manufactured']) || !empty($item['description'])): ?>
+                    <?php if (!empty($item['item_type']) || !empty($item['year_manufactured']) || !empty($item['description']) || !empty($item['location']) || !empty($item['rack']) || !empty($item['notes'])): ?>
                     <div style="border-top: 1px solid var(--border-color); padding-top: 16px;">
                         <?php if (!empty($item['item_type'])): ?>
                         <div class="d-flex align-items-center mb-2">
@@ -394,10 +414,22 @@ foreach ($items as $item) {
                             <span style="font-weight: 500;"><?= htmlspecialchars($item['year_manufactured']) ?></span>
                         </div>
                         <?php endif; ?>
+                        <?php if (!empty($item['location'])): ?>
+                        <div class="d-flex align-items-center mb-2">
+                            <span style="width: 130px; color: var(--text-muted); font-size: 13px;"><i class="bi bi-geo-alt me-2"></i>Lokasi</span>
+                            <span style="font-weight: 500;"><?= htmlspecialchars($item['location']) ?><?= !empty($item['rack']) ? ' - ' . htmlspecialchars($item['rack']) : '' ?></span>
+                        </div>
+                        <?php endif; ?>
                         <?php if (!empty($item['description'])): ?>
                         <div class="mt-3">
                             <div style="color: var(--text-muted); font-size: 13px; margin-bottom: 6px;"><i class="bi bi-card-text me-2"></i>Deskripsi</div>
                             <p style="margin: 0; color: var(--text-dark); line-height: 1.6;"><?= nl2br(htmlspecialchars($item['description'])) ?></p>
+                        </div>
+                        <?php endif; ?>
+                        <?php if (!empty($item['notes'])): ?>
+                        <div class="mt-3">
+                            <div style="color: var(--text-muted); font-size: 13px; margin-bottom: 6px;"><i class="bi bi-journal-text me-2"></i>Keterangan</div>
+                            <p style="margin: 0; color: var(--text-dark); line-height: 1.6;"><?= nl2br(htmlspecialchars($item['notes'])) ?></p>
                         </div>
                         <?php endif; ?>
                     </div>

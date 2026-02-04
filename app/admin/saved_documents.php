@@ -4,6 +4,30 @@
 
 $pdo = require __DIR__ . '/../config/database.php';
 
+// Handle delete action - Must be before any output
+if (isset($_GET['delete']) && is_numeric($_GET['delete'])) {
+    $deleteId = (int)$_GET['delete'];
+    $stmt = $pdo->prepare("DELETE FROM generated_documents WHERE id = ?");
+    $stmt->execute([$deleteId]);
+    header('Location: /index.php?page=admin_saved_documents&deleted=1');
+    exit;
+}
+
+// Handle download action - Must be before any output
+if (isset($_GET['download']) && is_numeric($_GET['download'])) {
+    $downloadId = (int)$_GET['download'];
+    $stmt = $pdo->prepare("SELECT * FROM generated_documents WHERE id = ?");
+    $stmt->execute([$downloadId]);
+    $doc = $stmt->fetch();
+    
+    if ($doc && $doc['file_path'] && file_exists($doc['file_path'])) {
+        header('Content-Type: application/pdf');
+        header('Content-Disposition: attachment; filename="' . basename($doc['file_path']) . '"');
+        readfile($doc['file_path']);
+        exit;
+    }
+}
+
 // Filter parameters
 $filterType = $_GET['type'] ?? '';
 $filterStatus = $_GET['status'] ?? '';
@@ -50,36 +74,12 @@ $typeLabels = [
     'return' => ['text' => 'Pengembalian', 'class' => 'bg-warning']
 ];
 
-// Status labels
+// Status labels - simplified to just "Tersimpan" and "Terkirim"
 $statusLabels = [
     'saved' => ['text' => 'Tersimpan', 'class' => 'bg-secondary'],
-    'uploaded' => ['text' => 'BAST Diupload', 'class' => 'bg-success'],
-    'sent' => ['text' => 'Terkirim', 'class' => 'bg-primary']
+    'uploaded' => ['text' => 'Terkirim', 'class' => 'bg-success'],
+    'sent' => ['text' => 'Terkirim', 'class' => 'bg-success']
 ];
-
-// Handle delete action
-if (isset($_GET['delete']) && is_numeric($_GET['delete'])) {
-    $deleteId = $_GET['delete'];
-    $stmt = $pdo->prepare("DELETE FROM generated_documents WHERE id = ?");
-    $stmt->execute([$deleteId]);
-    header('Location: /index.php?page=admin_saved_documents&deleted=1');
-    exit;
-}
-
-// Handle download action
-if (isset($_GET['download']) && is_numeric($_GET['download'])) {
-    $downloadId = $_GET['download'];
-    $stmt = $pdo->prepare("SELECT * FROM generated_documents WHERE id = ?");
-    $stmt->execute([$downloadId]);
-    $doc = $stmt->fetch();
-    
-    if ($doc && $doc['file_path'] && file_exists($doc['file_path'])) {
-        header('Content-Type: application/pdf');
-        header('Content-Disposition: attachment; filename="' . basename($doc['file_path']) . '"');
-        readfile($doc['file_path']);
-        exit;
-    }
-}
 ?>
 
 <div class="container-fluid">
@@ -122,8 +122,7 @@ if (isset($_GET['download']) && is_numeric($_GET['download'])) {
                         <select class="form-select" name="status">
                             <option value="">Semua Status</option>
                             <option value="saved" <?= $filterStatus === 'saved' ? 'selected' : '' ?>>Tersimpan</option>
-                            <option value="uploaded" <?= $filterStatus === 'uploaded' ? 'selected' : '' ?>>BAST Diupload</option>
-                            <option value="sent" <?= $filterStatus === 'sent' ? 'selected' : '' ?>>Terkirim</option>
+                            <option value="sent" <?= ($filterStatus === 'sent' || $filterStatus === 'uploaded') ? 'selected' : '' ?>>Terkirim</option>
                         </select>
                     </div>
                     <div class="col-md-4">

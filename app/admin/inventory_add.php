@@ -16,6 +16,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $year_manufactured = trim($_POST['year_manufactured'] ?? '');
     $low_stock_threshold = (int)($_POST['low_stock_threshold'] ?? 5);
     $item_condition = trim($_POST['item_condition'] ?? 'Baik');
+    $location = trim($_POST['location'] ?? '');
+    $rack = trim($_POST['rack'] ?? '');
+    $notes = trim($_POST['notes'] ?? '');
     $selectedCategories = $_POST['categories'] ?? [];
     
     // Validate item_condition
@@ -89,8 +92,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     
     if (empty($errors)) {
-        $stmt = $pdo->prepare('INSERT INTO inventories (name, code, item_type, description, stock_total, stock_available, unit, year_acquired, year_manufactured, low_stock_threshold, item_condition, image) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
-        $stmt->execute([$name, $code ?: null, $item_type ?: null, $description, $stock_total, $stock_total, $unit, $year_acquired ?: null, $year_manufactured ?: null, $low_stock_threshold, $item_condition, $imageName]);
+        $stmt = $pdo->prepare('INSERT INTO inventories (name, code, item_type, description, stock_total, stock_available, unit, year_acquired, year_manufactured, low_stock_threshold, item_condition, location, rack, notes, image) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+        $stmt->execute([$name, $code ?: null, $item_type ?: null, $description, $stock_total, $stock_total, $unit, $year_acquired ?: null, $year_manufactured ?: null, $low_stock_threshold, $item_condition, $location ?: null, $rack ?: null, $notes ?: null, $imageName]);
         $inventoryId = $pdo->lastInsertId();
         
         // Save categories
@@ -182,6 +185,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             </select>
                             <small class="text-muted">Kondisi fisik barang saat ini</small>
                         </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label"><i class="bi bi-geo-alt me-1"></i> Lokasi Barang</label>
+                            <input name="location" class="form-control" placeholder="Contoh: Gudang A, Ruang Server, dll (opsional)">
+                            <small class="text-muted">Lokasi penyimpanan barang</small>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label"><i class="bi bi-grid-3x3-gap me-1"></i> Rak</label>
+                            <input name="rack" class="form-control" placeholder="Contoh: Rak A1, Shelf 3, dll (opsional)">
+                            <small class="text-muted">Posisi rak (opsional)</small>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label"><i class="bi bi-journal-text me-1"></i> Keterangan</label>
+                        <textarea name="notes" class="form-control" rows="2" placeholder="Keterangan tambahan untuk barang ini (opsional)"></textarea>
+                        <small class="text-muted">Catatan yang dapat dilihat oleh semua pengguna</small>
                     </div>
                     
                     <div class="mb-3">

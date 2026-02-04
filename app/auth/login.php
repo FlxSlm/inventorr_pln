@@ -446,10 +446,6 @@ body::before {
                 
                 <div class="login-features">
                     <div class="feature-item">
-                        <i class="bi bi-shield-check"></i>
-                        <span>Akses aman & terenkripsi</span>
-                    </div>
-                    <div class="feature-item">
                         <i class="bi bi-box-seam"></i>
                         <span>Manajemen inventaris real-time</span>
                     </div>

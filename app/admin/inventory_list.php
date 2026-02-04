@@ -309,14 +309,19 @@ $hasFilters = !empty($filterCategories) || !empty($filterConditions) || $filterL
                 </p>
                 <?php endif; ?>
                 
-                <!-- Stock Progress -->
+                <!-- Stock Status -->
                 <div style="margin-bottom: 16px;">
-                    <div class="d-flex justify-content-between" style="font-size: 12px; margin-bottom: 6px;">
-                        <span style="color: var(--text-muted);">Ketersediaan Stok</span>
-                        <span style="font-weight: 600; color: var(--text-dark);"><?= round($stockPercent) ?>%</span>
-                    </div>
-                    <div style="height: 6px; background: var(--bg-main); border-radius: 3px; overflow: hidden;">
-                        <div style="height: 100%; width: <?= $stockPercent ?>%; background: var(--<?= $stockClass ?>); border-radius: 3px; transition: width 0.3s ease;"></div>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span style="font-size: 12px; color: var(--text-muted);">Status Stok</span>
+                        <span style="font-weight: 600;">
+                            <?php if ($it['stock_available'] <= 0): ?>
+                            <span style="color: var(--danger);"><i class="bi bi-x-circle-fill me-1"></i>Habis</span>
+                            <?php elseif ($isLowStock): ?>
+                            <span style="color: var(--warning);"><i class="bi bi-exclamation-triangle-fill me-1"></i>Menipis</span>
+                            <?php else: ?>
+                            <span style="color: var(--success);"><i class="bi bi-check-circle-fill me-1"></i>Tersedia</span>
+                            <?php endif; ?>
+                        </span>
                     </div>
                 </div>
                 
