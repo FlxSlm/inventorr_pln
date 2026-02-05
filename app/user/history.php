@@ -134,6 +134,47 @@ foreach ($loans as $l) {
     }
 }
 
+// === SERVER-SIDE SEARCH ===
+$searchQuery = trim($_GET['search'] ?? '');
+$filteredLoans = $loans;
+
+if (!empty($searchQuery)) {
+    $searchLower = strtolower($searchQuery);
+    $filteredLoans = array_filter($loans, function($loan) use ($searchLower) {
+        $itemNames = '';
+        $items = $loan['items'] ?? [$loan];
+        foreach ($items as $item) {
+            $itemNames .= strtolower($item['inventory_name'] ?? '') . ' ';
+            $itemNames .= strtolower($item['inventory_code'] ?? '') . ' ';
+        }
+        return strpos($itemNames, $searchLower) !== false;
+    });
+}
+
+// === PAGINATION ===
+$itemsPerPage = 50;
+$currentPage = isset($_GET['p']) ? max(1, (int)$_GET['p']) : 1;
+$totalLoansFiltered = count($filteredLoans);
+$totalPages = max(1, ceil($totalLoansFiltered / $itemsPerPage));
+$currentPage = min($currentPage, $totalPages); // Prevent exceeding max page
+$offset = ($currentPage - 1) * $itemsPerPage;
+
+// Slice the loans array for current page
+$loansToDisplay = array_slice($filteredLoans, $offset, $itemsPerPage);
+
+// Calculate display range
+$displayFrom = $totalLoansFiltered > 0 ? $offset + 1 : 0;
+$displayTo = min($offset + $itemsPerPage, $totalLoansFiltered);
+
+// URL builder for pagination
+$buildPaginationUrl = function($pageNum) use ($searchQuery) {
+    $params = ['page' => 'history', 'p' => $pageNum];
+    if (!empty($searchQuery)) {
+        $params['search'] = $searchQuery;
+    }
+    return '?' . http_build_query($params);
+};
+
 $stageLabels = [
     'pending' => ['Menunggu Persetujuan', 'warning', 'hourglass'],
     'approved' => ['Disetujui', 'success', 'check-circle'],
@@ -230,16 +271,118 @@ $returnStageLabels = [
     </div>
 </div>
 
+<!-- Search Form -->
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="GET" action="" class="d-flex gap-2">
+            <input type="hidden" name="page" value="history">
+            <div class="flex-grow-1">
+                <div class="topbar-search" style="max-width: 100%;">
+                    <i class="bi bi-search"></i>
+                    <input type="text" name="search" placeholder="Cari berdasarkan nama atau kode barang..." 
+                           value="<?= htmlspecialchars($searchQuery) ?>" style="width: 100%;">
+                </div>
+            </div>
+            <button type="submit" class="btn btn-primary">
+                <i class="bi bi-search me-1"></i>Cari
+            </button>
+            <?php if (!empty($searchQuery)): ?>
+            <a href="?page=history" class="btn btn-outline-secondary">
+                <i class="bi bi-x-circle"></i>
+            </a>
+            <?php endif; ?>
+        </form>
+    </div>
+</div>
+
 <!-- Loans Table -->
 <div class="card">
+    <!-- Pagination Info Header -->
+    <div class="card-header bg-white border-bottom">
+        <div class="d-flex justify-content-between align-items-center">
+            <div class="text-muted">
+                <i class="bi bi-list-ul me-2"></i>
+                Menampilkan <strong><?= $displayFrom ?></strong> - <strong><?= $displayTo ?></strong> dari <strong><?= $totalLoansFiltered ?></strong> data
+                <?php if (!empty($searchQuery)): ?>
+                    <span class="text-primary"> (hasil pencarian)</span>
+                <?php endif; ?>
+            </div>
+            
+            <!-- Page Navigation (Top) -->
+            <?php if ($totalPages > 1): ?>
+            <div class="pagination-controls">
+                <nav aria-label="Pagination">
+                    <ul class="pagination pagination-sm mb-0">
+                        <li class="page-item <?= $currentPage <= 1 ? 'disabled' : '' ?>">
+                            <a class="page-link" href="<?= $buildPaginationUrl(1) ?>" aria-label="First">
+                                <i class="bi bi-chevron-bar-left"></i>
+                            </a>
+                        </li>
+                        <li class="page-item <?= $currentPage <= 1 ? 'disabled' : '' ?>">
+                            <a class="page-link" href="<?= $buildPaginationUrl($currentPage - 1) ?>" aria-label="Previous">
+                                <i class="bi bi-chevron-left"></i>
+                            </a>
+                        </li>
+                        
+                        <?php
+                        // Show page numbers (Gmail style)
+                        $pageRange = 2; // Show 2 pages before and after current
+                        $startPage = max(1, $currentPage - $pageRange);
+                        $endPage = min($totalPages, $currentPage + $pageRange);
+                        
+                        if ($startPage > 1): ?>
+                            <li class="page-item"><a class="page-link" href="<?= $buildPaginationUrl(1) ?>">1</a></li>
+                            <?php if ($startPage > 2): ?>
+                                <li class="page-item disabled"><span class="page-link">...</span></li>
+                            <?php endif; ?>
+                        <?php endif; ?>
+                        
+                        <?php for ($i = $startPage; $i <= $endPage; $i++): ?>
+                            <li class="page-item <?= $i === $currentPage ? 'active' : '' ?>">
+                                <a class="page-link" href="<?= $buildPaginationUrl($i) ?>"><?= $i ?></a>
+                            </li>
+                        <?php endfor; ?>
+                        
+                        <?php if ($endPage < $totalPages): ?>
+                            <?php if ($endPage < $totalPages - 1): ?>
+                                <li class="page-item disabled"><span class="page-link">...</span></li>
+                            <?php endif; ?>
+                            <li class="page-item"><a class="page-link" href="<?= $buildPaginationUrl($totalPages) ?>"><?= $totalPages ?></a></li>
+                        <?php endif; ?>
+                        
+                        <li class="page-item <?= $currentPage >= $totalPages ? 'disabled' : '' ?>">
+                            <a class="page-link" href="<?= $buildPaginationUrl($currentPage + 1) ?>" aria-label="Next">
+                                <i class="bi bi-chevron-right"></i>
+                            </a>
+                        </li>
+                        <li class="page-item <?= $currentPage >= $totalPages ? 'disabled' : '' ?>">
+                            <a class="page-link" href="<?= $buildPaginationUrl($totalPages) ?>" aria-label="Last">
+                                <i class="bi bi-chevron-bar-right"></i>
+                            </a>
+                        </li>
+                    </ul>
+                </nav>
+            </div>
+            <?php endif; ?>
+        </div>
+    </div>
+    
     <div class="card-body p-0">
-        <?php if(empty($loans)): ?>
+        <?php if(empty($loansToDisplay)): ?>
         <div class="text-center py-5">
             <div class="empty-state">
-                <i class="bi bi-inbox" style="font-size: 48px; color: var(--text-muted);"></i>
-                <h5>Belum Ada Peminjaman</h5>
-                <p class="text-muted">Anda belum memiliki riwayat peminjaman barang.</p>
-                <a href="/index.php?page=catalog" class="btn btn-primary"><i class="bi bi-plus-lg me-2"></i>Pinjam Sekarang</a>
+                <i class="bi bi-<?= !empty($searchQuery) ? 'search' : 'inbox' ?>" style="font-size: 48px; color: var(--text-muted);"></i>
+                <?php if (!empty($searchQuery)): ?>
+                    <h5>Tidak Ada Hasil</h5>
+                    <p class="text-muted">Tidak ada peminjaman yang cocok dengan pencarian "<?= htmlspecialchars($searchQuery) ?>".</p>
+                    <a href="?page=history" class="btn btn-sm btn-outline-primary mt-2">
+                        <i class="bi bi-x-circle me-1"></i>Hapus Filter
+                    </a>
+                <?php else: ?>
+                    <h5>Belum Ada Peminjaman</h5>
+                    <p class="text-muted">Anda belum memiliki riwayat peminjaman barang.</p>
+                    <a href="/index.php?page=catalog" class="btn btn-primary"><i class="bi bi-plus-lg me-2"></i>Pinjam Sekarang</a>
+                <?php endif; ?>
             </div>
         </div>
         <?php else: ?>
@@ -259,9 +402,9 @@ $returnStageLabels = [
                 </thead>
                 <tbody>
                     <?php 
-                    $totalRows = count($loans);
-                    $rowNumber = 0;
-                    foreach($loans as $l): 
+                    $totalRows = count($loans); // Total all records
+                    $rowNumber = $offset; // Start from offset for continuous numbering
+                    foreach($loansToDisplay as $l):  // Use loansToDisplay instead of loans
                         $rowNumber++;
                         $isGroup = !empty($l['is_group']);
                         
@@ -458,10 +601,73 @@ $returnStageLabels = [
         </div>
         <?php endif; ?>
     </div>
+    
+    <!-- Pagination Footer -->
+    <?php if ($totalPages > 1): ?>
+    <div class="card-footer bg-white border-top">
+        <div class="d-flex justify-content-between align-items-center">
+            <div class="text-muted small">
+                Halaman <?= $currentPage ?> dari <?= $totalPages ?>
+            </div>
+            
+            <!-- Page Navigation (Bottom) -->
+            <nav aria-label="Pagination">
+                <ul class="pagination pagination-sm mb-0">
+                    <li class="page-item <?= $currentPage <= 1 ? 'disabled' : '' ?>">
+                        <a class="page-link" href="<?= $buildPaginationUrl(1) ?>" aria-label="First">
+                            <i class="bi bi-chevron-bar-left"></i>
+                        </a>
+                    </li>
+                    <li class="page-item <?= $currentPage <= 1 ? 'disabled' : '' ?>">
+                        <a class="page-link" href="<?= $buildPaginationUrl($currentPage - 1) ?>" aria-label="Previous">
+                            <i class="bi bi-chevron-left"></i>
+                        </a>
+                    </li>
+                    
+                    <?php
+                    $pageRange = 2;
+                    $startPage = max(1, $currentPage - $pageRange);
+                    $endPage = min($totalPages, $currentPage + $pageRange);
+                    
+                    if ($startPage > 1): ?>
+                        <li class="page-item"><a class="page-link" href="<?= $buildPaginationUrl(1) ?>">1</a></li>
+                        <?php if ($startPage > 2): ?>
+                            <li class="page-item disabled"><span class="page-link">...</span></li>
+                        <?php endif; ?>
+                    <?php endif; ?>
+                    
+                    <?php for ($i = $startPage; $i <= $endPage; $i++): ?>
+                        <li class="page-item <?= $i === $currentPage ? 'active' : '' ?>">
+                            <a class="page-link" href="<?= $buildPaginationUrl($i) ?>"><?= $i ?></a>
+                        </li>
+                    <?php endfor; ?>
+                    
+                    <?php if ($endPage < $totalPages): ?>
+                        <?php if ($endPage < $totalPages - 1): ?>
+                            <li class="page-item disabled"><span class="page-link">...</span></li>
+                        <?php endif; ?>
+                        <li class="page-item"><a class="page-link" href="<?= $buildPaginationUrl($totalPages) ?>"><?= $totalPages ?></a></li>
+                    <?php endif; ?>
+                    
+                    <li class="page-item <?= $currentPage >= $totalPages ? 'disabled' : '' ?>">
+                        <a class="page-link" href="<?= $buildPaginationUrl($currentPage + 1) ?>" aria-label="Next">
+                            <i class="bi bi-chevron-right"></i>
+                        </a>
+                    </li>
+                    <li class="page-item <?= $currentPage >= $totalPages ? 'disabled' : '' ?>">
+                        <a class="page-link" href="<?= $buildPaginationUrl($totalPages) ?>" aria-label="Last">
+                            <i class="bi bi-chevron-bar-right"></i>
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+        </div>
+    </div>
+    <?php endif; ?>
 </div>
 
 <!-- MODALS -->
-<?php foreach($loans as $l): ?>
+<?php foreach($loansToDisplay as $l): // Use loansToDisplay for modals ?>
 <?php if (!empty($l['is_group'])): ?>
     <!-- Group: Note History Modal -->
     <?php if (!empty($l['note']) || !empty($l['return_note'])): ?>
@@ -745,4 +951,36 @@ document.addEventListener('DOMContentLoaded', function() {
 .rejection-reason-box { background: var(--bg-main); border-left: 4px solid var(--danger); padding: 16px; border-radius: 8px; }
 .reason-label { font-weight: 600; color: var(--danger); margin-bottom: 8px; }
 .reason-text { margin: 0; color: var(--text-primary); }
+
+/* Pagination Styles - Gmail inspired */
+.pagination-controls { display: flex; align-items: center; }
+.pagination { margin-bottom: 0; }
+.pagination .page-link {
+    border: 1px solid #dee2e6;
+    color: #5f6368;
+    padding: 0.375rem 0.75rem;
+    margin: 0 2px;
+    border-radius: 6px;
+    font-size: 0.875rem;
+    transition: all 0.2s ease;
+}
+.pagination .page-link:hover {
+    background-color: #f1f3f4;
+    border-color: #dadce0;
+    color: #202124;
+}
+.pagination .page-item.active .page-link {
+    background-color: #1a73e8;
+    border-color: #1a73e8;
+    color: white;
+    font-weight: 500;
+}
+.pagination .page-item.disabled .page-link {
+    background-color: #fff;
+    border-color: #dee2e6;
+    color: #dadce0;
+}
+.card-header, .card-footer {
+    padding: 0.75rem 1.25rem;
+}
 </style>

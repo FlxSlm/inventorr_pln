@@ -185,10 +185,57 @@ foreach ($allReturns as $loan) {
     }
 }
 
-// Count stats
-$pendingCount = count(array_filter($groupedReturns, fn($g) => $g['return_stage'] === 'pending_return'));
-$approvedCount = count(array_filter($groupedReturns, fn($g) => $g['return_stage'] === 'return_approved'));
-$rejectedCount = count(array_filter($groupedReturns, fn($g) => $g['return_stage'] === 'return_rejected'));
+// Count stats (unfiltered)
+$totalPendingCount = count(array_filter($groupedReturns, fn($g) => $g['return_stage'] === 'pending_return'));
+$totalApprovedCount = count(array_filter($groupedReturns, fn($g) => $g['return_stage'] === 'return_approved'));
+$totalRejectedCount = count(array_filter($groupedReturns, fn($g) => $g['return_stage'] === 'return_rejected'));
+
+// === SERVER-SIDE SEARCH ===
+$searchQuery = trim($_GET['search'] ?? '');
+$filteredReturns = $groupedReturns;
+
+if (!empty($searchQuery)) {
+    $searchLower = strtolower($searchQuery);
+    $filteredReturns = array_filter($groupedReturns, function($return) use ($searchLower) {
+        $userName = strtolower($return['user_name'] ?? '');
+        $userEmail = strtolower($return['user_email'] ?? '');
+        $itemNames = '';
+        foreach ($return['items'] as $item) {
+            $itemNames .= strtolower($item['inventory_name'] ?? '') . ' ';
+            $itemNames .= strtolower($item['inventory_code'] ?? '') . ' ';
+        }
+        return (
+            strpos($userName, $searchLower) !== false ||
+            strpos($userEmail, $searchLower) !== false ||
+            strpos($itemNames, $searchLower) !== false
+        );
+    });
+}
+
+// === PAGINATION ===
+$itemsPerPage = 50;
+$currentPage = isset($_GET['p']) ? max(1, (int)$_GET['p']) : 1;
+$totalReturns = count($filteredReturns);
+$totalPages = max(1, ceil($totalReturns / $itemsPerPage));
+$currentPage = min($currentPage, $totalPages);
+$offset = ($currentPage - 1) * $itemsPerPage;
+$returnsToDisplay = array_slice($filteredReturns, $offset, $itemsPerPage);
+$displayFrom = $totalReturns > 0 ? $offset + 1 : 0;
+$displayTo = min($offset + $itemsPerPage, $totalReturns);
+
+// URL builder for pagination
+$buildPaginationUrl = function($pageNum) use ($searchQuery) {
+    $params = ['page' => 'admin_returns', 'p' => $pageNum];
+    if (!empty($searchQuery)) {
+        $params['search'] = $searchQuery;
+    }
+    return '?' . http_build_query($params);
+};
+
+// Stats for display
+$pendingCount = $totalPendingCount;
+$approvedCount = $totalApprovedCount;
+$rejectedCount = $totalRejectedCount;
 
 // Fetch active BAST template for returns
 $bastTemplate = null;
@@ -278,31 +325,102 @@ $returnStageLabels = [
         </div>
     </div>
     
-    <!-- Search Filters -->
-    <div style="padding: 16px 24px; border-bottom: 1px solid var(--border-color); background: var(--bg-main);">
-        <div class="row g-3">
-            <div class="col-md-6">
-                <div class="topbar-search" style="max-width: 100%;">
-                    <i class="bi bi-box-seam"></i>
-                    <input type="text" id="searchItem" placeholder="Cari berdasarkan nama barang..." style="width: 100%;">
-                </div>
+    <!-- Pagination Info Header -->
+    <?php if (!empty($groupedReturns)): ?>
+    <div style="padding: 12px 24px; border-bottom: 1px solid var(--border-color); background: var(--bg-white);">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <div class="text-muted small">
+                <i class="bi bi-list-ul me-1"></i>
+                Menampilkan <strong><?= $displayFrom ?></strong> - <strong><?= $displayTo ?></strong> dari <strong><?= $totalReturns ?></strong> data
+                <?php if (!empty($searchQuery)): ?>
+                    <span class="text-primary"> (hasil pencarian)</span>
+                <?php endif; ?>
             </div>
-            <div class="col-md-6">
-                <div class="topbar-search" style="max-width: 100%;">
-                    <i class="bi bi-person"></i>
-                    <input type="text" id="searchUser" placeholder="Cari berdasarkan nama karyawan..." style="width: 100%;">
-                </div>
-            </div>
+            
+            <?php if ($totalPages > 1): ?>
+            <nav aria-label="Pagination">
+                <ul class="pagination pagination-sm mb-0">
+                    <li class="page-item <?= $currentPage <= 1 ? 'disabled' : '' ?>">
+                        <a class="page-link" href="<?= $buildPaginationUrl(1) ?>"><i class="bi bi-chevron-bar-left"></i></a>
+                    </li>
+                    <li class="page-item <?= $currentPage <= 1 ? 'disabled' : '' ?>">
+                        <a class="page-link" href="<?= $buildPaginationUrl($currentPage - 1) ?>"><i class="bi bi-chevron-left"></i></a>
+                    </li>
+                    
+                    <?php
+                    $pageRange = 2;
+                    $startPage = max(1, $currentPage - $pageRange);
+                    $endPage = min($totalPages, $currentPage + $pageRange);
+                    if ($startPage > 1): ?>
+                        <li class="page-item"><a class="page-link" href="<?= $buildPaginationUrl(1) ?>">1</a></li>
+                        <?php if ($startPage > 2): ?>
+                            <li class="page-item disabled"><span class="page-link">...</span></li>
+                        <?php endif; ?>
+                    <?php endif; ?>
+                    
+                    <?php for ($i = $startPage; $i <= $endPage; $i++): ?>
+                        <li class="page-item <?= $i === $currentPage ? 'active' : '' ?>">
+                            <a class="page-link" href="<?= $buildPaginationUrl($i) ?>"><?= $i ?></a>
+                        </li>
+                    <?php endfor; ?>
+                    
+                    <?php if ($endPage < $totalPages): ?>
+                        <?php if ($endPage < $totalPages - 1): ?>
+                            <li class="page-item disabled"><span class="page-link">...</span></li>
+                        <?php endif; ?>
+                        <li class="page-item"><a class="page-link" href="<?= $buildPaginationUrl($totalPages) ?>">><?= $totalPages ?></a></li>
+                    <?php endif; ?>
+                    
+                    <li class="page-item <?= $currentPage >= $totalPages ? 'disabled' : '' ?>">
+                        <a class="page-link" href="<?= $buildPaginationUrl($currentPage + 1) ?>"><i class="bi bi-chevron-right"></i></a>
+                    </li>
+                    <li class="page-item <?= $currentPage >= $totalPages ? 'disabled' : '' ?>">
+                        <a class="page-link" href="<?= $buildPaginationUrl($totalPages) ?>"><i class="bi bi-chevron-bar-right"></i></a>
+                    </li>
+                </ul>
+            </nav>
+            <?php endif; ?>
         </div>
+    </div>
+    <?php endif; ?>
+    
+    <!-- Server-Side Search Form -->
+    <div style="padding: 16px 24px; border-bottom: 1px solid var(--border-color); background: var(--bg-main);">
+        <form method="GET" action="" class="d-flex gap-2">
+            <input type="hidden" name="page" value="admin_returns">
+            <div class="flex-grow-1">
+                <div class="topbar-search" style="max-width: 100%;">
+                    <i class="bi bi-search"></i>
+                    <input type="text" name="search" placeholder="Cari berdasarkan nama karyawan, email, atau nama barang..." 
+                           value="<?= htmlspecialchars($searchQuery) ?>" style="width: 100%;">
+                </div>
+            </div>
+            <button type="submit" class="btn btn-primary">
+                <i class="bi bi-search me-1"></i>Cari
+            </button>
+            <?php if (!empty($searchQuery)): ?>
+            <a href="?page=admin_returns" class="btn btn-outline-secondary">
+                <i class="bi bi-x-circle"></i>
+            </a>
+            <?php endif; ?>
+        </form>
     </div>
     
     <div class="card-body p-0">
-        <?php if (empty($groupedReturns)): ?>
+        <?php if (empty($returnsToDisplay)): ?>
         <div class="text-center py-5">
             <div class="empty-state">
                 <i class="bi bi-inbox" style="font-size: 48px; color: var(--text-muted);"></i>
-                <h5>Belum Ada Pengembalian</h5>
-                <p class="text-muted">Belum ada permintaan pengembalian dari karyawan.</p>
+                <?php if (!empty($searchQuery)): ?>
+                    <h5>Tidak Ada Hasil</h5>
+                    <p class="text-muted">Tidak ada pengembalian yang cocok dengan pencarian "<?= htmlspecialchars($searchQuery) ?>".</p>
+                    <a href="?page=admin_returns" class="btn btn-sm btn-outline-primary mt-2">
+                        <i class="bi bi-x-circle me-1"></i>Hapus Filter
+                    </a>
+                <?php else: ?>
+                    <h5>Belum Ada Pengembalian</h5>
+                    <p class="text-muted">Belum ada permintaan pengembalian dari karyawan.</p>
+                <?php endif; ?>
             </div>
         </div>
         <?php else: ?>
@@ -323,8 +441,8 @@ $returnStageLabels = [
                 <tbody id="returnsTableBody">
                     <?php 
                     $totalRows = count($groupedReturns);
-                    $rowNum = 0;
-                    foreach($groupedReturns as $key => $group): 
+                    $rowNum = $offset;
+                    foreach($returnsToDisplay as $key => $group): 
                         $rowNum++;
                         $displayNum = $totalRows - $rowNum + 1; // Oldest gets highest number, newest gets 1
                         $filterClass = $group['return_stage'];
@@ -697,26 +815,15 @@ document.querySelectorAll('.table-filter-btn').forEach(btn => {
     });
 });
 
-// Search filters
-const searchItem = document.getElementById('searchItem');
-const searchUser = document.getElementById('searchUser');
-
-function applyAllFilters() {
+// Status filter only (client-side)
+function applyStatusFilter() {
     const activeFilter = document.querySelector('.table-filter-btn.active')?.dataset.filter || 'all';
-    const itemQuery = (searchItem?.value || '').toLowerCase();
-    const userQuery = (searchUser?.value || '').toLowerCase();
     
     document.querySelectorAll('#returnsTableBody tr.group-header').forEach(row => {
         const status = row.dataset.status;
-        const itemText = row.querySelector('td:nth-child(3)')?.textContent.toLowerCase() || '';
-        const userText = row.querySelector('td:nth-child(2)')?.textContent.toLowerCase() || '';
         const groupId = row.dataset.group;
         
-        const matchesStatus = activeFilter === 'all' || status === activeFilter;
-        const matchesItem = !itemQuery || itemText.includes(itemQuery);
-        const matchesUser = !userQuery || userText.includes(userQuery);
-        
-        if (matchesStatus && matchesItem && matchesUser) {
+        if (activeFilter === 'all' || status === activeFilter) {
             row.style.display = '';
         } else {
             row.style.display = 'none';
@@ -726,6 +833,12 @@ function applyAllFilters() {
     });
 }
 
-searchItem?.addEventListener('keyup', applyAllFilters);
-searchUser?.addEventListener('keyup', applyAllFilters);
+// Status filter buttons
+document.querySelectorAll('.table-filter-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+        document.querySelectorAll('.table-filter-btn').forEach(b => b.classList.remove('active'));
+        this.classList.add('active');
+        applyStatusFilter();
+    });
+});
 </script>

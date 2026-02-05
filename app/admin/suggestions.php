@@ -90,6 +90,49 @@ $suggestions = $pdo->query($sql)->fetchAll();
 $unreadCount = $pdo->query("SELECT COUNT(*) FROM material_suggestions WHERE status = 'unread'")->fetchColumn();
 $repliedCount = $pdo->query("SELECT COUNT(*) FROM material_suggestions WHERE status = 'replied'")->fetchColumn();
 $totalCount = $pdo->query("SELECT COUNT(*) FROM material_suggestions")->fetchColumn();
+
+// === SERVER-SIDE SEARCH ===
+$searchQuery = trim($_GET['search'] ?? '');
+$filteredSuggestions = $suggestions;
+
+if (!empty($searchQuery)) {
+    $searchLower = strtolower($searchQuery);
+    $filteredSuggestions = array_filter($suggestions, function($suggestion) use ($searchLower) {
+        $userName = strtolower($suggestion['user_name'] ?? '');
+        $userEmail = strtolower($suggestion['email'] ?? '');
+        $content = strtolower($suggestion['suggestion'] ?? '');
+        $category = strtolower($suggestion['category_name'] ?? '');
+        return (
+            strpos($userName, $searchLower) !== false ||
+            strpos($userEmail, $searchLower) !== false ||
+            strpos($content, $searchLower) !== false ||
+            strpos($category, $searchLower) !== false
+        );
+    });
+}
+
+// === PAGINATION ===
+$itemsPerPage = 50;
+$currentPage = isset($_GET['p']) ? max(1, (int)$_GET['p']) : 1;
+$totalSuggestions = count($filteredSuggestions);
+$totalPages = max(1, ceil($totalSuggestions / $itemsPerPage));
+$currentPage = min($currentPage, $totalPages);
+$offset = ($currentPage - 1) * $itemsPerPage;
+$suggestionsToDisplay = array_slice($filteredSuggestions, $offset, $itemsPerPage);
+$displayFrom = $totalSuggestions > 0 ? $offset + 1 : 0;
+$displayTo = min($offset + $itemsPerPage, $totalSuggestions);
+
+// URL builder for pagination
+$buildPaginationUrl = function($pageNum) use ($searchQuery, $filter) {
+    $params = ['page' => 'admin_suggestions', 'p' => $pageNum];
+    if ($filter !== 'all') {
+        $params['filter'] = $filter;
+    }
+    if (!empty($searchQuery)) {
+        $params['search'] = $searchQuery;
+    }
+    return '?' . http_build_query($params);
+};
 ?>
 
 <!-- Page Header -->
@@ -177,18 +220,113 @@ if ($redirectAfterReply):
         </div>
     </div>
     
+    <!-- Search & Pagination -->
+    <div style="padding: 16px 24px; border-bottom: 1px solid var(--border-color); background: var(--bg-main);">
+        <!-- Search Form -->
+        <form method="GET" action="" class="d-flex gap-2 mb-3">
+            <input type="hidden" name="page" value="admin_suggestions">
+            <?php if ($filter !== 'all'): ?>
+            <input type="hidden" name="filter" value="<?= htmlspecialchars($filter) ?>">
+            <?php endif; ?>
+            <div class="flex-grow-1">
+                <div class="topbar-search" style="max-width: 100%;">
+                    <i class="bi bi-search"></i>
+                    <input type="text" name="search" placeholder="Cari berdasarkan nama karyawan, email, kategori, atau isi usulan..." 
+                           value="<?= htmlspecialchars($searchQuery) ?>" style="width: 100%;">
+                </div>
+            </div>
+            <button type="submit" class="btn btn-primary">
+                <i class="bi bi-search me-1"></i>Cari
+            </button>
+            <?php if (!empty($searchQuery)): ?>
+            <a href="?page=admin_suggestions<?= $filter !== 'all' ? '&filter='.$filter : '' ?>" class="btn btn-outline-secondary">
+                <i class="bi bi-x-circle"></i>
+            </a>
+            <?php endif; ?>
+        </form>
+        
+        <!-- Pagination Info -->
+        <?php if ($totalSuggestions > 0): ?>
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <div class="text-muted small">
+                <i class="bi bi-list-ul me-1"></i>
+                Menampilkan <strong><?= $displayFrom ?></strong> - <strong><?= $displayTo ?></strong> dari <strong><?= $totalSuggestions ?></strong> usulan
+                <?php if (!empty($searchQuery)): ?>
+                    <span class="text-primary"> (hasil pencarian)</span>
+                <?php endif; ?>
+            </div>
+            
+            <?php if ($totalPages > 1): ?>
+            <nav aria-label="Pagination">
+                <ul class="pagination pagination-sm mb-0">
+                    <li class="page-item <?= $currentPage <= 1 ? 'disabled' : '' ?>">
+                        <a class="page-link" href="<?= $buildPaginationUrl(1) ?>"><i class="bi bi-chevron-bar-left"></i></a>
+                    </li>
+                    <li class="page-item <?= $currentPage <= 1 ? 'disabled' : '' ?>">
+                        <a class="page-link" href="<?= $buildPaginationUrl($currentPage - 1) ?>"><i class="bi bi-chevron-left"></i></a>
+                    </li>
+                    
+                    <?php
+                    $pageRange = 2;
+                    $startPage = max(1, $currentPage - $pageRange);
+                    $endPage = min($totalPages, $currentPage + $pageRange);
+                    if ($startPage > 1): ?>
+                        <li class="page-item"><a class="page-link" href="<?= $buildPaginationUrl(1) ?>">1</a></li>
+                        <?php if ($startPage > 2): ?>
+                            <li class="page-item disabled"><span class="page-link">...</span></li>
+                        <?php endif; ?>
+                    <?php endif; ?>
+                    
+                    <?php for ($i = $startPage; $i <= $endPage; $i++): ?>
+                        <li class="page-item <?= $i === $currentPage ? 'active' : '' ?>">
+                            <a class="page-link" href="<?= $buildPaginationUrl($i) ?>"><?= $i ?></a>
+                        </li>
+                    <?php endfor; ?>
+                    
+                    <?php if ($endPage < $totalPages): ?>
+                        <?php if ($endPage < $totalPages - 1): ?>
+                            <li class="page-item disabled"><span class="page-link">...</span></li>
+                        <?php endif; ?>
+                        <li class="page-item"><a class="page-link" href="<?= $buildPaginationUrl($totalPages) ?>"><?= $totalPages ?></a></li>
+                    <?php endif; ?>
+                    
+                    <li class="page-item <?= $currentPage >= $totalPages ? 'disabled' : '' ?>">
+                        <a class="page-link" href="<?= $buildPaginationUrl($currentPage + 1) ?>"><i class="bi bi-chevron-right"></i></a>
+                    </li>
+                    <li class="page-item <?= $currentPage >= $totalPages ? 'disabled' : '' ?>">
+                        <a class="page-link" href="<?= $buildPaginationUrl($totalPages) ?>"><i class="bi bi-chevron-bar-right"></i></a>
+                    </li>
+                </ul>
+            </nav>
+            <?php endif; ?>
+        </div>
+        <?php endif; ?>
+    </div>
+    
     <div class="card-body" style="padding: 0;">
-        <?php if (empty($suggestions)): ?>
+        <?php if (empty($suggestionsToDisplay)): ?>
         <div class="empty-state" style="padding: 60px 20px;">
             <div class="empty-state-icon">
-                <i class="bi bi-inbox"></i>
+                <i class="bi bi-<?= !empty($searchQuery) ? 'search' : 'inbox' ?>"></i>
             </div>
-            <h5 class="empty-state-title">Tidak Ada Usulan</h5>
-            <p class="empty-state-text">Belum ada usulan material dari karyawan.</p>
+            <?php if (!empty($searchQuery)): ?>
+                <h5 class="empty-state-title">Tidak Ada Hasil</h5>
+                <p class="empty-state-text">Tidak ada usulan yang cocok dengan pencarian "<?= htmlspecialchars($searchQuery) ?>".</p>
+                <a href="?page=admin_suggestions<?= $filter !== 'all' ? '&filter='.$filter : '' ?>" class="btn btn-sm btn-outline-primary mt-2">
+                    <i class="bi bi-x-circle me-1"></i>Hapus Filter
+                </a>
+            <?php else: ?>
+                <h5 class="empty-state-title">Tidak Ada Usulan</h5>
+                <p class="empty-state-text">Belum ada usulan material dari karyawan.</p>
+            <?php endif; ?>
         </div>
         <?php else: ?>
         <div class="suggestion-list">
-            <?php foreach ($suggestions as $sug): ?>
+            <?php 
+            $rowNum = $offset;
+            foreach ($suggestionsToDisplay as $sug): 
+                $rowNum++;
+            ?>
             <div class="suggestion-item <?= $sug['status'] === 'unread' ? 'unread' : '' ?> <?= $sug['status'] === 'replied' ? 'replied' : '' ?>" 
                  style="padding: 20px 24px; border-bottom: 1px solid var(--border-color); cursor: pointer; <?= $sug['status'] === 'unread' ? 'background: rgba(26, 154, 170, 0.05);' : '' ?>"
                  data-bs-toggle="modal" data-bs-target="#suggestionModal<?= $sug['id'] ?>">

@@ -69,6 +69,43 @@ $pendingRequests = count(array_filter($requests, fn($r) => ($r['stage'] ?? $r['i
 $approvedRequests = count(array_filter($requests, fn($r) => ($r['stage'] ?? $r['items'][0]['stage'] ?? '') === 'approved'));
 $rejectedRequests = count(array_filter($requests, fn($r) => ($r['stage'] ?? $r['items'][0]['stage'] ?? '') === 'rejected'));
 
+// === SERVER-SIDE SEARCH ===
+$searchQuery = trim($_GET['search'] ?? '');
+$filteredRequests = $requests;
+
+if (!empty($searchQuery)) {
+    $searchLower = strtolower($searchQuery);
+    $filteredRequests = array_filter($requests, function($request) use ($searchLower) {
+        $itemNames = '';
+        $items = $request['items'] ?? [$request];
+        foreach ($items as $item) {
+            $itemNames .= strtolower($item['inventory_name'] ?? '') . ' ';
+            $itemNames .= strtolower($item['inventory_code'] ?? '') . ' ';
+        }
+        return strpos($itemNames, $searchLower) !== false;
+    });
+}
+
+// === PAGINATION ===
+$itemsPerPage = 50;
+$currentPage = isset($_GET['p']) ? max(1, (int)$_GET['p']) : 1;
+$totalRequestsFiltered = count($filteredRequests);
+$totalPages = max(1, ceil($totalRequestsFiltered / $itemsPerPage));
+$currentPage = min($currentPage, $totalPages);
+$offset = ($currentPage - 1) * $itemsPerPage;
+$requestsToDisplay = array_slice($filteredRequests, $offset, $itemsPerPage);
+$displayFrom = $totalRequestsFiltered > 0 ? $offset + 1 : 0;
+$displayTo = min($offset + $itemsPerPage, $totalRequestsFiltered);
+
+// URL builder for pagination
+$buildPaginationUrl = function($pageNum) use ($searchQuery) {
+    $params = ['page' => 'user_request_history', 'p' => $pageNum];
+    if (!empty($searchQuery)) {
+        $params['search'] = $searchQuery;
+    }
+    return '?' . http_build_query($params);
+};
+
 $stageLabels = [
     'pending' => ['Menunggu Persetujuan', 'warning', 'hourglass-split'],
     'approved' => ['Disetujui', 'success', 'check-circle'],
@@ -151,15 +188,107 @@ $stageLabels = [
     </div>
 </div>
 
+<!-- Search Form -->
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="GET" action="" class="d-flex gap-2">
+            <input type="hidden" name="page" value="user_request_history">
+            <div class="flex-grow-1">
+                <div class="topbar-search" style="max-width: 100%;">
+                    <i class="bi bi-search"></i>
+                    <input type="text" name="search" placeholder="Cari berdasarkan nama atau kode barang..." 
+                           value="<?= htmlspecialchars($searchQuery) ?>" style="width: 100%;">
+                </div>
+            </div>
+            <button type="submit" class="btn btn-primary">
+                <i class="bi bi-search me-1"></i>Cari
+            </button>
+            <?php if (!empty($searchQuery)): ?>
+            <a href="?page=user_request_history" class="btn btn-outline-secondary">
+                <i class="bi bi-x-circle"></i>
+            </a>
+            <?php endif; ?>
+        </form>
+    </div>
+</div>
+
 <div class="modern-card">
+    <!-- Pagination Header -->
+    <?php if ($totalRequestsFiltered > 0): ?>
+    <div style="padding: 12px 24px; border-bottom: 1px solid var(--border-color); background: var(--bg-white);">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <div class="text-muted small">
+                <i class="bi bi-list-ul me-1"></i>
+                Menampilkan <strong><?= $displayFrom ?></strong> - <strong><?= $displayTo ?></strong> dari <strong><?= $totalRequestsFiltered ?></strong> data
+                <?php if (!empty($searchQuery)): ?>
+                    <span class="text-primary"> (hasil pencarian)</span>
+                <?php endif; ?>
+            </div>
+            
+            <?php if ($totalPages > 1): ?>
+            <nav aria-label="Pagination">
+                <ul class="pagination pagination-sm mb-0">
+                    <li class="page-item <?= $currentPage <= 1 ? 'disabled' : '' ?>">
+                        <a class="page-link" href="<?= $buildPaginationUrl(1) ?>"><i class="bi bi-chevron-bar-left"></i></a>
+                    </li>
+                    <li class="page-item <?= $currentPage <= 1 ? 'disabled' : '' ?>">
+                        <a class="page-link" href="<?= $buildPaginationUrl($currentPage - 1) ?>"><i class="bi bi-chevron-left"></i></a>
+                    </li>
+                    
+                    <?php
+                    $pageRange = 2;
+                    $startPage = max(1, $currentPage - $pageRange);
+                    $endPage = min($totalPages, $currentPage + $pageRange);
+                    
+                    if ($startPage > 1): ?>
+                        <li class="page-item"><a class="page-link" href="<?= $buildPaginationUrl(1) ?>">1</a></li>
+                        <?php if ($startPage > 2): ?>
+                            <li class="page-item disabled"><span class="page-link">...</span></li>
+                        <?php endif; ?>
+                    <?php endif; ?>
+                    
+                    <?php for ($i = $startPage; $i <= $endPage; $i++): ?>
+                        <li class="page-item <?= $i === $currentPage ? 'active' : '' ?>">
+                            <a class="page-link" href="<?= $buildPaginationUrl($i) ?>"><?= $i ?></a>
+                        </li>
+                    <?php endfor; ?>
+                    
+                    <?php if ($endPage < $totalPages): ?>
+                        <?php if ($endPage < $totalPages - 1): ?>
+                            <li class="page-item disabled"><span class="page-link">...</span></li>
+                        <?php endif; ?>
+                        <li class="page-item"><a class="page-link" href="<?= $buildPaginationUrl($totalPages) ?>"><?= $totalPages ?></a></li>
+                    <?php endif; ?>
+                    
+                    <li class="page-item <?= $currentPage >= $totalPages ? 'disabled' : '' ?>">
+                        <a class="page-link" href="<?= $buildPaginationUrl($currentPage + 1) ?>"><i class="bi bi-chevron-right"></i></a>
+                    </li>
+                    <li class="page-item <?= $currentPage >= $totalPages ? 'disabled' : '' ?>">
+                        <a class="page-link" href="<?= $buildPaginationUrl($totalPages) ?>"><i class="bi bi-chevron-bar-right"></i></a>
+                    </li>
+                </ul>
+            </nav>
+            <?php endif; ?>
+        </div>
+    </div>
+    <?php endif; ?>
+    
     <div class="card-body p-0">
-        <?php if (empty($requests)): ?>
+        <?php if (empty($requestsToDisplay)): ?>
         <div class="text-center py-5">
             <div class="empty-state">
-                <i class="bi bi-inbox" style="font-size: 48px; color: var(--text-muted);"></i>
-                <h5>Belum Ada Permintaan</h5>
-                <p class="text-muted">Anda belum mengajukan permintaan barang.</p>
-                <a href="/index.php?page=user_request_item" class="btn btn-primary mt-3"><i class="bi bi-plus-lg me-1"></i>Ajukan Permintaan</a>
+                <i class="bi bi-<?= !empty($searchQuery) ? 'search' : 'inbox' ?>" style="font-size: 48px; color: var(--text-muted);"></i>
+                <?php if (!empty($searchQuery)): ?>
+                    <h5>Tidak Ada Hasil</h5>
+                    <p class="text-muted">Tidak ada permintaan yang cocok dengan pencarian "<?= htmlspecialchars($searchQuery) ?>".</p>
+                    <a href="?page=user_request_history" class="btn btn-sm btn-outline-primary mt-2">
+                        <i class="bi bi-x-circle me-1"></i>Hapus Filter
+                    </a>
+                <?php else: ?>
+                    <h5>Belum Ada Permintaan</h5>
+                    <p class="text-muted">Anda belum mengajukan permintaan barang.</p>
+                    <a href="/index.php?page=user_request_item" class="btn btn-primary mt-3"><i class="bi bi-plus-lg me-1"></i>Ajukan Permintaan</a>
+                <?php endif; ?>
             </div>
         </div>
         <?php else: ?>
@@ -179,8 +308,8 @@ $stageLabels = [
                 <tbody>
                     <?php 
                     $totalRows = count($requests);
-                    $rowNumber = 0;
-                    foreach($requests as $r): 
+                    $rowNumber = $offset;
+                    foreach($requestsToDisplay as $r):
                         $rowNumber++;
                         $displayNum = $totalRows - $rowNumber + 1;
                         $isGroup = !empty($r['is_group']);

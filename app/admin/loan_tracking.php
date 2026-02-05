@@ -64,6 +64,50 @@ foreach ($activeLoans as $loan) {
 $totalBorrowers = count($loansByUser);
 $totalItemTypes = count($loansByItem);
 $totalQuantity = array_sum(array_column($activeLoans, 'quantity'));
+
+// === SERVER-SIDE SEARCH ===
+$searchQuery = trim($_GET['search'] ?? '');
+$filteredUserLoans = $loansByUser;
+
+if (!empty($searchQuery)) {
+    $searchLower = strtolower($searchQuery);
+    $filteredUserLoans = array_filter($loansByUser, function($userData, $userId) use ($searchLower) {
+        // Search in user name
+        $userName = strtolower($userData['user_name'] ?? '');
+        if (strpos($userName, $searchLower) !== false) {
+            return true;
+        }
+        // Search in item names
+        foreach ($userData['loans'] as $loan) {
+            $itemName = strtolower($loan['inventory_name'] ?? '');
+            $itemCode = strtolower($loan['inventory_code'] ?? '');
+            if (strpos($itemName, $searchLower) !== false || strpos($itemCode, $searchLower) !== false) {
+                return true;
+            }
+        }
+        return false;
+    }, ARRAY_FILTER_USE_BOTH);
+}
+
+// === PAGINATION ===
+$itemsPerPage = 50;
+$currentPage = isset($_GET['p']) ? max(1, (int)$_GET['p']) : 1;
+$totalBorrowersFiltered = count($filteredUserLoans);
+$totalPages = max(1, ceil($totalBorrowersFiltered / $itemsPerPage));
+$currentPage = min($currentPage, $totalPages);
+$offset = ($currentPage - 1) * $itemsPerPage;
+$usersToDisplay = array_slice($filteredUserLoans, $offset, $itemsPerPage, true);
+$displayFrom = $totalBorrowersFiltered > 0 ? $offset + 1 : 0;
+$displayTo = min($offset + $itemsPerPage, $totalBorrowersFiltered);
+
+// URL builder for pagination
+$buildPaginationUrl = function($pageNum) use ($searchQuery) {
+    $params = ['page' => 'admin_loan_tracking', 'p' => $pageNum];
+    if (!empty($searchQuery)) {
+        $params['search'] = $searchQuery;
+    }
+    return '?' . http_build_query($params);
+};
 ?>
 
 <!-- Page Header -->
@@ -122,7 +166,7 @@ $totalQuantity = array_sum(array_column($activeLoans, 'quantity'));
 <!-- Toggle View -->
 <div class="modern-card" style="margin-bottom: 24px;">
     <div class="card-body" style="padding: 16px 24px;">
-        <div class="d-flex gap-2 align-items-center">
+        <div class="d-flex gap-2 align-items-center flex-wrap">
             <span style="color: var(--text-muted); font-size: 14px;"><i class="bi bi-eye me-1"></i>Tampilan:</span>
             <button class="btn btn-primary btn-sm active" id="viewByUser" onclick="toggleView('user')">
                 <i class="bi bi-person me-1"></i> Per Peminjam
@@ -134,21 +178,115 @@ $totalQuantity = array_sum(array_column($activeLoans, 'quantity'));
     </div>
 </div>
 
+<!-- Search & Pagination -->
+<div class="modern-card" style="margin-bottom: 24px;">
+    <div class="card-body" style="padding: 16px 24px;">
+        <!-- Search Form -->
+        <form method="GET" action="" class="d-flex gap-2 mb-3">
+            <input type="hidden" name="page" value="admin_loan_tracking">
+            <div class="flex-grow-1">
+                <div class="topbar-search" style="max-width: 100%;">
+                    <i class="bi bi-search"></i>
+                    <input type="text" name="search" placeholder="Cari berdasarkan nama karyawan atau nama barang..." 
+                           value="<?= htmlspecialchars($searchQuery) ?>" style="width: 100%;">
+                </div>
+            </div>
+            <button type="submit" class="btn btn-primary">
+                <i class="bi bi-search me-1"></i>Cari
+            </button>
+            <?php if (!empty($searchQuery)): ?>
+            <a href="?page=admin_loan_tracking" class="btn btn-outline-secondary">
+                <i class="bi bi-x-circle"></i>
+            </a>
+            <?php endif; ?>
+        </form>
+        
+        <!-- Pagination Info -->
+        <?php if ($totalBorrowersFiltered > 0): ?>
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <div class="text-muted small">
+                <i class="bi bi-list-ul me-1"></i>
+                Menampilkan <strong><?= $displayFrom ?></strong> - <strong><?= $displayTo ?></strong> dari <strong><?= $totalBorrowersFiltered ?></strong> peminjam
+                <?php if (!empty($searchQuery)): ?>
+                    <span class="text-primary"> (hasil pencarian)</span>
+                <?php endif; ?>
+            </div>
+            
+            <?php if ($totalPages > 1): ?>
+            <nav aria-label="Pagination">
+                <ul class="pagination pagination-sm mb-0">
+                    <li class="page-item <?= $currentPage <= 1 ? 'disabled' : '' ?>">
+                        <a class="page-link" href="<?= $buildPaginationUrl(1) ?>"><i class="bi bi-chevron-bar-left"></i></a>
+                    </li>
+                    <li class="page-item <?= $currentPage <= 1 ? 'disabled' : '' ?>">
+                        <a class="page-link" href="<?= $buildPaginationUrl($currentPage - 1) ?>"><i class="bi bi-chevron-left"></i></a>
+                    </li>
+                    
+                    <?php
+                    $pageRange = 2;
+                    $startPage = max(1, $currentPage - $pageRange);
+                    $endPage = min($totalPages, $currentPage + $pageRange);
+                    if ($startPage > 1): ?>
+                        <li class="page-item"><a class="page-link" href="<?= $buildPaginationUrl(1) ?>">1</a></li>
+                        <?php if ($startPage > 2): ?>
+                            <li class="page-item disabled"><span class="page-link">...</span></li>
+                        <?php endif; ?>
+                    <?php endif; ?>
+                    
+                    <?php for ($i = $startPage; $i <= $endPage; $i++): ?>
+                        <li class="page-item <?= $i === $currentPage ? 'active' : '' ?>">
+                            <a class="page-link" href="<?= $buildPaginationUrl($i) ?>"><?= $i ?></a>
+                        </li>
+                    <?php endfor; ?>
+                    
+                    <?php if ($endPage < $totalPages): ?>
+                        <?php if ($endPage < $totalPages - 1): ?>
+                            <li class="page-item disabled"><span class="page-link">...</span></li>
+                        <?php endif; ?>
+                        <li class="page-item"><a class="page-link" href="<?= $buildPaginationUrl($totalPages) ?>"><?= $totalPages ?></a></li>
+                    <?php endif; ?>
+                    
+                    <li class="page-item <?= $currentPage >= $totalPages ? 'disabled' : '' ?>">
+                        <a class="page-link" href="<?= $buildPaginationUrl($currentPage + 1) ?>"><i class="bi bi-chevron-right"></i></a>
+                    </li>
+                    <li class="page-item <?= $currentPage >= $totalPages ? 'disabled' : '' ?>">
+                        <a class="page-link" href="<?= $buildPaginationUrl($totalPages) ?>"><i class="bi bi-chevron-bar-right"></i></a>
+                    </li>
+                </ul>
+            </nav>
+            <?php endif; ?>
+        </div>
+        <?php endif; ?>
+    </div>
+</div>
+
 <!-- View By User -->
 <div id="viewUserSection">
-    <?php if (empty($loansByUser)): ?>
+    <?php if (empty($usersToDisplay)): ?>
     <div class="modern-card">
         <div class="card-body">
             <div class="empty-state">
-                <div class="empty-state-icon"><i class="bi bi-check-circle"></i></div>
-                <h5 class="empty-state-title">Semua Barang Tersedia</h5>
-                <p class="empty-state-text">Tidak ada peminjaman yang sedang berlangsung.</p>
+                <div class="empty-state-icon"><i class="bi bi-<?= !empty($searchQuery) ? 'search' : 'check-circle' ?>"></i></div>
+                <?php if (!empty($searchQuery)): ?>
+                    <h5 class="empty-state-title">Tidak Ada Hasil</h5>
+                    <p class="empty-state-text">Tidak ada peminjam yang cocok dengan pencarian "<?= htmlspecialchars($searchQuery) ?>".</p>
+                    <a href="?page=admin_loan_tracking" class="btn btn-sm btn-outline-primary mt-2">
+                        <i class="bi bi-x-circle me-1"></i>Hapus Filter
+                    </a>
+                <?php else: ?>
+                    <h5 class="empty-state-title">Semua Barang Tersedia</h5>
+                    <p class="empty-state-text">Tidak ada peminjaman yang sedang berlangsung.</p>
+                <?php endif; ?>
             </div>
         </div>
     </div>
     <?php else: ?>
     <div class="row g-4">
-        <?php foreach ($loansByUser as $userId => $data): ?>
+        <?php 
+        $rowNum = $offset;
+        foreach ($usersToDisplay as $userId => $data): 
+            $rowNum++;
+        ?>
         <div class="col-md-6 col-lg-4">
             <div class="modern-card h-100">
                 <div class="card-header" style="background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%); color: #fff; padding: 16px 20px; border-radius: 12px 12px 0 0;">
