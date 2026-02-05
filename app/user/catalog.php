@@ -369,10 +369,6 @@ foreach ($items as $item) {
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" style="position: absolute; top: 12px; right: 12px; background-color: rgba(0,0,0,0.3); border-radius: 50%; padding: 10px;"></button>
                     
                     <!-- Stock Badge on Image -->
-                    <span class="catalog-stock-badge <?= $stockClass ?>" style="position: absolute; bottom: 12px; right: 12px;">
-                        <?= $stockText ?>
-                    </span>
-                    
                     <?php 
                     // Condition badge
                     $condition = $item['item_condition'] ?? 'Baik';
