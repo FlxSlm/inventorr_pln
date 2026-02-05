@@ -9,7 +9,7 @@
                 <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
                     <p class="mb-0">
                         <strong><i class="bi bi-lightning-charge-fill me-1"></i>SIPINTAR</strong>
-                        <span class="d-none d-md-inline"> — Sistem pengelolaan inventaris dan material</span>
+                        <span class="d-none d-md-inline"> — Sistem Pengelolaan Inventaris dan Material</span>
                     </p>
                     <div style="position: relative; display: inline-flex; align-items: center; gap: 4px;">
                         <small>&copy; <?= date('Y') ?> PLN. All rights reserved.</small>

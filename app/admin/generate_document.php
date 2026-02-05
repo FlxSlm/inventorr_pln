@@ -221,6 +221,36 @@ $docTypeLabels = [
 ];
 $docTitle = $docTypeLabels[$docType] ?? 'Transaksi';
 
+// Fetch additional images for each item from inventory_images table
+foreach ($items as &$item) {
+    if (isset($item['inventory_id'])) {
+        $stmt = $pdo->prepare("
+            SELECT image_path 
+            FROM inventory_images 
+            WHERE inventory_id = ? 
+            ORDER BY is_primary DESC, sort_order ASC, id ASC
+            LIMIT 4
+        ");
+        $stmt->execute([$item['inventory_id']]);
+        $additionalImages = $stmt->fetchAll(PDO::FETCH_COLUMN);
+        
+        // If there's a main image, combine with additional images (max 4 total)
+        $allImages = [];
+        if (!empty($item['image'])) {
+            $allImages[] = $item['image'];
+        }
+        foreach ($additionalImages as $img) {
+            if (count($allImages) < 4 && !in_array($img, $allImages)) {
+                $allImages[] = $img;
+            }
+        }
+        $item['all_images'] = $allImages;
+    } else {
+        $item['all_images'] = !empty($item['image']) ? [$item['image']] : [];
+    }
+}
+unset($item);
+
 // TUSI mapping based on document type
 $tusiMapping = [
     'loan' => 'Surat Peminjaman',
@@ -351,22 +381,35 @@ $backUrl = $backUrls[$docType] ?? '/index.php?page=admin_loans';
         /* Page 2 - Documentation */
         .doc-title { color: #000; font-weight: bold; text-align: center; font-size: 16px; margin: 40px 0 20px; }
         .doc-list { font-size: 12px; }
-        .doc-row { display: flex; margin-bottom: 10px; align-items: flex-start; }
+        .doc-row { display: flex; margin-bottom: 15px; align-items: flex-start; border-bottom: 1px solid #eee; padding-bottom: 15px; }
         .doc-no { width: 30px; color: #000; font-weight: bold; }
         .doc-material { width: 180px; color: #000; }
         .doc-photo { flex: 1; }
         
+        .photo-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 8px;
+            max-width: 450px;
+        }
+        
         .photo-placeholder { 
-            width: 200px; 
-            height: 150px; 
-            border: 1px dashed #ccc; 
-            display: inline-flex; 
+            width: 100%; 
+            height: 120px; 
+            border: 1px solid #ddd; 
+            display: flex; 
             align-items: center; 
             justify-content: center;
             background: #f9f9f9;
             font-size: 9px;
             color: #999;
             overflow: hidden;
+            border-radius: 4px;
+        }
+        
+        .photo-placeholder.single {
+            grid-column: span 2;
+            height: 180px;
         }
         .photo-placeholder img { 
             width: 100%; 
@@ -581,37 +624,50 @@ $backUrl = $backUrls[$docType] ?? '/index.php?page=admin_loans';
             
             <div class="doc-list" style="margin-top: 10px;">
                 <?php foreach ($items as $idx => $item): ?>
-                <div class="doc-row" style="margin-bottom: 20px;">
+                <div class="doc-row">
                     <div class="doc-no editable" contenteditable="true"><?= $idx + 1 ?></div>
                     <div class="doc-material editable" contenteditable="true"><?= htmlspecialchars($item['item_name']) ?></div>
                     <div class="doc-photo">
-                        <?php if (!empty($item['image'])): 
-                            $imagePath = __DIR__ . '/../../public/assets/uploads/' . $item['image'];
-                            $imageBase64 = '';
-                            $mimeType = 'image/jpeg';
-                            if (file_exists($imagePath)) {
-                                $imageData = file_get_contents($imagePath);
-                                $imageBase64 = base64_encode($imageData);
-                                $finfo = new finfo(FILEINFO_MIME_TYPE);
-                                $mimeType = $finfo->file($imagePath);
-                            }
-                        ?>
-                        <div class="photo-placeholder" style="width: 200px; height: 150px;">
-                            <?php if ($imageBase64): ?>
-                            <img src="data:<?= $mimeType ?>;base64,<?= $imageBase64 ?>" 
-                                 alt="<?= htmlspecialchars($item['item_name']) ?>"
-                                 style="width: 100%; height: 100%; object-fit: contain;"
-                                 crossorigin="anonymous">
-                            <?php else: ?>
-                            <img src="/public/assets/uploads/<?= htmlspecialchars($item['image']) ?>" 
-                                 alt="<?= htmlspecialchars($item['item_name']) ?>"
-                                 style="width: 100%; height: 100%; object-fit: contain;"
-                                 crossorigin="anonymous">
-                            <?php endif; ?>
+                        <?php 
+                        $allImages = $item['all_images'] ?? [];
+                        $imageCount = count($allImages);
+                        
+                        if ($imageCount > 0): ?>
+                        <div class="photo-grid" style="grid-template-columns: repeat(<?= $imageCount === 1 ? '1' : '2' ?>, 1fr);">
+                            <?php foreach (array_slice($allImages, 0, 4) as $imgIdx => $imageName): 
+                                $imagePath = __DIR__ . '/../../public/assets/uploads/' . $imageName;
+                                $imageBase64 = '';
+                                $mimeType = 'image/jpeg';
+                                
+                                if (file_exists($imagePath)) {
+                                    $imageData = file_get_contents($imagePath);
+                                    $imageBase64 = base64_encode($imageData);
+                                    $finfo = new finfo(FILEINFO_MIME_TYPE);
+                                    $mimeType = $finfo->file($imagePath);
+                                }
+                                
+                                $singleClass = ($imageCount === 1) ? 'single' : '';
+                            ?>
+                            <div class="photo-placeholder <?= $singleClass ?>">
+                                <?php if ($imageBase64): ?>
+                                <img src="data:<?= $mimeType ?>;base64,<?= $imageBase64 ?>" 
+                                     alt="<?= htmlspecialchars($item['item_name']) ?> - Gambar <?= $imgIdx + 1 ?>"
+                                     style="width: 100%; height: 100%; object-fit: cover;"
+                                     crossorigin="anonymous">
+                                <?php else: ?>
+                                <img src="/public/assets/uploads/<?= htmlspecialchars($imageName) ?>" 
+                                     alt="<?= htmlspecialchars($item['item_name']) ?> - Gambar <?= $imgIdx + 1 ?>"
+                                     style="width: 100%; height: 100%; object-fit: cover;"
+                                     crossorigin="anonymous">
+                                <?php endif; ?>
+                            </div>
+                            <?php endforeach; ?>
                         </div>
                         <?php else: ?>
-                        <div class="photo-placeholder" style="width: 200px; height: 150px;">
-                            <span style="color: #999; font-size: 11px;">Tidak ada foto</span>
+                        <div class="photo-grid" style="grid-template-columns: 1fr;">
+                            <div class="photo-placeholder single">
+                                <span style="color: #999; font-size: 11px;">Tidak ada foto</span>
+                            </div>
                         </div>
                         <?php endif; ?>
                     </div>
@@ -748,19 +804,54 @@ $backUrl = $backUrls[$docType] ?? '/index.php?page=admin_loans';
             const images = document.querySelectorAll('#page1 img, #page2 img');
             const promises = [];
             
-            images.forEach(img => {
-                if (!img.complete) {
-                    promises.push(new Promise((resolve, reject) => {
-                        img.onload = resolve;
-                        img.onerror = resolve; // Resolve even on error to not block
+            console.log('Preloading', images.length, 'images...');
+            
+            images.forEach((img, idx) => {
+                // For base64 images, they should load instantly
+                if (img.src && img.src.startsWith('data:')) {
+                    if (img.decode) {
+                        promises.push(
+                            img.decode()
+                                .then(() => console.log('Base64 image', idx, 'decoded'))
+                                .catch(() => console.warn('Base64 image', idx, 'decode failed'))
+                        );
+                    }
+                } else if (!img.complete) {
+                    // For regular URLs
+                    promises.push(new Promise((resolve) => {
+                        img.onload = () => {
+                            console.log('Image', idx, 'loaded:', img.src);
+                            resolve();
+                        };
+                        img.onerror = () => {
+                            console.warn('Image', idx, 'failed to load:', img.src);
+                            resolve();
+                        };
+                        // Force reload if needed
+                        if (img.src) {
+                            const src = img.src;
+                            img.src = '';
+                            img.src = src;
+                        }
                     }));
+                } else {
+                    // Even if complete, ensure it's fully decoded
+                    if (img.decode) {
+                        promises.push(
+                            img.decode()
+                                .then(() => console.log('Image', idx, 'already loaded and decoded'))
+                                .catch(() => console.warn('Image', idx, 'decode failed'))
+                        );
+                    }
                 }
             });
             
             await Promise.all(promises);
+            console.log('All images preloaded');
             
             // Additional wait to ensure images are fully rendered
-            await new Promise(resolve => setTimeout(resolve, 500));
+            await new Promise(resolve => setTimeout(resolve, 1500));
+            console.log('Ready for PDF generation');
         }
         
         async function downloadPDF() {
@@ -781,7 +872,9 @@ $backUrl = $backUrls[$docType] ?? '/index.php?page=admin_loans';
                 });
                 
                 // Preload all images first
+                console.log('Starting preload...');
                 await preloadImages();
+                console.log('Preload complete, generating PDF...');
                 
                 // Remove editable styling for PDF
                 document.querySelectorAll('.editable').forEach(el => {
@@ -790,51 +883,64 @@ $backUrl = $backUrls[$docType] ?? '/index.php?page=admin_loans';
                 });
                 
                 // Capture page 1 with optimized settings
+                console.log('Capturing page 1...');
                 const page1 = document.getElementById('page1');
                 const canvas1 = await html2canvas(page1, { 
-                    scale: 2.5, // Higher scale for better image quality
+                    scale: 3, // Higher scale for better image quality
                     useCORS: true, 
                     allowTaint: true, // Allow tainted canvas for local images
-                    logging: false,
+                    logging: true,
                     imageTimeout: 30000, // Wait up to 30 seconds for images
                     backgroundColor: '#ffffff',
                     onclone: function(clonedDoc) {
                         // Make sure images in cloned document are visible
-                        clonedDoc.querySelectorAll('.photo-placeholder img').forEach(img => {
+                        clonedDoc.querySelectorAll('.photo-placeholder img, .photo-grid img').forEach(img => {
                             img.style.width = '100%';
                             img.style.height = '100%';
-                            img.style.objectFit = 'contain';
+                            img.style.objectFit = 'cover';
                             img.style.display = 'block';
+                            // Ensure base64 images are retained
+                            if (img.getAttribute('src') && img.getAttribute('src').startsWith('data:')) {
+                                img.setAttribute('crossorigin', 'anonymous');
+                            }
                         });
                     }
                 });
-                // Use JPEG with compression
-                const imgData1 = canvas1.toDataURL('image/jpeg', 0.92);
+                console.log('Page 1 captured');
+                // Use JPEG with higher compression
+                const imgData1 = canvas1.toDataURL('image/jpeg', 0.95);
                 pdf.addImage(imgData1, 'JPEG', 0, 0, 210, 297, undefined, 'FAST');
                 
                 // Capture page 2 - Documentation with images
+                console.log('Capturing page 2...');
                 pdf.addPage();
                 const page2 = document.getElementById('page2');
                 const canvas2 = await html2canvas(page2, { 
-                    scale: 2.5,
+                    scale: 3,
                     useCORS: true, 
                     allowTaint: true,
-                    logging: false,
+                    logging: true,
                     imageTimeout: 30000,
                     backgroundColor: '#ffffff',
                     onclone: function(clonedDoc) {
                         // Make sure images in cloned document are visible
-                        clonedDoc.querySelectorAll('.photo-placeholder img').forEach(img => {
+                        clonedDoc.querySelectorAll('.photo-placeholder img, .photo-grid img').forEach(img => {
                             img.style.width = '100%';
                             img.style.height = '100%';
-                            img.style.objectFit = 'contain';
+                            img.style.objectFit = 'cover';
                             img.style.display = 'block';
+                            // Ensure base64 images are retained
+                            if (img.getAttribute('src') && img.getAttribute('src').startsWith('data:')) {
+                                img.setAttribute('crossorigin', 'anonymous');
+                            }
                         });
                     }
                 });
-                const imgData2 = canvas2.toDataURL('image/jpeg', 0.92);
+                console.log('Page 2 captured');
+                const imgData2 = canvas2.toDataURL('image/jpeg', 0.95);
                 pdf.addImage(imgData2, 'JPEG', 0, 0, 210, 297, undefined, 'FAST');
                 
+                console.log('PDF generated successfully');
                 pdf.save('Berita_Acara_<?= str_replace(['/', ' '], ['_', '_'], $previewNumber) ?>.pdf');
                 
                 // Restore editable styling

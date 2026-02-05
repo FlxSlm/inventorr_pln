@@ -7,49 +7,6 @@ $pdo = require __DIR__ . '/../config/database.php';
 // Base path for uploaded documents
 $baseUploadPath = __DIR__ . '/../../public/assets/';
 
-// Handle delete action - Must be before any output
-if (isset($_GET['delete']) && is_numeric($_GET['delete'])) {
-    $deleteId = (int)$_GET['delete'];
-    
-    // Get document info first to delete the file
-    $stmt = $pdo->prepare("SELECT file_path FROM generated_documents WHERE id = ?");
-    $stmt->execute([$deleteId]);
-    $doc = $stmt->fetch();
-    
-    // Delete file from disk if exists
-    if ($doc && $doc['file_path']) {
-        // Build full path
-        $fullPath = $baseUploadPath . $doc['file_path'];
-        if (file_exists($fullPath)) {
-            @unlink($fullPath);
-        }
-    }
-    
-    // Delete from database
-    $stmt = $pdo->prepare("DELETE FROM generated_documents WHERE id = ?");
-    $stmt->execute([$deleteId]);
-    header('Location: /index.php?page=admin_saved_documents&deleted=1');
-    exit;
-}
-
-// Handle download action - Must be before any output
-if (isset($_GET['download']) && is_numeric($_GET['download'])) {
-    $downloadId = (int)$_GET['download'];
-    $stmt = $pdo->prepare("SELECT * FROM generated_documents WHERE id = ?");
-    $stmt->execute([$downloadId]);
-    $doc = $stmt->fetch();
-    
-    if ($doc && $doc['file_path']) {
-        $fullPath = $baseUploadPath . $doc['file_path'];
-        if (file_exists($fullPath)) {
-            header('Content-Type: application/pdf');
-            header('Content-Disposition: attachment; filename="' . basename($doc['file_path']) . '"');
-            readfile($fullPath);
-            exit;
-        }
-    }
-}
-
 // Filter parameters
 $filterType = $_GET['type'] ?? '';
 $filterStatus = $_GET['status'] ?? '';
@@ -219,7 +176,7 @@ $statusLabels = [
                                     </a>
                                     <?php endif; ?>
                                     <button type="button" class="btn btn-outline-danger" title="Hapus"
-                                            onclick="confirmDelete(<?= $doc['id'] ?>, '<?= str_replace("'", "\\'", htmlspecialchars($doc['document_number'])) ?>')">
+                                            onclick="confirmDeleteDocument(<?= $doc['id'] ?>, '<?= str_replace("'", "\\'", htmlspecialchars($doc['document_number'])) ?>')">
                                         <i class="bi bi-trash"></i>
                                     </button>
                                 </div>
@@ -290,7 +247,7 @@ $statusLabels = [
 var currentDeleteId = null;
 var currentDocNumber = '';
 
-function confirmDelete(id, docNumber) {
+function confirmDeleteDocument(id, docNumber) {
     currentDeleteId = id;
     currentDocNumber = docNumber;
     document.getElementById('deleteDocNumber').textContent = docNumber;

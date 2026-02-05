@@ -218,14 +218,14 @@ foreach ($items as $item) {
                     <?= $stockText ?>
                 </span>
                 
-                <!-- Low Stock Warning Ribbon - Simplified to badge -->
+                <!-- Low Stock Warning - Text only -->
                 <?php if ($isLowStock && $item['stock_available'] > 0): ?>
-                <span class="low-stock-badge warning">
-                    <i class="bi bi-exclamation-triangle-fill me-1"></i>Menipis
+                <span class="low-stock-badge warning" style="font-size: 11px; font-weight: 500;">
+                    (Menipis)
                 </span>
                 <?php elseif ($item['stock_available'] <= 0): ?>
-                <span class="low-stock-badge danger">
-                    <i class="bi bi-x-circle-fill me-1"></i>Habis
+                <span class="low-stock-badge danger" style="font-size: 11px; font-weight: 500;">
+                    (Habis)
                 </span>
                 <?php endif; ?>
                 
@@ -273,16 +273,16 @@ foreach ($items as $item) {
                         <div class="d-flex align-items-center gap-2">
                             <span style="font-weight: 600; font-size: 13px;"><?= $item['stock_available'] ?> / <?= $item['stock_total'] ?> <?= htmlspecialchars($item['unit'] ?? 'unit') ?></span>
                             <?php if ($item['stock_available'] <= 0): ?>
-                            <span class="badge" style="background: rgba(239, 68, 68, 0.1); color: #dc2626; font-size: 11px; padding: 4px 8px; border-radius: 6px;">
-                                <i class="bi bi-x-circle-fill me-1"></i>Stok Habis
+                            <span style="color: #dc2626; font-size: 12px; font-weight: 500;">
+                                (Stok Habis)
                             </span>
                             <?php elseif ($isLowStock): ?>
-                            <span class="badge" style="background: rgba(245, 158, 11, 0.1); color: #d97706; font-size: 11px; padding: 4px 8px; border-radius: 6px;">
-                                <i class="bi bi-exclamation-triangle-fill me-1"></i>Menipis
+                            <span style="color: #d97706; font-size: 12px; font-weight: 500;">
+                                (Stok Menipis)
                             </span>
                             <?php else: ?>
-                            <span class="badge" style="background: rgba(34, 197, 94, 0.1); color: #16a34a; font-size: 11px; padding: 4px 8px; border-radius: 6px;">
-                                <i class="bi bi-check-circle-fill me-1"></i>Tersedia
+                            <span style="color: #16a34a; font-size: 12px; font-weight: 500;">
+                                (Tersedia)
                             </span>
                             <?php endif; ?>
                         </div>
@@ -422,11 +422,11 @@ foreach ($items as $item) {
                                 <div style="font-size: 20px; font-weight: 700; color: var(--<?= $stockClass ?>);"><?= $item['stock_available'] ?></div>
                                 <div style="font-size: 12px;">
                                     <?php if ($item['stock_available'] <= 0): ?>
-                                    <span style="color: var(--danger);"><i class="bi bi-x-circle-fill me-1"></i>Habis</span>
+                                    <span style="color: var(--danger); font-weight: 500;">Habis</span>
                                     <?php elseif ($isLowStock): ?>
-                                    <span style="color: var(--warning);"><i class="bi bi-exclamation-triangle-fill me-1"></i>Menipis</span>
+                                    <span style="color: var(--warning); font-weight: 500;">Menipis</span>
                                     <?php else: ?>
-                                    <span style="color: var(--success);"><i class="bi bi-check-circle-fill me-1"></i>Tersedia</span>
+                                    <span style="color: var(--success); font-weight: 500;">Tersedia</span>
                                     <?php endif; ?>
                                 </div>
                             </div>

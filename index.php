@@ -211,6 +211,53 @@ switch ($page) {
 
     // ----- Saved Documents (Admin) -----
     case 'admin_saved_documents':
+        // Handle delete action before any output
+        if (isset($_GET['delete']) && is_numeric($_GET['delete'])) {
+            $pdo = require APP_PATH . 'config/database.php';
+            $deleteId = (int)$_GET['delete'];
+            $baseUploadPath = __DIR__ . '/public/assets/';
+            
+            // Get document info first to delete the file
+            $stmt = $pdo->prepare("SELECT file_path FROM generated_documents WHERE id = ?");
+            $stmt->execute([$deleteId]);
+            $doc = $stmt->fetch();
+            
+            // Delete file from disk if exists
+            if ($doc && $doc['file_path']) {
+                $fullPath = $baseUploadPath . $doc['file_path'];
+                if (file_exists($fullPath)) {
+                    @unlink($fullPath);
+                }
+            }
+            
+            // Delete from database
+            $stmt = $pdo->prepare("DELETE FROM generated_documents WHERE id = ?");
+            $stmt->execute([$deleteId]);
+            header('Location: /index.php?page=admin_saved_documents&deleted=1');
+            exit;
+        }
+        
+        // Handle download action before any output
+        if (isset($_GET['download']) && is_numeric($_GET['download'])) {
+            $pdo = require APP_PATH . 'config/database.php';
+            $downloadId = (int)$_GET['download'];
+            $baseUploadPath = __DIR__ . '/public/assets/';
+            
+            $stmt = $pdo->prepare("SELECT * FROM generated_documents WHERE id = ?");
+            $stmt->execute([$downloadId]);
+            $doc = $stmt->fetch();
+            
+            if ($doc && $doc['file_path']) {
+                $fullPath = $baseUploadPath . $doc['file_path'];
+                if (file_exists($fullPath)) {
+                    header('Content-Type: application/pdf');
+                    header('Content-Disposition: attachment; filename="' . basename($doc['file_path']) . '"');
+                    readfile($fullPath);
+                    exit;
+                }
+            }
+        }
+        
         view('admin/saved_documents.php');
         break;
 
