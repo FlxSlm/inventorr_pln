@@ -261,6 +261,16 @@ switch ($page) {
         view('admin/saved_documents.php');
         break;
 
+    // ----- Chart Data API (Admin) -----
+    case 'admin_chart_data':
+        require APP_PATH . 'admin/chart_data.php';
+        break;
+
+    // ----- Export Report (Admin) -----
+    case 'admin_export_report':
+        require APP_PATH . 'admin/export_report.php';
+        break;
+
     // ----- Settings (Admin) -----
     case 'admin_settings':
         view('admin/settings.php');

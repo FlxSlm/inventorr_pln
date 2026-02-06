@@ -253,55 +253,99 @@ $totalOutOfStockItems = $pdo->query("SELECT COUNT(*) FROM inventories WHERE stoc
     </div>
 </div>
 
+<?php
+// Current semester defaults
+$curMonth = (int)date('n');
+$curYear = (int)date('Y');
+$curSem = ($curMonth <= 6) ? 1 : 2;
+// Generate year options (from 2020 to current year + 1)
+$yearOptions = range(2020, $curYear + 1);
+?>
+
 <!-- Charts Row - Side by Side -->
 <div class="row g-4" style="margin-bottom: 24px;">
     <!-- Chart Card - Most Borrowed -->
     <div class="col-lg-6">
         <div class="modern-card h-100">
-            <div class="card-header">
-                <h3 class="card-title">
-                    <i class="bi bi-bar-chart-fill"></i> Barang Paling Sering Dipinjam
-                </h3>
-                <div class="card-actions">
-                    <button class="chart-type-btn active" data-chart="borrow" data-type="bar" title="Bar Chart">
-                        <i class="bi bi-bar-chart"></i>
+            <div class="card-header" style="flex-direction: column; align-items: stretch !important;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <h3 class="card-title" style="margin: 0;">
+                        <i class="bi bi-bar-chart-fill"></i> Barang Paling Sering Dipinjam
+                    </h3>
+                    <div class="card-actions">
+                        <button class="chart-type-btn active" data-chart="borrow" data-type="bar" title="Bar Chart">
+                            <i class="bi bi-bar-chart"></i>
+                        </button>
+                        <button class="chart-type-btn" data-chart="borrow" data-type="doughnut" title="Doughnut Chart">
+                            <i class="bi bi-pie-chart"></i>
+                        </button>
+                    </div>
+                </div>
+                <!-- Semester Filter -->
+                <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap; font-size: 12px;">
+                    <select id="borrowSemStart" class="form-select form-select-sm" style="width: auto; font-size: 12px; padding: 4px 28px 4px 8px;">
+                        <option value="1" <?= $curSem === 1 ? 'selected' : '' ?>>Sem 1</option>
+                        <option value="2" <?= $curSem === 2 ? 'selected' : '' ?>>Sem 2</option>
+                    </select>
+                    <select id="borrowYearStart" class="form-select form-select-sm" style="width: auto; font-size: 12px; padding: 4px 28px 4px 8px;">
+                        <?php foreach($yearOptions as $y): ?>
+                        <option value="<?= $y ?>" <?= $y === $curYear ? 'selected' : '' ?>><?= $y ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                    <span style="color: var(--text-muted);">s/d</span>
+                    <select id="borrowSemEnd" class="form-select form-select-sm" style="width: auto; font-size: 12px; padding: 4px 28px 4px 8px;">
+                        <option value="1" <?= $curSem === 1 ? 'selected' : '' ?>>Sem 1</option>
+                        <option value="2" <?= $curSem === 2 ? 'selected' : '' ?>>Sem 2</option>
+                    </select>
+                    <select id="borrowYearEnd" class="form-select form-select-sm" style="width: auto; font-size: 12px; padding: 4px 28px 4px 8px;">
+                        <?php foreach($yearOptions as $y): ?>
+                        <option value="<?= $y ?>" <?= $y === $curYear ? 'selected' : '' ?>><?= $y ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                    <button class="btn btn-primary btn-sm" onclick="loadBorrowChart()" style="font-size: 12px; padding: 4px 10px;">
+                        <i class="bi bi-funnel"></i>
                     </button>
-                    <button class="chart-type-btn" data-chart="borrow" data-type="doughnut" title="Doughnut Chart">
-                        <i class="bi bi-pie-chart"></i>
-                    </button>
+                    <!-- Export Dropdown -->
+                    <div class="dropdown">
+                        <button class="btn btn-outline-secondary btn-sm dropdown-toggle" data-bs-toggle="dropdown" style="font-size: 12px; padding: 4px 10px;">
+                            <i class="bi bi-download"></i> Ekspor
+                        </button>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="#" onclick="exportReport('borrow','pdf')"><i class="bi bi-file-pdf me-2 text-danger"></i>PDF</a></li>
+                            <li><a class="dropdown-item" href="#" onclick="exportReport('borrow','word')"><i class="bi bi-file-word me-2 text-primary"></i>Word</a></li>
+                            <li><a class="dropdown-item" href="#" onclick="exportReport('borrow','excel')"><i class="bi bi-file-excel me-2 text-success"></i>Excel</a></li>
+                        </ul>
+                    </div>
                 </div>
             </div>
             <div class="card-body" style="padding: 16px;">
-                <?php if (empty($topBorrowed)): ?>
-                <div class="empty-state" style="padding: 30px;">
-                    <div class="empty-state-icon" style="width: 50px; height: 50px; font-size: 20px;">
-                        <i class="bi bi-bar-chart"></i>
-                    </div>
-                    <h5 class="empty-state-title" style="font-size: 14px;">Belum Ada Data</h5>
-                    <p class="empty-state-text mb-0" style="font-size: 12px;">Data peminjaman akan muncul di sini</p>
-                </div>
-                <?php else: ?>
-                <!-- Summary -->
-                <div style="display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap;">
+                <!-- Summary (dynamic) -->
+                <div id="borrowSummary" style="display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap;">
                     <div style="background: var(--bg-main); padding: 10px 14px; border-radius: 8px; flex: 1; min-width: 80px;">
-                        <div style="font-size: 18px; font-weight: 700; color: var(--primary-light);"><?= array_sum($chartData) ?></div>
+                        <div id="borrowTotal" style="font-size: 18px; font-weight: 700; color: var(--primary-light);"><?= array_sum($chartData) ?></div>
                         <div style="font-size: 10px; color: var(--text-muted);">Total</div>
                     </div>
                     <div style="background: var(--bg-main); padding: 10px 14px; border-radius: 8px; flex: 1; min-width: 80px;">
-                        <div style="font-size: 18px; font-weight: 700; color: var(--text-dark);"><?= count($chartLabels) ?></div>
+                        <div id="borrowTypes" style="font-size: 18px; font-weight: 700; color: var(--text-dark);"><?= count($chartLabels) ?></div>
                         <div style="font-size: 10px; color: var(--text-muted);">Jenis</div>
                     </div>
-                    <?php if(!empty($chartLabels[0])): ?>
                     <div style="background: var(--bg-main); padding: 10px 14px; border-radius: 8px; flex: 2; min-width: 120px;">
-                        <div style="font-size: 13px; font-weight: 600; color: var(--success); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"><?= htmlspecialchars($chartLabels[0]) ?></div>
-                        <div style="font-size: 10px; color: var(--text-muted);">Terpopuler (<?= $chartData[0] ?>x)</div>
+                        <div id="borrowTopName" style="font-size: 13px; font-weight: 600; color: var(--success); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"><?= htmlspecialchars($chartLabels[0] ?? '-') ?></div>
+                        <div id="borrowTopCount" style="font-size: 10px; color: var(--text-muted);">Terpopuler (<?= $chartData[0] ?? 0 ?>x)</div>
                     </div>
-                    <?php endif; ?>
                 </div>
-                <div class="chart-container" style="height: 220px;">
-                    <canvas id="topBorrowedChart"></canvas>
+                <div id="borrowChartWrapper">
+                    <div class="chart-container" style="height: 220px;">
+                        <canvas id="topBorrowedChart"></canvas>
+                    </div>
                 </div>
-                <?php endif; ?>
+                <div id="borrowEmpty" style="display: none;">
+                    <div class="empty-state" style="padding: 30px;">
+                        <div class="empty-state-icon" style="width: 50px; height: 50px; font-size: 20px;"><i class="bi bi-bar-chart"></i></div>
+                        <h5 class="empty-state-title" style="font-size: 14px;">Belum Ada Data</h5>
+                        <p class="empty-state-text mb-0" style="font-size: 12px;">Data peminjaman akan muncul di sini</p>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -309,50 +353,85 @@ $totalOutOfStockItems = $pdo->query("SELECT COUNT(*) FROM inventories WHERE stoc
     <!-- Chart Card - Most Requested -->
     <div class="col-lg-6">
         <div class="modern-card h-100">
-            <div class="card-header">
-                <h3 class="card-title">
-                    <i class="bi bi-cart-check-fill"></i> Barang Paling Sering Diminta
-                </h3>
-                <div class="card-actions">
-                    <button class="chart-type-btn active" data-chart="request" data-type="bar" title="Bar Chart">
-                        <i class="bi bi-bar-chart"></i>
+            <div class="card-header" style="flex-direction: column; align-items: stretch !important;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <h3 class="card-title" style="margin: 0;">
+                        <i class="bi bi-cart-check-fill"></i> Barang Paling Sering Diminta
+                    </h3>
+                    <div class="card-actions">
+                        <button class="chart-type-btn active" data-chart="request" data-type="bar" title="Bar Chart">
+                            <i class="bi bi-bar-chart"></i>
+                        </button>
+                        <button class="chart-type-btn" data-chart="request" data-type="doughnut" title="Doughnut Chart">
+                            <i class="bi bi-pie-chart"></i>
+                        </button>
+                    </div>
+                </div>
+                <!-- Semester Filter -->
+                <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap; font-size: 12px;">
+                    <select id="requestSemStart" class="form-select form-select-sm" style="width: auto; font-size: 12px; padding: 4px 28px 4px 8px;">
+                        <option value="1" <?= $curSem === 1 ? 'selected' : '' ?>>Sem 1</option>
+                        <option value="2" <?= $curSem === 2 ? 'selected' : '' ?>>Sem 2</option>
+                    </select>
+                    <select id="requestYearStart" class="form-select form-select-sm" style="width: auto; font-size: 12px; padding: 4px 28px 4px 8px;">
+                        <?php foreach($yearOptions as $y): ?>
+                        <option value="<?= $y ?>" <?= $y === $curYear ? 'selected' : '' ?>><?= $y ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                    <span style="color: var(--text-muted);">s/d</span>
+                    <select id="requestSemEnd" class="form-select form-select-sm" style="width: auto; font-size: 12px; padding: 4px 28px 4px 8px;">
+                        <option value="1" <?= $curSem === 1 ? 'selected' : '' ?>>Sem 1</option>
+                        <option value="2" <?= $curSem === 2 ? 'selected' : '' ?>>Sem 2</option>
+                    </select>
+                    <select id="requestYearEnd" class="form-select form-select-sm" style="width: auto; font-size: 12px; padding: 4px 28px 4px 8px;">
+                        <?php foreach($yearOptions as $y): ?>
+                        <option value="<?= $y ?>" <?= $y === $curYear ? 'selected' : '' ?>><?= $y ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                    <button class="btn btn-primary btn-sm" onclick="loadRequestChart()" style="font-size: 12px; padding: 4px 10px;">
+                        <i class="bi bi-funnel"></i>
                     </button>
-                    <button class="chart-type-btn" data-chart="request" data-type="doughnut" title="Doughnut Chart">
-                        <i class="bi bi-pie-chart"></i>
-                    </button>
+                    <!-- Export Dropdown -->
+                    <div class="dropdown">
+                        <button class="btn btn-outline-secondary btn-sm dropdown-toggle" data-bs-toggle="dropdown" style="font-size: 12px; padding: 4px 10px;">
+                            <i class="bi bi-download"></i> Ekspor
+                        </button>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="#" onclick="exportReport('request','pdf')"><i class="bi bi-file-pdf me-2 text-danger"></i>PDF</a></li>
+                            <li><a class="dropdown-item" href="#" onclick="exportReport('request','word')"><i class="bi bi-file-word me-2 text-primary"></i>Word</a></li>
+                            <li><a class="dropdown-item" href="#" onclick="exportReport('request','excel')"><i class="bi bi-file-excel me-2 text-success"></i>Excel</a></li>
+                        </ul>
+                    </div>
                 </div>
             </div>
             <div class="card-body" style="padding: 16px;">
-                <?php if (empty($topRequested)): ?>
-                <div class="empty-state" style="padding: 30px;">
-                    <div class="empty-state-icon" style="width: 50px; height: 50px; font-size: 20px;">
-                        <i class="bi bi-cart-check"></i>
-                    </div>
-                    <h5 class="empty-state-title" style="font-size: 14px;">Belum Ada Data</h5>
-                    <p class="empty-state-text mb-0" style="font-size: 12px;">Data permintaan akan muncul di sini</p>
-                </div>
-                <?php else: ?>
-                <!-- Summary -->
-                <div style="display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap;">
+                <!-- Summary (dynamic) -->
+                <div id="requestSummary" style="display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap;">
                     <div style="background: var(--bg-main); padding: 10px 14px; border-radius: 8px; flex: 1; min-width: 80px;">
-                        <div style="font-size: 18px; font-weight: 700; color: var(--primary-light);"><?= array_sum($requestChartData) ?></div>
+                        <div id="requestTotal" style="font-size: 18px; font-weight: 700; color: var(--primary-light);"><?= array_sum($requestChartData) ?></div>
                         <div style="font-size: 10px; color: var(--text-muted);">Total</div>
                     </div>
                     <div style="background: var(--bg-main); padding: 10px 14px; border-radius: 8px; flex: 1; min-width: 80px;">
-                        <div style="font-size: 18px; font-weight: 700; color: var(--text-dark);"><?= count($requestChartLabels) ?></div>
+                        <div id="requestTypes" style="font-size: 18px; font-weight: 700; color: var(--text-dark);"><?= count($requestChartLabels) ?></div>
                         <div style="font-size: 10px; color: var(--text-muted);">Jenis</div>
                     </div>
-                    <?php if(!empty($requestChartLabels[0])): ?>
                     <div style="background: var(--bg-main); padding: 10px 14px; border-radius: 8px; flex: 2; min-width: 120px;">
-                        <div style="font-size: 13px; font-weight: 600; color: var(--success); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"><?= htmlspecialchars($requestChartLabels[0]) ?></div>
-                        <div style="font-size: 10px; color: var(--text-muted);">Terpopuler (<?= $requestChartData[0] ?>x)</div>
+                        <div id="requestTopName" style="font-size: 13px; font-weight: 600; color: var(--success); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"><?= htmlspecialchars($requestChartLabels[0] ?? '-') ?></div>
+                        <div id="requestTopCount" style="font-size: 10px; color: var(--text-muted);">Terpopuler (<?= $requestChartData[0] ?? 0 ?>x)</div>
                     </div>
-                    <?php endif; ?>
                 </div>
-                <div class="chart-container" style="height: 220px;">
-                    <canvas id="topRequestedChart"></canvas>
+                <div id="requestChartWrapper">
+                    <div class="chart-container" style="height: 220px;">
+                        <canvas id="topRequestedChart"></canvas>
+                    </div>
                 </div>
-                <?php endif; ?>
+                <div id="requestEmpty" style="display: none;">
+                    <div class="empty-state" style="padding: 30px;">
+                        <div class="empty-state-icon" style="width: 50px; height: 50px; font-size: 20px;"><i class="bi bi-cart-check"></i></div>
+                        <h5 class="empty-state-title" style="font-size: 14px;">Belum Ada Data</h5>
+                        <p class="empty-state-text mb-0" style="font-size: 12px;">Data permintaan akan muncul di sini</p>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -706,41 +785,42 @@ $totalOutOfStockItems = $pdo->query("SELECT COUNT(*) FROM inventories WHERE stoc
     </div>
 </div>
 
-<?php if (!empty($topBorrowed) || !empty($topRequested)): ?>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // Chart data for top borrowed items
-    const borrowLabels = <?= json_encode($chartLabels) ?>;
-    const borrowData = <?= json_encode($chartData) ?>;
-    
-    // Chart data for top requested items
-    const requestLabels = <?= json_encode($requestChartLabels) ?>;
-    const requestData = <?= json_encode($requestChartData) ?>;
+    // Initial chart data from PHP (all-time, no filter)
+    let borrowLabels = <?= json_encode($chartLabels) ?>;
+    let borrowData = <?= json_encode($chartData) ?>;
+    let requestLabels = <?= json_encode($requestChartLabels) ?>;
+    let requestData = <?= json_encode($requestChartData) ?>;
 
-    // Minimalist monochromatic teal palette for doughnut charts
     const tealPalette = [
-        'rgba(13, 79, 92, 0.9)',
-        'rgba(26, 154, 170, 0.9)',
-        'rgba(45, 180, 180, 0.9)',
-        'rgba(94, 200, 200, 0.9)',
-        'rgba(140, 215, 215, 0.9)',
-        'rgba(175, 225, 225, 0.9)',
-        'rgba(200, 235, 235, 0.9)'
+        'rgba(13, 79, 92, 0.9)', 'rgba(26, 154, 170, 0.9)', 'rgba(45, 180, 180, 0.9)',
+        'rgba(94, 200, 200, 0.9)', 'rgba(140, 215, 215, 0.9)', 'rgba(175, 225, 225, 0.9)', 'rgba(200, 235, 235, 0.9)',
+        'rgba(10, 60, 70, 0.9)', 'rgba(50, 160, 160, 0.9)', 'rgba(80, 190, 190, 0.9)'
     ];
 
     let topBorrowedChart = null;
     let topRequestedChart = null;
+    let currentBorrowType = 'bar';
+    let currentRequestType = 'bar';
 
-    function createBorrowChart(type = 'bar') {
+    function createBorrowChart(type) {
+        if (type) currentBorrowType = type;
+        else type = currentBorrowType;
+
         const ctx = document.getElementById('topBorrowedChart');
-        if (!ctx || borrowLabels.length === 0) return;
-        
-        if (topBorrowedChart) {
-            topBorrowedChart.destroy();
+        if (!ctx) return;
+        if (topBorrowedChart) topBorrowedChart.destroy();
+
+        if (borrowLabels.length === 0) {
+            document.getElementById('borrowChartWrapper').style.display = 'none';
+            document.getElementById('borrowEmpty').style.display = 'block';
+            return;
         }
-        
+        document.getElementById('borrowChartWrapper').style.display = 'block';
+        document.getElementById('borrowEmpty').style.display = 'none';
+
         const isBar = type === 'bar';
-        
         topBorrowedChart = new Chart(ctx, {
             type: type,
             data: {
@@ -756,24 +836,13 @@ document.addEventListener('DOMContentLoaded', function() {
                 }]
             },
             options: {
-                responsive: true,
-                maintainAspectRatio: false,
+                responsive: true, maintainAspectRatio: false,
                 plugins: {
-                    legend: {
-                        display: !isBar,
-                        position: 'right',
-                        labels: { padding: 10, usePointStyle: true, pointStyle: 'circle', font: { size: 11 }, color: '#64748b' }
-                    },
-                    tooltip: {
-                        backgroundColor: 'rgba(15, 23, 42, 0.95)',
-                        padding: 10,
-                        cornerRadius: 8,
-                        titleFont: { size: 12, weight: '600' },
-                        bodyFont: { size: 11 }
-                    }
+                    legend: { display: !isBar, position: 'right', labels: { padding: 10, usePointStyle: true, pointStyle: 'circle', font: { size: 11 }, color: '#64748b' } },
+                    tooltip: { backgroundColor: 'rgba(15, 23, 42, 0.95)', padding: 10, cornerRadius: 8, titleFont: { size: 12, weight: '600' }, bodyFont: { size: 11 } }
                 },
                 scales: isBar ? {
-                    y: { beginAtZero: true, grid: { color: 'rgba(0, 0, 0, 0.04)', drawBorder: false }, ticks: { font: { size: 10 }, color: '#94a3b8' } },
+                    y: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.04)', drawBorder: false }, ticks: { font: { size: 10 }, color: '#94a3b8' } },
                     x: { grid: { display: false }, ticks: { font: { size: 10 }, color: '#64748b' } }
                 } : {},
                 cutout: type === 'doughnut' ? '65%' : undefined
@@ -781,16 +850,23 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    function createRequestChart(type = 'bar') {
+    function createRequestChart(type) {
+        if (type) currentRequestType = type;
+        else type = currentRequestType;
+
         const ctx = document.getElementById('topRequestedChart');
-        if (!ctx || requestLabels.length === 0) return;
-        
-        if (topRequestedChart) {
-            topRequestedChart.destroy();
+        if (!ctx) return;
+        if (topRequestedChart) topRequestedChart.destroy();
+
+        if (requestLabels.length === 0) {
+            document.getElementById('requestChartWrapper').style.display = 'none';
+            document.getElementById('requestEmpty').style.display = 'block';
+            return;
         }
-        
+        document.getElementById('requestChartWrapper').style.display = 'block';
+        document.getElementById('requestEmpty').style.display = 'none';
+
         const isBar = type === 'bar';
-        
         topRequestedChart = new Chart(ctx, {
             type: type,
             data: {
@@ -806,24 +882,13 @@ document.addEventListener('DOMContentLoaded', function() {
                 }]
             },
             options: {
-                responsive: true,
-                maintainAspectRatio: false,
+                responsive: true, maintainAspectRatio: false,
                 plugins: {
-                    legend: {
-                        display: !isBar,
-                        position: 'right',
-                        labels: { padding: 10, usePointStyle: true, pointStyle: 'circle', font: { size: 11 }, color: '#64748b' }
-                    },
-                    tooltip: {
-                        backgroundColor: 'rgba(15, 23, 42, 0.95)',
-                        padding: 10,
-                        cornerRadius: 8,
-                        titleFont: { size: 12, weight: '600' },
-                        bodyFont: { size: 11 }
-                    }
+                    legend: { display: !isBar, position: 'right', labels: { padding: 10, usePointStyle: true, pointStyle: 'circle', font: { size: 11 }, color: '#64748b' } },
+                    tooltip: { backgroundColor: 'rgba(15, 23, 42, 0.95)', padding: 10, cornerRadius: 8, titleFont: { size: 12, weight: '600' }, bodyFont: { size: 11 } }
                 },
                 scales: isBar ? {
-                    y: { beginAtZero: true, grid: { color: 'rgba(0, 0, 0, 0.04)', drawBorder: false }, ticks: { font: { size: 10 }, color: '#94a3b8' } },
+                    y: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.04)', drawBorder: false }, ticks: { font: { size: 10 }, color: '#94a3b8' } },
                     x: { grid: { display: false }, ticks: { font: { size: 10 }, color: '#64748b' } }
                 } : {},
                 cutout: type === 'doughnut' ? '65%' : undefined
@@ -832,8 +897,8 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // Initialize charts
-    if (borrowLabels.length > 0) createBorrowChart('bar');
-    if (requestLabels.length > 0) createRequestChart('bar');
+    createBorrowChart('bar');
+    createRequestChart('bar');
 
     // Chart type toggle buttons
     document.querySelectorAll('.chart-type-btn').forEach(btn => {
@@ -841,17 +906,75 @@ document.addEventListener('DOMContentLoaded', function() {
             const chart = this.dataset.chart;
             this.closest('.card-actions').querySelectorAll('.chart-type-btn').forEach(b => b.classList.remove('active'));
             this.classList.add('active');
-            
-            if (chart === 'borrow') {
-                createBorrowChart(this.dataset.type);
-            } else if (chart === 'request') {
-                createRequestChart(this.dataset.type);
-            }
+            if (chart === 'borrow') createBorrowChart(this.dataset.type);
+            else if (chart === 'request') createRequestChart(this.dataset.type);
         });
     });
+
+    // ===== AJAX: Load chart data by semester =====
+    window.loadBorrowChart = function() {
+        const semStart = document.getElementById('borrowSemStart').value;
+        const yearStart = document.getElementById('borrowYearStart').value;
+        const semEnd = document.getElementById('borrowSemEnd').value;
+        const yearEnd = document.getElementById('borrowYearEnd').value;
+
+        fetch(`/index.php?page=admin_chart_data&type=borrow&sem_start=${semStart}&year_start=${yearStart}&sem_end=${semEnd}&year_end=${yearEnd}`)
+            .then(r => r.json())
+            .then(d => {
+                borrowLabels = d.labels;
+                borrowData = d.data;
+                document.getElementById('borrowTotal').textContent = d.total;
+                document.getElementById('borrowTypes').textContent = d.count_types;
+                document.getElementById('borrowTopName').textContent = d.top_name || '-';
+                document.getElementById('borrowTopCount').textContent = d.top_name ? `Terpopuler (${d.top_count}x)` : '-';
+                createBorrowChart();
+            })
+            .catch(err => console.error('Failed to load borrow data:', err));
+    };
+
+    window.loadRequestChart = function() {
+        const semStart = document.getElementById('requestSemStart').value;
+        const yearStart = document.getElementById('requestYearStart').value;
+        const semEnd = document.getElementById('requestSemEnd').value;
+        const yearEnd = document.getElementById('requestYearEnd').value;
+
+        fetch(`/index.php?page=admin_chart_data&type=request&sem_start=${semStart}&year_start=${yearStart}&sem_end=${semEnd}&year_end=${yearEnd}`)
+            .then(r => r.json())
+            .then(d => {
+                requestLabels = d.labels;
+                requestData = d.data;
+                document.getElementById('requestTotal').textContent = d.total;
+                document.getElementById('requestTypes').textContent = d.count_types;
+                document.getElementById('requestTopName').textContent = d.top_name || '-';
+                document.getElementById('requestTopCount').textContent = d.top_name ? `Terpopuler (${d.top_count}x)` : '-';
+                createRequestChart();
+            })
+            .catch(err => console.error('Failed to load request data:', err));
+    };
+
+    // ===== EXPORT =====
+    window.exportReport = function(type, format) {
+        let semStart, yearStart, semEnd, yearEnd;
+        if (type === 'borrow') {
+            semStart = document.getElementById('borrowSemStart').value;
+            yearStart = document.getElementById('borrowYearStart').value;
+            semEnd = document.getElementById('borrowSemEnd').value;
+            yearEnd = document.getElementById('borrowYearEnd').value;
+        } else {
+            semStart = document.getElementById('requestSemStart').value;
+            yearStart = document.getElementById('requestYearStart').value;
+            semEnd = document.getElementById('requestSemEnd').value;
+            yearEnd = document.getElementById('requestYearEnd').value;
+        }
+        const url = `/index.php?page=admin_export_report&type=${type}&format=${format}&sem_start=${semStart}&year_start=${yearStart}&sem_end=${semEnd}&year_end=${yearEnd}`;
+        if (format === 'pdf') {
+            window.open(url, '_blank');
+        } else {
+            window.location.href = url;
+        }
+    };
 });
 </script>
-<?php endif; ?>
 
 <script>
 // Dashboard filter buttons functionality for Loans

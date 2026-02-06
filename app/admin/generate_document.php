@@ -394,8 +394,8 @@ $backUrl = $backUrls[$docType] ?? '/index.php?page=admin_loans';
         }
         
         .photo-placeholder { 
-            width: 100%; 
-            height: 120px; 
+            width: 200px; 
+            height: 150px; 
             border: 1px solid #ddd; 
             display: flex; 
             align-items: center; 
@@ -408,8 +408,8 @@ $backUrl = $backUrls[$docType] ?? '/index.php?page=admin_loans';
         }
         
         .photo-placeholder.single {
-            grid-column: span 2;
-            height: 180px;
+            width: 200px;
+            height: 150px;
         }
         .photo-placeholder img { 
             width: 100%; 
@@ -633,7 +633,7 @@ $backUrl = $backUrls[$docType] ?? '/index.php?page=admin_loans';
                         $imageCount = count($allImages);
                         
                         if ($imageCount > 0): ?>
-                        <div class="photo-grid" style="grid-template-columns: repeat(<?= $imageCount === 1 ? '1' : '2' ?>, 1fr);">
+                        <div class="photo-grid" style="grid-template-columns: repeat(2, 1fr);">
                             <?php foreach (array_slice($allImages, 0, 4) as $imgIdx => $imageName): 
                                 $imagePath = __DIR__ . '/../../public/assets/uploads/' . $imageName;
                                 $imageBase64 = '';
@@ -645,27 +645,25 @@ $backUrl = $backUrls[$docType] ?? '/index.php?page=admin_loans';
                                     $finfo = new finfo(FILEINFO_MIME_TYPE);
                                     $mimeType = $finfo->file($imagePath);
                                 }
-                                
-                                $singleClass = ($imageCount === 1) ? 'single' : '';
                             ?>
-                            <div class="photo-placeholder <?= $singleClass ?>">
+                            <div class="photo-placeholder">
                                 <?php if ($imageBase64): ?>
                                 <img src="data:<?= $mimeType ?>;base64,<?= $imageBase64 ?>" 
                                      alt="<?= htmlspecialchars($item['item_name']) ?> - Gambar <?= $imgIdx + 1 ?>"
-                                     style="width: 100%; height: 100%; object-fit: cover;"
+                                     style="width: 100%; height: 100%; object-fit: contain;"
                                      crossorigin="anonymous">
                                 <?php else: ?>
                                 <img src="/public/assets/uploads/<?= htmlspecialchars($imageName) ?>" 
                                      alt="<?= htmlspecialchars($item['item_name']) ?> - Gambar <?= $imgIdx + 1 ?>"
-                                     style="width: 100%; height: 100%; object-fit: cover;"
+                                     style="width: 100%; height: 100%; object-fit: contain;"
                                      crossorigin="anonymous">
                                 <?php endif; ?>
                             </div>
                             <?php endforeach; ?>
                         </div>
                         <?php else: ?>
-                        <div class="photo-grid" style="grid-template-columns: 1fr;">
-                            <div class="photo-placeholder single">
+                        <div class="photo-grid" style="grid-template-columns: repeat(2, 1fr);">
+                            <div class="photo-placeholder">
                                 <span style="color: #999; font-size: 11px;">Tidak ada foto</span>
                             </div>
                         </div>

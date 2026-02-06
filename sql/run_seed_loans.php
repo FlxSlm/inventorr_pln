@@ -7,7 +7,7 @@
 $pdo = require __DIR__ . '/../app/config/database.php';
 
 // Configurable target inventory id (user requested inventory_id = 30)
-$inventoryId = 30;
+$inventoryId = 28;
 $countToInsert = 300;
 
 try {
