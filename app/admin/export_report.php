@@ -90,26 +90,56 @@ if ($format === 'excel') {
     $sheet = $spreadsheet->getActiveSheet();
     $sheet->setTitle('Laporan');
     
+    // PLN Logo (top-right)
+    $excelLogoPath = __DIR__ . '/../../public/assets/img/logopln.png';
+    if (file_exists($excelLogoPath)) {
+        $logoDrawing = new \PhpOffice\PhpSpreadsheet\Worksheet\Drawing();
+        $logoDrawing->setPath($excelLogoPath);
+        $logoDrawing->setCoordinates('F1');
+        $logoDrawing->setWidth(50);
+        $logoDrawing->setHeight(50);
+        $logoDrawing->setOffsetX(5);
+        $logoDrawing->setOffsetY(2);
+        $logoDrawing->setWorksheet($sheet);
+    }
+    
+    // Company Header (right-aligned, below logo area)
+    $sheet->setCellValue('E1', 'PT PLN (PERSERO)');
+    $sheet->mergeCells('E1:E3');
+    $sheet->getStyle('E1')->getFont()->setBold(true)->setSize(11);
+    $sheet->getStyle('E1')->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_RIGHT)->setVertical(\PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_BOTTOM);
+    $sheet->getRowDimension(1)->setRowHeight(20);
+    
+    $sheet->setCellValue('E4', 'UIP3B Sulawesi');
+    $sheet->mergeCells('E4:F4');
+    $sheet->getStyle('E4')->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_RIGHT);
+    $sheet->getStyle('E4')->getFont()->setSize(10);
+    
+    $sheet->setCellValue('E5', 'UPT MANADO');
+    $sheet->mergeCells('E5:F5');
+    $sheet->getStyle('E5')->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_RIGHT);
+    $sheet->getStyle('E5')->getFont()->setSize(10);
+    
     // Title
-    $sheet->setCellValue('A1', $docTitle);
-    $sheet->mergeCells('A1:F1');
-    $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(14);
-    $sheet->getStyle('A1')->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
+    $sheet->setCellValue('A7', $docTitle);
+    $sheet->mergeCells('A7:F7');
+    $sheet->getStyle('A7')->getFont()->setBold(true)->setSize(14);
+    $sheet->getStyle('A7')->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
     
     // Period
-    $sheet->setCellValue('A2', 'Periode: ' . $periodLabel);
-    $sheet->mergeCells('A2:F2');
-    $sheet->getStyle('A2')->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
-    $sheet->getStyle('A2')->getFont()->setSize(11);
+    $sheet->setCellValue('A8', 'Periode: ' . $periodLabel);
+    $sheet->mergeCells('A8:F8');
+    $sheet->getStyle('A8')->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
+    $sheet->getStyle('A8')->getFont()->setSize(11);
     
     // Headers
     $headers = ['No', 'Nama Barang', 'Merek/Tipe', 'Jumlah', 'Persentase', 'Gambar'];
     $col = 'A';
     foreach ($headers as $header) {
-        $sheet->setCellValue($col . '4', $header);
-        $sheet->getStyle($col . '4')->getFont()->setBold(true);
-        $sheet->getStyle($col . '4')->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)->getStartColor()->setRGB('E2E8F0');
-        $sheet->getStyle($col . '4')->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
+        $sheet->setCellValue($col . '10', $header);
+        $sheet->getStyle($col . '10')->getFont()->setBold(true);
+        $sheet->getStyle($col . '10')->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)->getStartColor()->setRGB('E2E8F0');
+        $sheet->getStyle($col . '10')->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
         $col++;
     }
     
@@ -122,7 +152,7 @@ if ($format === 'excel') {
     $sheet->getColumnDimension('F')->setWidth(25);
     
     // Data rows
-    $row = 5;
+    $row = 11;
     foreach ($items as $idx => $item) {
         $pct = $grandTotal > 0 ? round(($item['count'] / $grandTotal) * 100, 1) : 0;
         $sheet->setCellValue('A' . $row, $idx + 1);
@@ -167,7 +197,7 @@ if ($format === 'excel') {
     $sheet->getStyle('B' . $row . ':E' . $row)->getFont()->setBold(true);
     
     // Border for entire table
-    $borderRange = 'A4:F' . $row;
+    $borderRange = 'A10:F' . $row;
     $sheet->getStyle($borderRange)->getBorders()->getAllBorders()->setBorderStyle(\PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN);
     
     // Output
@@ -199,31 +229,35 @@ if ($format === 'word') {
     echo '<head><meta charset="utf-8"><style>';
     echo '@page { size: A4; margin: 20mm; }';
     echo 'body { font-family: "Times New Roman", Times, serif; font-size: 12pt; }';
-    echo 'table { border-collapse: collapse; width: 100%; margin-top: 10px; }';
-    echo 'th, td { border: 1px solid #333; padding: 5px 8px; text-align: center; vertical-align: middle; font-size: 11pt; }';
-    echo 'th { background-color: #f0f0f0; font-weight: bold; }';
-    echo '.header-section { position: relative; text-align: center; margin-bottom: 20px; }';
-    echo '.logo { position: absolute; top: 0; right: 0; width: 60px; height: 60px; }';
-    echo '.title { font-size: 16pt; font-weight: bold; text-align: center; margin: 20px 0 5px; }';
+    echo 'table.data-table { border-collapse: collapse; width: 100%; margin-top: 10px; }';
+    echo 'table.data-table th, table.data-table td { border: 1px solid #333; padding: 5px 8px; text-align: center; vertical-align: middle; font-size: 11pt; }';
+    echo 'table.data-table th { background-color: #f0f0f0; font-weight: bold; }';
+    echo '.title { font-size: 16pt; font-weight: bold; text-align: center; margin: 10px 0 5px; }';
     echo '.subtitle { font-size: 11pt; text-align: center; margin-bottom: 15px; color: #555; }';
     echo '.text-left { text-align: left; }';
     echo '.img-cell img { width: 80px; height: 60px; object-fit: contain; }';
-    echo '.company-info { text-align: right; font-size: 10pt; margin-bottom: 5px; }';
     echo '</style></head><body>';
     
-    // Header with logo
-    echo '<div class="header-section">';
+    // Header with logo using table layout (works reliably in Word)
+    echo '<table style="border:none;width:100%;margin-bottom:5px;border-collapse:collapse;">';
+    echo '<tr style="border:none;">';
+    echo '<td style="border:none;width:75%;vertical-align:top;"></td>';
+    echo '<td style="border:none;width:25%;text-align:right;vertical-align:top;">';
     if ($logoBase64) {
-        echo '<img src="' . $logoBase64 . '" class="logo" alt="PLN Logo">';
+        echo '<img src="' . $logoBase64 . '" alt="PLN Logo" width="45" height="45"><br>';
     }
-    echo '<div class="company-info">PT PLN (PERSERO)<br>UIP3B Sulawesi<br>UPT MANADO</div>';
-    echo '</div>';
+    echo '<span style="font-size:10pt;font-weight:bold;">PT PLN (PERSERO)</span><br>';
+    echo '<span style="font-size:9pt;">UIP3B Sulawesi</span><br>';
+    echo '<span style="font-size:9pt;">UPT MANADO</span>';
+    echo '</td>';
+    echo '</tr>';
+    echo '</table>';
     
     echo '<div class="title">' . htmlspecialchars($docTitle) . '</div>';
     echo '<div class="subtitle">Periode: ' . htmlspecialchars($periodLabel) . '</div>';
     
     // Table
-    echo '<table>';
+    echo '<table class="data-table">';
     echo '<tr><th style="width:30px;">No</th><th>Nama Barang</th><th>Merek/Tipe</th><th style="width:60px;">Jumlah</th><th style="width:70px;">Persentase</th><th style="width:100px;">Gambar</th></tr>';
     
     foreach ($items as $idx => $item) {
@@ -305,7 +339,7 @@ $currentDate = date('d') . ' ' . $monthNames[date('n')] . ' ' . date('Y');
         }
         .page-header-logo .pln-logo-img { width: 60px; height: 60px; margin-bottom: 3px; }
         .page-header-logo .company-name { font-weight: bold; color: #000; }
-        .document-title { text-align: center; margin: 25px 0 15px; }
+        .document-title { text-align: center; margin: 80px 0 15px; }
         .document-title h4 { font-weight: bold; color: #000; font-size: 16px; margin: 0; }
         .document-title h5 { font-weight: normal; color: #555; font-size: 12px; margin: 5px 0 0; }
         .editable { 

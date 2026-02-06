@@ -7,8 +7,14 @@ $stmt = $pdo->prepare('SELECT COUNT(*) AS c FROM loans WHERE inventory_id = ? AN
 $stmt->execute([$id]);
 $c = $stmt->fetchColumn();
 if ($c > 0) {
-    echo "<div class='alert alert-danger'>Tidak dapat menghapus, ada peminjaman terkait.</div>";
-    echo "<a href='/index.php?page=admin_inventory_list' class='btn btn-secondary'>Kembali</a>";
+    // If AJAX request, return JSON
+    if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') {
+        header('Content-Type: application/json');
+        echo json_encode(['success' => false, 'message' => 'Tidak dapat menghapus barang ini karena masih ada peminjaman yang aktif.']);
+        exit;
+    }
+    // Fallback: redirect with error message
+    header('Location: /index.php?page=admin_inventory_list&msg=delete_failed');
     exit;
 }
 
@@ -33,5 +39,11 @@ $stmt->execute([$id]);
 $stmt = $pdo->prepare('DELETE FROM inventories WHERE id = ?');
 $stmt->execute([$id]);
 
-header('Location: /index.php?page=admin_inventory_list');
+// If AJAX request, return JSON success
+if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') {
+    header('Content-Type: application/json');
+    echo json_encode(['success' => true, 'message' => 'Barang berhasil dihapus.']);
+    exit;
+}
+header('Location: /index.php?page=admin_inventory_list&msg=deleted');
 exit;

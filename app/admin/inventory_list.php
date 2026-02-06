@@ -55,8 +55,9 @@ if ($filterOutOfStock) {
 
 // Search filter
 if (!empty($filterSearch)) {
-    $where[] = '(i.name LIKE ? OR i.code LIKE ? OR i.description LIKE ? OR i.notes LIKE ?)';
+    $where[] = '(i.name LIKE ? OR i.code LIKE ? OR i.description LIKE ? OR i.notes LIKE ? OR i.item_type LIKE ?)';
     $searchParam = "%{$filterSearch}%";
+    $params[] = $searchParam;
     $params[] = $searchParam;
     $params[] = $searchParam;
     $params[] = $searchParam;
@@ -117,6 +118,11 @@ $hasFilters = !empty($filterCategories) || !empty($filterConditions) || $filterL
     <i class="bi bi-check-circle-fill me-2"></i>Barang berhasil dihapus.
     <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
 </div>
+<?php elseif ($msg === 'delete_failed'): ?>
+<div class="alert alert-danger alert-dismissible fade show">
+    <i class="bi bi-exclamation-triangle-fill me-2"></i>Tidak dapat menghapus barang ini karena masih ada peminjaman yang aktif.
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+</div>
 <?php endif; ?>
 
 <!-- Filter Section -->
@@ -129,7 +135,7 @@ $hasFilters = !empty($filterCategories) || !empty($filterConditions) || $filterL
                 <!-- Search -->
                 <div class="col-md-3">
                     <label class="form-label fw-semibold"><i class="bi bi-search me-1"></i>Cari Barang</label>
-                    <input type="text" name="search" class="form-control" placeholder="Nama, kode, atau deskripsi..." value="<?= htmlspecialchars($filterSearch) ?>">
+                    <input type="text" name="search" class="form-control" placeholder="Nama, kode, merek/tipe, atau deskripsi..." value="<?= htmlspecialchars($filterSearch) ?>">
                 </div>
                 
                 <!-- Location Filter -->
@@ -371,11 +377,9 @@ $hasFilters = !empty($filterCategories) || !empty($filterConditions) || $filterL
                     <a href="/index.php?page=admin_inventory_edit&id=<?= $it['id'] ?>" class="btn btn-primary btn-sm flex-fill">
                         <i class="bi bi-pencil me-1"></i> Edit
                     </a>
-                    <a href="/index.php?page=admin_inventory_delete&id=<?= $it['id'] ?>" 
-                       class="btn btn-danger btn-sm"
-                       onclick="return confirm('Hapus barang ini?')">
+                    <button type="button" class="btn btn-danger btn-sm" onclick="deleteInventory(<?= $it['id'] ?>, this)">
                         <i class="bi bi-trash"></i>
-                    </a>
+                    </button>
                 </div>
             </div>
         </div>
@@ -472,3 +476,106 @@ $hasFilters = !empty($filterCategories) || !empty($filterConditions) || $filterL
     margin: 0;
 }
 </style>
+
+<!-- Delete Confirmation Modal -->
+<div class="modal fade" id="deleteModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title"><i class="bi bi-exclamation-triangle-fill me-2"></i>Konfirmasi Hapus</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="deleteModalBody">
+                Apakah Anda yakin ingin menghapus barang ini?
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+                <button type="button" class="btn btn-danger" id="confirmDeleteBtn">Ya, Hapus</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Error Alert Modal -->
+<div class="modal fade" id="alertModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header" id="alertModalHeader">
+                <h5 class="modal-title" id="alertModalTitle"></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="alertModalBody"></div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Tutup</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function deleteInventory(id, btnElement) {
+    // Show confirmation modal
+    const deleteModal = new bootstrap.Modal(document.getElementById('deleteModal'));
+    const confirmBtn = document.getElementById('confirmDeleteBtn');
+    
+    // Remove old listener by cloning
+    const newConfirmBtn = confirmBtn.cloneNode(true);
+    confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
+    
+    newConfirmBtn.addEventListener('click', function() {
+        deleteModal.hide();
+        performDelete(id, btnElement);
+    });
+    
+    deleteModal.show();
+}
+
+function performDelete(id, btnElement) {
+    fetch('/index.php?page=admin_inventory_delete&id=' + id, {
+        method: 'GET',
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Success - remove card with animation
+            const card = btnElement.closest('.col-md-6, .col-lg-4, .col-xl-3');
+            if (card) {
+                card.style.transition = 'opacity 0.3s, transform 0.3s';
+                card.style.opacity = '0';
+                card.style.transform = 'scale(0.8)';
+                setTimeout(() => card.remove(), 300);
+            }
+            showAlertModal('success', 'Berhasil', data.message);
+        } else {
+            // Failed - show error popup
+            showAlertModal('danger', 'Gagal Menghapus', data.message);
+        }
+    })
+    .catch(error => {
+        // Network error or non-JSON response - redirect as fallback
+        window.location.href = '/index.php?page=admin_inventory_delete&id=' + id;
+    });
+}
+
+function showAlertModal(type, title, message) {
+    const header = document.getElementById('alertModalHeader');
+    const titleEl = document.getElementById('alertModalTitle');
+    const body = document.getElementById('alertModalBody');
+    
+    header.className = 'modal-header';
+    if (type === 'success') {
+        header.classList.add('bg-success', 'text-white');
+        titleEl.innerHTML = '<i class="bi bi-check-circle-fill me-2"></i>' + title;
+    } else {
+        header.classList.add('bg-danger', 'text-white');
+        titleEl.innerHTML = '<i class="bi bi-exclamation-triangle-fill me-2"></i>' + title;
+    }
+    body.textContent = message;
+    
+    const alertModal = new bootstrap.Modal(document.getElementById('alertModal'));
+    alertModal.show();
+}
+</script>

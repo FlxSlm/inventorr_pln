@@ -34,8 +34,9 @@ if ($categoryFilter) {
 }
 
 if ($search) {
-    $where[] = '(i.name LIKE ? OR i.code LIKE ? OR i.description LIKE ? OR i.notes LIKE ?)';
+    $where[] = '(i.name LIKE ? OR i.code LIKE ? OR i.description LIKE ? OR i.notes LIKE ? OR i.item_type LIKE ?)';
     $searchParam = "%{$search}%";
+    $params[] = $searchParam;
     $params[] = $searchParam;
     $params[] = $searchParam;
     $params[] = $searchParam;
@@ -103,7 +104,7 @@ foreach ($items as $item) {
                 <div class="topbar-search" style="max-width: 100%;">
                     <i class="bi bi-search"></i>
                     <input type="text" name="search" 
-                           placeholder="Nama, kode, atau deskripsi..."
+                           placeholder="Nama, kode, merek/tipe, atau deskripsi..."
                            value="<?= htmlspecialchars($search) ?>">
                 </div>
             </div>
