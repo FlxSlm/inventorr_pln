@@ -348,6 +348,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     display: flex;
     align-items: center;
     justify-content: center;
+    z-index: 5;
+    opacity: 1;
+    cursor: pointer;
 }
 .primary-badge {
     position: absolute;

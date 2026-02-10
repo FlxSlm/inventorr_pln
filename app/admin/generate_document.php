@@ -29,69 +29,54 @@ function getIndonesianDay($date) {
 }
 
 // Function to get next document number (resets monthly)
-// This function only PREVIEWS the next number - actual increment happens only when saving
-// Now considers actual saved documents to auto-correct numbering when documents are deleted
+// Finds the first available (gap) number so deleted documents get reused
 function getNextDocumentNumber($pdo, $docType) {
     $year = date('Y');
     $month = date('n');
-    $romanMonth = getRomanMonth($month);
     
-    // First check if there are any actual saved documents for this month
-    // This ensures numbering resets properly when documents are deleted from database
-    $docTypeMap = [
-        'loan' => 'BAST-PJ',
-        'request' => 'BAST-PM', 
-        'return' => 'BAST-KM'
-    ];
-    $typeCode = $docTypeMap[$docType] ?? 'BAST';
-    
-    // Pattern to match: XXX/YYY/ZZZ/ROMAN/YEAR where XXX is the number we need
-    $searchPattern = "%/{$typeCode}/%/{$romanMonth}/{$year}";
-    
+    // Query all existing saved documents for this type and current month/year
     $stmt = $pdo->prepare("
         SELECT document_number FROM generated_documents 
         WHERE document_type = ? 
         AND status IN ('saved', 'uploaded', 'sent')
-        AND document_number LIKE ?
-        ORDER BY id DESC
-    ");
-    $stmt->execute([$docType, $searchPattern]);
-    $existingDocs = $stmt->fetchAll();
-    
-    // If there are saved documents, get the highest number from them
-    if (!empty($existingDocs)) {
-        $maxNumber = 0;
-        foreach ($existingDocs as $doc) {
-            // Extract the number from document_number (first part before /)
-            $parts = explode('/', $doc['document_number']);
-            if (!empty($parts[0]) && is_numeric($parts[0])) {
-                $num = (int)$parts[0];
-                if ($num > $maxNumber) {
-                    $maxNumber = $num;
-                }
-            }
-        }
-        
-        // Update document_numbers table to match actual documents
-        $stmt = $pdo->prepare("
-            INSERT INTO document_numbers (document_type, year, month, last_number)
-            VALUES (?, ?, ?, ?)
-            ON DUPLICATE KEY UPDATE last_number = VALUES(last_number)
-        ");
-        $stmt->execute([$docType, $year, $month, $maxNumber]);
-        
-        return $maxNumber + 1;
-    }
-    
-    // No saved documents exist for this month - reset to 1
-    // Also clear the document_numbers record for this month
-    $stmt = $pdo->prepare("
-        DELETE FROM document_numbers 
-        WHERE document_type = ? AND year = ? AND month = ?
+        AND YEAR(generated_at) = ?
+        AND MONTH(generated_at) = ?
+        ORDER BY id ASC
     ");
     $stmt->execute([$docType, $year, $month]);
+    $existingDocs = $stmt->fetchAll(PDO::FETCH_COLUMN);
     
-    return 1;
+    // Extract all used numbers
+    $usedNumbers = [];
+    foreach ($existingDocs as $docNum) {
+        $parts = explode('/', $docNum);
+        if (!empty($parts[0]) && is_numeric(ltrim($parts[0], '0') ?: '0')) {
+            $usedNumbers[] = (int)$parts[0];
+        }
+    }
+    $usedNumbers = array_unique($usedNumbers);
+    sort($usedNumbers);
+    
+    // Find first available gap (reuses deleted numbers)
+    $nextNum = 1;
+    foreach ($usedNumbers as $num) {
+        if ($num === $nextNum) {
+            $nextNum++;
+        } elseif ($num > $nextNum) {
+            break; // Found a gap
+        }
+    }
+    
+    // Sync document_numbers table
+    $maxNum = !empty($usedNumbers) ? max($usedNumbers) : 0;
+    $stmt = $pdo->prepare("
+        INSERT INTO document_numbers (document_type, year, month, last_number)
+        VALUES (?, ?, ?, ?)
+        ON DUPLICATE KEY UPDATE last_number = VALUES(last_number)
+    ");
+    $stmt->execute([$docType, $year, $month, $maxNum]);
+    
+    return $nextNum;
 }
 
 // Check if document already has a saved number
@@ -1012,16 +997,34 @@ $backUrl = $backUrls[$docType] ?? '/index.php?page=admin_loans';
                 formData.append('auto_generated', '1');
                 formData.append('document_file', pdfBlob, 'Berita_Acara_<?= str_replace(['/', ' '], ['_', '_'], $previewNumber) ?>.pdf');
                 
-                // Send to server
+                // Send to server (redirect: 'manual' prevents fetch from following redirects)
                 const response = await fetch('/index.php?page=upload_generated_document', {
                     method: 'POST',
-                    body: formData
+                    body: formData,
+                    redirect: 'manual'
                 });
                 
-                const result = await response.text();
+                // Check for JSON response (auto_generated AJAX)
+                let isSuccess = false;
+                let errorMsg = '';
                 
-                // Check if redirect happened (success)
-                if (response.ok || response.redirected) {
+                if (response.type === 'opaqueredirect') {
+                    // Old redirect behavior - assume success (fallback)
+                    isSuccess = true;
+                } else if (response.ok) {
+                    try {
+                        const data = await response.json();
+                        isSuccess = data.success === true;
+                        errorMsg = data.message || 'Gagal mengirim dokumen';
+                    } catch(e) {
+                        // Non-JSON response
+                        isSuccess = true;
+                    }
+                } else {
+                    errorMsg = 'Server error: ' + response.status;
+                }
+                
+                if (isSuccess) {
                     // Close modal and redirect
                     bootstrap.Modal.getInstance(document.getElementById('uploadConfirmModal')).hide();
                     
@@ -1029,11 +1032,11 @@ $backUrl = $backUrls[$docType] ?? '/index.php?page=admin_loans';
                     alert('Dokumen berhasil dikirim ke karyawan!');
                     window.location.href = '/index.php?page=admin_saved_documents&msg=sent';
                 } else {
-                    throw new Error('Gagal mengirim dokumen');
+                    throw new Error(errorMsg);
                 }
             } catch (error) {
                 console.error('Upload error:', error);
-                alert('Terjadi kesalahan saat mengirim dokumen. Silakan coba lagi.');
+                alert('Terjadi kesalahan saat mengirim dokumen: ' + (error.message || 'Silakan coba lagi.'));
                 btn.disabled = false;
                 btn.innerHTML = '<i class="bi bi-send me-1"></i>Ya, Kirim Sekarang';
             }

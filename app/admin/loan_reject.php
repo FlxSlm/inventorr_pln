@@ -17,8 +17,8 @@ if ($loan_id) {
     
     if ($loan) {
         // Update loan with rejection note
-        $stmt = $pdo->prepare('UPDATE loans SET status = "rejected", stage = "rejected", rejection_note = ? WHERE id = ?');
-        $stmt->execute([$rejection_note, $loan_id]);
+        $stmt = $pdo->prepare('UPDATE loans SET status = "rejected", stage = "rejected", rejection_note = ?, rejected_by = ? WHERE id = ?');
+        $stmt->execute([$rejection_note, $_SESSION['user']['id'], $loan_id]);
         
         // Create notification for user
         $notifTitle = 'Peminjaman Ditolak';

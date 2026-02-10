@@ -69,8 +69,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt->execute([$loan['quantity'], $loan['inventory_id']]);
                 
                 // Update loan status
-                $stmt = $pdo->prepare('UPDATE loans SET return_stage = "return_approved", status = "returned", returned_at = NOW(), return_admin_document_path = ? WHERE id = ?');
-                $stmt->execute([$adminDocPath, $loan['id']]);
+                $stmt = $pdo->prepare('UPDATE loans SET return_stage = "return_approved", status = "returned", returned_at = NOW(), return_approved_by = ?, return_approved_at = NOW(), return_admin_document_path = ? WHERE id = ?');
+                $stmt->execute([$_SESSION['user']['id'], $adminDocPath, $loan['id']]);
                 
                 $itemNames[] = $loan['inventory_name'] . ' (' . $loan['quantity'] . ' unit)';
             }
@@ -111,8 +111,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $itemNames = [];
             
             foreach ($loans as $loan) {
-                $stmt = $pdo->prepare('UPDATE loans SET return_stage = "return_rejected", return_rejection_note = ? WHERE id = ?');
-                $stmt->execute([$rejection_note, $loan['id']]);
+                $stmt = $pdo->prepare('UPDATE loans SET return_stage = "return_rejected", return_rejection_note = ?, rejected_by = ? WHERE id = ?');
+                $stmt->execute([$rejection_note, $_SESSION['user']['id'], $loan['id']]);
                 $itemNames[] = $loan['inventory_name'];
             }
             
@@ -131,10 +131,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $stmt = $pdo->query("
     SELECT l.*, u.name AS user_name, u.email AS user_email, 
            i.name AS inventory_name, i.code AS inventory_code, i.image AS inventory_image,
-           i.unit, i.item_condition, i.stock_available
+           i.unit, i.item_condition, i.stock_available,
+           ua.name AS return_approved_by_name, ur.name AS rejected_by_name
     FROM loans l
     JOIN users u ON u.id = l.user_id
     JOIN inventories i ON i.id = l.inventory_id
+    LEFT JOIN users ua ON ua.id = l.return_approved_by
+    LEFT JOIN users ur ON ur.id = l.rejected_by
     WHERE l.return_stage IS NOT NULL AND l.return_stage != 'none'
     ORDER BY l.return_requested_at DESC, l.group_id, l.id
 ");
@@ -157,7 +160,10 @@ foreach ($allReturns as $loan) {
                 'total_quantity' => 0,
                 'return_note' => $loan['return_note'] ?? null,
                 'return_rejection_note' => $loan['return_rejection_note'] ?? null,
-                'return_admin_document_path' => $loan['return_admin_document_path'] ?? null
+                'return_admin_document_path' => $loan['return_admin_document_path'] ?? null,
+                'returned_at' => $loan['returned_at'] ?? null,
+                'return_approved_by_name' => $loan['return_approved_by_name'] ?? null,
+                'rejected_by_name' => $loan['rejected_by_name'] ?? null
             ];
         }
         $groupedReturns[$loan['group_id']]['items'][] = $loan;
@@ -180,7 +186,10 @@ foreach ($allReturns as $loan) {
             'total_quantity' => $loan['quantity'],
             'return_note' => $loan['return_note'] ?? null,
             'return_rejection_note' => $loan['return_rejection_note'] ?? null,
-            'return_admin_document_path' => $loan['return_admin_document_path'] ?? null
+            'return_admin_document_path' => $loan['return_admin_document_path'] ?? null,
+            'returned_at' => $loan['returned_at'] ?? null,
+            'return_approved_by_name' => $loan['return_approved_by_name'] ?? null,
+            'rejected_by_name' => $loan['rejected_by_name'] ?? null
         ];
     }
 }
@@ -511,6 +520,14 @@ $returnStageLabels = [
                             <span class="badge bg-<?= $stageInfo[1] ?>">
                                 <i class="bi bi-<?= $stageInfo[2] ?> me-1"></i><?= $stageInfo[0] ?>
                             </span>
+                            <?php if($group['return_stage'] === 'return_approved' && !empty($group['return_approved_by_name'])): ?>
+                            <br><small class="text-muted">oleh <?= htmlspecialchars($group['return_approved_by_name']) ?></small>
+                            <?php if(!empty($group['returned_at'])): ?>
+                            <br><small class="text-muted"><?= date('d/m/Y H:i', strtotime($group['returned_at'])) ?></small>
+                            <?php endif; ?>
+                            <?php elseif($group['return_stage'] === 'return_rejected' && !empty($group['rejected_by_name'])): ?>
+                            <br><small class="text-muted">oleh <?= htmlspecialchars($group['rejected_by_name']) ?></small>
+                            <?php endif; ?>
                         </td>
                         <td>
                             <?php if($group['return_stage'] === 'pending_return'): ?>

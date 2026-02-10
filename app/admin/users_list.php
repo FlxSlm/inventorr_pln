@@ -59,9 +59,17 @@ foreach ($users as $u) {
             MAX(l.return_stage) as return_stage,
             MAX(l.note) as note,
             MAX(l.rejection_note) as rejection_note,
-            MAX(l.return_note) as return_note
+            MAX(l.return_note) as return_note,
+            MAX(l.approved_at) as approved_at,
+            MAX(l.returned_at) as returned_at,
+            MAX(ua.name) as approved_by_name,
+            MAX(ur.name) as rejected_by_name,
+            MAX(ura.name) as return_approved_by_name
         FROM loans l
         JOIN inventories i ON i.id = l.inventory_id
+        LEFT JOIN users ua ON ua.id = l.approved_by
+        LEFT JOIN users ur ON ur.id = l.rejected_by
+        LEFT JOIN users ura ON ura.id = l.return_approved_by
         WHERE l.user_id = ?
         GROUP BY COALESCE(l.group_id, CONCAT('single_', l.id))
         ORDER BY MIN(l.requested_at) DESC
@@ -81,9 +89,14 @@ foreach ($users as $u) {
             MIN(r.requested_at) as requested_at,
             MAX(r.stage) as stage,
             MAX(r.note) as note,
-            MAX(r.rejection_note) as rejection_note
+            MAX(r.rejection_note) as rejection_note,
+            MAX(r.approved_at) as approved_at,
+            MAX(ua.name) as approved_by_name,
+            MAX(ur.name) as rejected_by_name
         FROM requests r
         JOIN inventories i ON i.id = r.inventory_id
+        LEFT JOIN users ua ON ua.id = r.approved_by
+        LEFT JOIN users ur ON ur.id = r.rejected_by
         WHERE r.user_id = ?
         GROUP BY COALESCE(r.group_id, CONCAT('single_', r.id))
         ORDER BY MIN(r.requested_at) DESC
@@ -147,6 +160,12 @@ foreach ($users as $u) {
 <?php if($success): ?>
 <div class="alert alert-success alert-dismissible fade show">
     <i class="bi bi-check-circle-fill me-2"></i><?= htmlspecialchars($success) ?>
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+</div>
+<?php endif; ?>
+<?php if(!empty($_GET['error'])): ?>
+<div class="alert alert-danger alert-dismissible fade show">
+    <i class="bi bi-exclamation-circle-fill me-2"></i><?= htmlspecialchars($_GET['error']) ?>
     <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
 </div>
 <?php endif; ?>
@@ -499,13 +518,27 @@ function openUserHistory(userId) {
                                 </div>
                                 <div style="text-align: right;">
                                     <span class="badge bg-<?= $stageInfo[1] ?>"><?= $stageInfo[0] ?></span>
+                                    <?php if($stage === 'approved' && !empty($loan['approved_by_name'])): ?>
+                                    <br><small class="text-muted" style="font-size: 11px;">oleh <?= htmlspecialchars($loan['approved_by_name']) ?></small>
+                                    <?php elseif($stage === 'rejected' && !empty($loan['rejected_by_name'])): ?>
+                                    <br><small class="text-muted" style="font-size: 11px;">oleh <?= htmlspecialchars($loan['rejected_by_name']) ?></small>
+                                    <?php endif; ?>
                                     <?php if($stage === 'approved'): ?>
                                     <br><small class="badge bg-<?= $returnInfo[1] ?>" style="margin-top: 4px;"><?= $returnInfo[0] ?></small>
+                                    <?php if($returnStage === 'return_approved' && !empty($loan['return_approved_by_name'])): ?>
+                                    <br><small class="text-muted" style="font-size: 11px;">oleh <?= htmlspecialchars($loan['return_approved_by_name']) ?></small>
+                                    <?php endif; ?>
                                     <?php endif; ?>
                                 </div>
                             </div>
                             <div style="margin-top: 10px; font-size: 12px; color: var(--text-muted);">
-                                <i class="bi bi-calendar me-1"></i><?= date('d M Y H:i', strtotime($loan['requested_at'])) ?>
+                                <i class="bi bi-calendar me-1"></i>Diajukan: <?= date('d M Y H:i', strtotime($loan['requested_at'])) ?>
+                                <?php if(!empty($loan['approved_at'])): ?>
+                                <br><i class="bi bi-check2-circle me-1"></i>Disetujui: <?= date('d M Y H:i', strtotime($loan['approved_at'])) ?>
+                                <?php endif; ?>
+                                <?php if(!empty($loan['returned_at'])): ?>
+                                <br><i class="bi bi-arrow-return-left me-1"></i>Dikembalikan: <?= date('d M Y H:i', strtotime($loan['returned_at'])) ?>
+                                <?php endif; ?>
                             </div>
                             <?php if(!empty($loan['note'])): ?>
                             <div style="margin-top: 10px; padding: 10px; background: var(--bg-main); border-radius: 6px; font-size: 13px;">
@@ -561,10 +594,20 @@ function openUserHistory(userId) {
                                         Total: <?= $req['total_quantity'] ?> unit
                                     </small>
                                 </div>
-                                <span class="badge bg-<?= $stageInfo[1] ?>"><?= $stageInfo[0] ?></span>
+                                <div style="text-align: right;">
+                                    <span class="badge bg-<?= $stageInfo[1] ?>"><?= $stageInfo[0] ?></span>
+                                    <?php if($stage === 'approved' && !empty($req['approved_by_name'])): ?>
+                                    <br><small class="text-muted" style="font-size: 11px;">oleh <?= htmlspecialchars($req['approved_by_name']) ?></small>
+                                    <?php elseif($stage === 'rejected' && !empty($req['rejected_by_name'])): ?>
+                                    <br><small class="text-muted" style="font-size: 11px;">oleh <?= htmlspecialchars($req['rejected_by_name']) ?></small>
+                                    <?php endif; ?>
+                                </div>
                             </div>
                             <div style="margin-top: 10px; font-size: 12px; color: var(--text-muted);">
-                                <i class="bi bi-calendar me-1"></i><?= date('d M Y H:i', strtotime($req['requested_at'])) ?>
+                                <i class="bi bi-calendar me-1"></i>Diajukan: <?= date('d M Y H:i', strtotime($req['requested_at'])) ?>
+                                <?php if(!empty($req['approved_at'])): ?>
+                                <br><i class="bi bi-check2-circle me-1"></i>Disetujui: <?= date('d M Y H:i', strtotime($req['approved_at'])) ?>
+                                <?php endif; ?>
                             </div>
                             <?php if(!empty($req['note'])): ?>
                             <div style="margin-top: 10px; padding: 10px; background: var(--bg-main); border-radius: 6px; font-size: 13px;">

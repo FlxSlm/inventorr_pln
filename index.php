@@ -156,6 +156,11 @@ switch ($page) {
         view('admin/loan_tracking.php');
         break;
 
+    // ----- Request Tracking (Admin) -----
+    case 'admin_request_tracking':
+        view('admin/request_tracking.php');
+        break;
+
     // ----- Suggestions & Notifications -----
     case 'admin_suggestions':
         view('admin/suggestions.php');

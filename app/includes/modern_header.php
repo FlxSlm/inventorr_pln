@@ -122,10 +122,24 @@ $pdo_temp = require __DIR__ . '/../config/database.php';
                             </a>
                         </li>
                         <li class="sidebar-menu-item">
-                            <a href="/index.php?page=admin_loan_tracking" class="sidebar-menu-link <?= (isset($_GET['page']) && $_GET['page'] === 'admin_loan_tracking') ? 'active' : '' ?>">
+                            <a href="/index.php?page=admin_loan_tracking" class="sidebar-menu-link <?= (isset($_GET['page']) && in_array($_GET['page'] ?? '', ['admin_loan_tracking', 'admin_request_tracking'])) ? 'active' : '' ?>">
                                 <i class="bi bi-geo-alt-fill"></i>
                                 <span>Tracking Barang</span>
                             </a>
+                            <?php if (isset($_GET['page']) && in_array($_GET['page'], ['admin_loan_tracking', 'admin_request_tracking'])): ?>
+                            <ul style="list-style: none; padding: 0; margin: 4px 0 4px 36px;">
+                                <li style="margin-bottom: 2px;">
+                                    <a href="/index.php?page=admin_loan_tracking" style="font-size: 13px; color: <?= $_GET['page'] === 'admin_loan_tracking' ? 'var(--primary-light)' : 'var(--text-muted)' ?>; text-decoration: none; display: flex; align-items: center; gap: 6px; padding: 4px 0;">
+                                        <i class="bi bi-clipboard-check" style="font-size: 12px;"></i> Tracking Peminjaman
+                                    </a>
+                                </li>
+                                <li>
+                                    <a href="/index.php?page=admin_request_tracking" style="font-size: 13px; color: <?= $_GET['page'] === 'admin_request_tracking' ? 'var(--primary-light)' : 'var(--text-muted)' ?>; text-decoration: none; display: flex; align-items: center; gap: 6px; padding: 4px 0;">
+                                        <i class="bi bi-cart-check" style="font-size: 12px;"></i> Tracking Permintaan
+                                    </a>
+                                </li>
+                            </ul>
+                            <?php endif; ?>
                         </li>
                     </ul>
                 </div>

@@ -367,7 +367,7 @@ foreach ($items as $item) {
                         <i class="bi bi-box-seam" style="font-size: 3rem; color: rgba(255,255,255,0.5);"></i>
                     </div>
                     <?php endif; ?>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" style="position: absolute; top: 12px; right: 12px; background-color: rgba(0,0,0,0.3); border-radius: 50%; padding: 10px;"></button>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" style="position: absolute; top: 12px; right: 12px; background-color: rgba(0,0,0,0.5); border-radius: 50%; padding: 10px; z-index: 10; opacity: 1; width: 32px; height: 32px;"></button>
                     
                     <!-- Stock Badge on Image -->
                     <?php 

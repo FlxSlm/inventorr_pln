@@ -24,8 +24,8 @@ try {
     }
     
     // mark loan as awaiting document (employee must upload filled template)
-    $stmt = $pdo->prepare('UPDATE loans SET stage = ?, note = CONCAT(IFNULL(note,""), "\n[admin] initial approved at ", NOW()) WHERE id = ?');
-    $stmt->execute(['awaiting_document', $loan_id]);
+    $stmt = $pdo->prepare('UPDATE loans SET stage = ?, approved_by = ?, note = CONCAT(IFNULL(note,""), "\n[admin] initial approved at ", NOW()) WHERE id = ?');
+    $stmt->execute(['awaiting_document', $_SESSION['user']['id'], $loan_id]);
     
     // Create notification for user
     $notifTitle = 'Peminjaman Disetujui - Upload Dokumen';

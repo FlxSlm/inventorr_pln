@@ -12,9 +12,12 @@ $msg = $_GET['msg'] ?? '';
 
 // Fetch user's requests
 $stmt = $pdo->prepare("
-    SELECT r.*, i.name as inventory_name, i.code as inventory_code, i.image as inventory_image
+    SELECT r.*, i.name as inventory_name, i.code as inventory_code, i.image as inventory_image,
+           ua.name AS approved_by_name, ur.name AS rejected_by_name
     FROM requests r
     JOIN inventories i ON i.id = r.inventory_id
+    LEFT JOIN users ua ON ua.id = r.approved_by
+    LEFT JOIN users ur ON ur.id = r.rejected_by
     WHERE r.user_id = ?
     ORDER BY r.requested_at DESC, r.group_id, r.id
 ");
@@ -36,7 +39,10 @@ foreach ($rawRequests as $req) {
                 'note' => $req['note'],
                 'rejection_note' => $req['rejection_note'],
                 'admin_document_path' => $req['admin_document_path'] ?? null,
-                'total_quantity' => 0
+                'total_quantity' => 0,
+                'approved_at' => $req['approved_at'] ?? null,
+                'approved_by_name' => $req['approved_by_name'] ?? null,
+                'rejected_by_name' => $req['rejected_by_name'] ?? null
             ];
         }
         $groupedRequests[$req['group_id']]['items'][] = $req;
@@ -356,6 +362,11 @@ $stageLabels = [
                         </td>
                         <td>
                             <span class="badge bg-<?= $stageInfo[1] ?>"><i class="bi bi-<?= $stageInfo[2] ?> me-1"></i><?= $stageInfo[0] ?></span>
+                            <?php if ($stage === 'approved' && !empty($r['approved_by_name'])): ?>
+                            <br><small class="text-muted">oleh <?= htmlspecialchars($r['approved_by_name']) ?></small>
+                            <?php elseif ($stage === 'rejected' && !empty($r['rejected_by_name'])): ?>
+                            <br><small class="text-muted">oleh <?= htmlspecialchars($r['rejected_by_name']) ?></small>
+                            <?php endif; ?>
                         </td>
                         <td onclick="event.stopPropagation();">
                             <?php if ($stage === 'approved' && $adminDoc): ?>
@@ -433,6 +444,11 @@ $stageLabels = [
                         </td>
                         <td>
                             <span class="badge bg-<?= $stageInfo[1] ?>"><i class="bi bi-<?= $stageInfo[2] ?> me-1"></i><?= $stageInfo[0] ?></span>
+                            <?php if ($stage === 'approved' && !empty($r['approved_by_name'])): ?>
+                            <br><small class="text-muted">oleh <?= htmlspecialchars($r['approved_by_name']) ?></small>
+                            <?php elseif ($stage === 'rejected' && !empty($r['rejected_by_name'])): ?>
+                            <br><small class="text-muted">oleh <?= htmlspecialchars($r['rejected_by_name']) ?></small>
+                            <?php endif; ?>
                         </td>
                         <td>
                             <?php if ($stage === 'approved' && $adminDoc): ?>

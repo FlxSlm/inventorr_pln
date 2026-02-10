@@ -25,13 +25,42 @@ if ($userId > 0) {
     $user = $stmt->fetch();
     
     if ($user) {
-        // Delete user's loans first (or you can soft-delete / keep them)
-        // For now, just delete the user - loans remain as historical data
-        $deleteStmt = $pdo->prepare('DELETE FROM users WHERE id = ?');
-        $deleteStmt->execute([$userId]);
+        // Check if user has active loans (approved but not returned)
+        $activeLoanCheck = $pdo->prepare("SELECT COUNT(*) FROM loans WHERE user_id = ? AND stage = 'approved' AND (return_stage IS NULL OR return_stage NOT IN ('return_approved'))");
+        $activeLoanCheck->execute([$userId]);
+        $activeLoans = $activeLoanCheck->fetchColumn();
         
-        header('Location: /index.php?page=admin_users_list&msg=' . urlencode('User "' . $user['name'] . '" berhasil dihapus'));
-        exit;
+        if ($activeLoans > 0) {
+            header('Location: /index.php?page=admin_users_list&error=' . urlencode('Tidak dapat menghapus user "' . $user['name'] . '" karena masih memiliki ' . $activeLoans . ' peminjaman aktif yang belum dikembalikan. Harap selesaikan semua peminjaman terlebih dahulu.'));
+            exit;
+        }
+        
+        try {
+            $pdo->beginTransaction();
+            
+            // Delete related records first to avoid FK constraint errors
+            $pdo->prepare('DELETE FROM notifications WHERE user_id = ?')->execute([$userId]);
+            $pdo->prepare('DELETE FROM material_suggestions WHERE user_id = ?')->execute([$userId]);
+            
+            // Delete related requests
+            $pdo->prepare('DELETE FROM requests WHERE user_id = ?')->execute([$userId]);
+            
+            // Delete related loans (only non-active ones should remain at this point)
+            $pdo->prepare('DELETE FROM loans WHERE user_id = ?')->execute([$userId]);
+            
+            // Delete the user
+            $deleteStmt = $pdo->prepare('DELETE FROM users WHERE id = ?');
+            $deleteStmt->execute([$userId]);
+            
+            $pdo->commit();
+            
+            header('Location: /index.php?page=admin_users_list&msg=' . urlencode('User "' . $user['name'] . '" berhasil dihapus'));
+            exit;
+        } catch (PDOException $e) {
+            $pdo->rollBack();
+            header('Location: /index.php?page=admin_users_list&error=' . urlencode('Gagal menghapus user: ' . $e->getMessage()));
+            exit;
+        }
     }
 }
 

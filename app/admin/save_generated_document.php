@@ -2,7 +2,7 @@
 // app/admin/save_generated_document.php
 // Handler untuk menyimpan dokumen yang sudah digenerate
 
-session_start();
+// session already started by index.php
 $pdo = require __DIR__ . '/../config/database.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -45,25 +45,47 @@ try {
     
     // Generate document number only if not exists
     if (!$documentNumber) {
-        // Get next number from document_numbers table
         $year = date('Y');
         $month = date('n');
         $romanMonth = getRomanMonth($month);
         
-        // Get and increment the counter based on document_type, year, and month
-        $stmt = $pdo->prepare("SELECT last_number FROM document_numbers WHERE document_type = ? AND year = ? AND month = ? FOR UPDATE");
+        // Smart gap-finding: query actual saved docs for this type+month+year
+        $stmt = $pdo->prepare("
+            SELECT document_number FROM generated_documents 
+            WHERE document_type = ? 
+            AND status IN ('saved', 'uploaded', 'sent')
+            AND YEAR(generated_at) = ?
+            AND MONTH(generated_at) = ?
+            ORDER BY id ASC
+        ");
         $stmt->execute([$docType, $year, $month]);
-        $row = $stmt->fetch();
+        $existingDocs = $stmt->fetchAll(PDO::FETCH_COLUMN);
         
-        if ($row) {
-            $nextNumber = $row['last_number'] + 1;
-            $stmt = $pdo->prepare("UPDATE document_numbers SET last_number = ? WHERE document_type = ? AND year = ? AND month = ?");
-            $stmt->execute([$nextNumber, $docType, $year, $month]);
-        } else {
-            $nextNumber = 1;
-            $stmt = $pdo->prepare("INSERT INTO document_numbers (document_type, year, month, last_number) VALUES (?, ?, ?, 1)");
-            $stmt->execute([$docType, $year, $month]);
+        $usedNumbers = [];
+        foreach ($existingDocs as $docNum) {
+            $parts = explode('/', $docNum);
+            if (!empty($parts[0]) && is_numeric(ltrim($parts[0], '0') ?: '0')) {
+                $usedNumbers[] = (int)$parts[0];
+            }
         }
+        $usedNumbers = array_unique($usedNumbers);
+        sort($usedNumbers);
+        
+        // Find first available gap
+        $nextNumber = 1;
+        foreach ($usedNumbers as $num) {
+            if ($num === $nextNumber) {
+                $nextNumber++;
+            } elseif ($num > $nextNumber) {
+                break;
+            }
+        }
+        
+        // Update document_numbers table
+        $maxNum = !empty($usedNumbers) ? max($usedNumbers) : 0;
+        $finalNum = max($maxNum, $nextNumber);
+        $stmt = $pdo->prepare("INSERT INTO document_numbers (document_type, year, month, last_number) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE last_number = VALUES(last_number)");
+        $stmt->execute([$docType, $year, $month, $finalNum]);
         
         // Format: 001/UPT Manado/II/2026
         $documentNumber = sprintf('%03d/UPT Manado/%s/%d', $nextNumber, $romanMonth, $year);

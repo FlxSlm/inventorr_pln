@@ -75,8 +75,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt->execute([$loan['quantity'], $loan['inventory_id']]);
                 
                 // Update loan status
-                $stmt = $pdo->prepare('UPDATE loans SET stage = "approved", status = "approved", approved_at = NOW(), admin_document_path = ? WHERE id = ?');
-                $stmt->execute([$adminDocPath, $loan['id']]);
+                $stmt = $pdo->prepare('UPDATE loans SET stage = "approved", status = "approved", approved_at = NOW(), approved_by = ?, admin_document_path = ? WHERE id = ?');
+                $stmt->execute([$_SESSION['user']['id'], $adminDocPath, $loan['id']]);
                 
                 $itemNames[] = $loan['inventory_name'] . ' (' . $loan['quantity'] . ' unit)';
             }
@@ -117,8 +117,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $itemNames = [];
             
             foreach ($loans as $loan) {
-                $stmt = $pdo->prepare('UPDATE loans SET stage = "rejected", status = "rejected", rejection_note = ? WHERE id = ?');
-                $stmt->execute([$rejection_note, $loan['id']]);
+                $stmt = $pdo->prepare('UPDATE loans SET stage = "rejected", status = "rejected", rejection_note = ?, rejected_by = ? WHERE id = ?');
+                $stmt->execute([$rejection_note, $_SESSION['user']['id'], $loan['id']]);
                 $itemNames[] = $loan['inventory_name'];
             }
             
@@ -137,10 +137,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $stmt = $pdo->query("
     SELECT l.*, u.name AS user_name, u.email AS user_email, 
            i.name AS inventory_name, i.code AS inventory_code, i.stock_available, i.image AS inventory_image,
-           i.unit, i.item_condition
+           i.unit, i.item_condition,
+           ua.name AS approved_by_name, ur.name AS rejected_by_name
     FROM loans l
     JOIN users u ON u.id = l.user_id
     JOIN inventories i ON i.id = l.inventory_id
+    LEFT JOIN users ua ON ua.id = l.approved_by
+    LEFT JOIN users ur ON ur.id = l.rejected_by
     ORDER BY l.requested_at DESC, l.group_id, l.id
 ");
 $allLoans = $stmt->fetchAll();
@@ -162,7 +165,10 @@ foreach ($allLoans as $loan) {
                 'total_quantity' => 0,
                 'note' => $loan['note'],
                 'rejection_note' => $loan['rejection_note'],
-                'admin_document_path' => $loan['admin_document_path'] ?? null
+                'admin_document_path' => $loan['admin_document_path'] ?? null,
+                'approved_at' => $loan['approved_at'] ?? null,
+                'approved_by_name' => $loan['approved_by_name'] ?? null,
+                'rejected_by_name' => $loan['rejected_by_name'] ?? null
             ];
         }
         $groupedLoans[$loan['group_id']]['items'][] = $loan;
@@ -185,7 +191,10 @@ foreach ($allLoans as $loan) {
             'total_quantity' => $loan['quantity'],
             'note' => $loan['note'],
             'rejection_note' => $loan['rejection_note'],
-            'admin_document_path' => $loan['admin_document_path'] ?? null
+            'admin_document_path' => $loan['admin_document_path'] ?? null,
+            'approved_at' => $loan['approved_at'] ?? null,
+            'approved_by_name' => $loan['approved_by_name'] ?? null,
+            'rejected_by_name' => $loan['rejected_by_name'] ?? null
         ];
     }
 }
@@ -518,8 +527,17 @@ try {
                             <span class="status-badge warning">Menunggu Validasi</span>
                         <?php elseif($group['stage'] === 'approved'): ?>
                             <span class="status-badge success">Disetujui</span>
+                            <?php if(!empty($group['approved_by_name'])): ?>
+                            <br><small class="text-muted">oleh <?= htmlspecialchars($group['approved_by_name']) ?></small>
+                            <?php endif; ?>
+                            <?php if(!empty($group['approved_at'])): ?>
+                            <br><small class="text-muted"><?= date('d/m/Y H:i', strtotime($group['approved_at'])) ?></small>
+                            <?php endif; ?>
                         <?php elseif($group['stage'] === 'rejected'): ?>
                             <span class="status-badge danger">Ditolak</span>
+                            <?php if(!empty($group['rejected_by_name'])): ?>
+                            <br><small class="text-muted">oleh <?= htmlspecialchars($group['rejected_by_name']) ?></small>
+                            <?php endif; ?>
                         <?php endif; ?>
                     </td>
                     <td>

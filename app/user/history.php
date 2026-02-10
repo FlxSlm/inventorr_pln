@@ -56,9 +56,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 // Fetch user's loans with group_id support
 $stmt = $pdo->prepare("
-  SELECT l.*, i.name AS inventory_name, i.code AS inventory_code, i.image AS inventory_image
+  SELECT l.*, i.name AS inventory_name, i.code AS inventory_code, i.image AS inventory_image,
+         ua.name AS approved_by_name, ur.name AS rejected_by_name, 
+         ura.name AS return_approved_by_name
   FROM loans l
   JOIN inventories i ON i.id = l.inventory_id
+  LEFT JOIN users ua ON ua.id = l.approved_by
+  LEFT JOIN users ur ON ur.id = l.rejected_by
+  LEFT JOIN users ura ON ura.id = l.return_approved_by
   WHERE l.user_id = ?
   ORDER BY l.requested_at DESC, l.group_id, l.id
 ");
@@ -84,7 +89,12 @@ foreach ($rawLoans as $loan) {
                 'return_admin_document_path' => $loan['return_admin_document_path'] ?? null,
                 'return_note' => $loan['return_note'] ?? null,
                 'total_quantity' => 0,
-                'first_id' => $loan['id']
+                'first_id' => $loan['id'],
+                'approved_at' => $loan['approved_at'] ?? null,
+                'returned_at' => $loan['returned_at'] ?? null,
+                'approved_by_name' => $loan['approved_by_name'] ?? null,
+                'rejected_by_name' => $loan['rejected_by_name'] ?? null,
+                'return_approved_by_name' => $loan['return_approved_by_name'] ?? null
             ];
         }
         $groupedLoans[$loan['group_id']]['items'][] = $loan;
@@ -458,6 +468,11 @@ $returnStageLabels = [
                         </td>
                         <td>
                             <span class="badge bg-<?= $stageInfo[1] ?>"><i class="bi bi-<?= $stageInfo[2] ?> me-1"></i><?= $stageInfo[0] ?></span>
+                            <?php if ($stage === 'approved' && !empty($l['approved_by_name'])): ?>
+                            <br><small class="text-muted">oleh <?= htmlspecialchars($l['approved_by_name']) ?></small>
+                            <?php elseif ($stage === 'rejected' && !empty($l['rejected_by_name'])): ?>
+                            <br><small class="text-muted">oleh <?= htmlspecialchars($l['rejected_by_name']) ?></small>
+                            <?php endif; ?>
                             <?php if ($stage === 'rejected' && !empty($l['rejection_note'])): ?>
                             <button type="button" class="btn-alasan ms-1" data-bs-toggle="modal" data-bs-target="#rejectionModalGroup<?= $l['group_id'] ?>" onclick="event.stopPropagation();">
                                 <i class="bi bi-exclamation-circle"></i>
@@ -467,6 +482,9 @@ $returnStageLabels = [
                         <td>
                             <?php if ($stage === 'approved'): ?>
                             <span class="badge bg-<?= $returnInfo[1] ?>"><i class="bi bi-<?= $returnInfo[2] ?> me-1"></i><?= $returnInfo[0] ?></span>
+                            <?php if ($returnStage === 'return_approved' && !empty($l['return_approved_by_name'])): ?>
+                            <br><small class="text-muted">oleh <?= htmlspecialchars($l['return_approved_by_name']) ?></small>
+                            <?php endif; ?>
                             <?php else: ?>
                             <span class="text-muted">-</span>
                             <?php endif; ?>
@@ -561,6 +579,11 @@ $returnStageLabels = [
                         </td>
                         <td>
                             <span class="badge bg-<?= $stageInfo[1] ?>"><i class="bi bi-<?= $stageInfo[2] ?> me-1"></i><?= $stageInfo[0] ?></span>
+                            <?php if ($l['stage'] === 'approved' && !empty($l['approved_by_name'])): ?>
+                            <br><small class="text-muted">oleh <?= htmlspecialchars($l['approved_by_name']) ?></small>
+                            <?php elseif ($l['stage'] === 'rejected' && !empty($l['rejected_by_name'])): ?>
+                            <br><small class="text-muted">oleh <?= htmlspecialchars($l['rejected_by_name']) ?></small>
+                            <?php endif; ?>
                             <?php if ($l['stage'] === 'rejected' && !empty($l['rejection_note'])): ?>
                             <button type="button" class="btn-alasan ms-1" data-bs-toggle="modal" data-bs-target="#rejectionModal<?= $l['id'] ?>">
                                 <i class="bi bi-exclamation-circle"></i>
@@ -570,6 +593,9 @@ $returnStageLabels = [
                         <td>
                             <?php if ($l['stage'] === 'approved'): ?>
                             <span class="badge bg-<?= $returnInfo[1] ?>"><i class="bi bi-<?= $returnInfo[2] ?> me-1"></i><?= $returnInfo[0] ?></span>
+                            <?php if (($l['return_stage'] ?? 'none') === 'return_approved' && !empty($l['return_approved_by_name'])): ?>
+                            <br><small class="text-muted">oleh <?= htmlspecialchars($l['return_approved_by_name']) ?></small>
+                            <?php endif; ?>
                             <?php else: ?>
                             <span class="text-muted">-</span>
                             <?php endif; ?>

@@ -15,7 +15,7 @@ $stmt = $pdo->query("
     SELECT l.*, 
            u.name as user_name, u.email as user_email, u.id as user_id,
            i.name as inventory_name, i.code as inventory_code, i.image as inventory_image,
-           i.unit, i.item_condition
+           i.unit, i.item_condition, i.location as inventory_location, i.item_type as inventory_type
     FROM loans l
     JOIN users u ON u.id = l.user_id
     JOIN inventories i ON i.id = l.inventory_id
@@ -51,6 +51,8 @@ foreach ($activeLoans as $loan) {
             'inventory_name' => $loan['inventory_name'],
             'inventory_code' => $loan['inventory_code'],
             'inventory_image' => $loan['inventory_image'],
+            'inventory_location' => $loan['inventory_location'],
+            'inventory_type' => $loan['inventory_type'],
             'unit' => $loan['unit'],
             'borrowers' => [],
             'total_qty' => 0
@@ -322,6 +324,16 @@ $buildPaginationUrl = function($pageNum) use ($searchQuery) {
                             <small style="color: var(--text-muted);">
                                 <?= htmlspecialchars($item['inventory_code']) ?>
                             </small>
+                            <?php if (!empty($item['inventory_location'])): ?>
+                            <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">
+                                <i class="bi bi-geo-alt me-1"></i><?= htmlspecialchars($item['inventory_location']) ?>
+                            </div>
+                            <?php endif; ?>
+                            <?php if (!empty($item['inventory_type'])): ?>
+                            <div style="font-size: 11px; color: var(--text-muted);">
+                                <i class="bi bi-diagram-3 me-1"></i><?= htmlspecialchars($item['inventory_type']) ?>
+                            </div>
+                            <?php endif; ?>
                         </div>
                         <div style="text-align: right;">
                             <span class="badge bg-primary"><?= $item['quantity'] ?> <?= htmlspecialchars($item['unit'] ?? 'unit') ?></span>
@@ -363,6 +375,8 @@ $buildPaginationUrl = function($pageNum) use ($searchQuery) {
                 <thead>
                     <tr>
                         <th>Barang</th>
+                        <th>Lokasi</th>
+                        <th>Merek/Tipe</th>
                         <th>Total Dipinjam</th>
                         <th>Peminjam</th>
                         <th>Detail</th>
@@ -386,6 +400,20 @@ $buildPaginationUrl = function($pageNum) use ($searchQuery) {
                                     <small style="color: var(--text-muted);"><?= htmlspecialchars($data['inventory_code']) ?></small>
                                 </div>
                             </div>
+                        </td>
+                        <td>
+                            <?php if (!empty($data['inventory_location'])): ?>
+                            <small><i class="bi bi-geo-alt me-1"></i><?= htmlspecialchars($data['inventory_location']) ?></small>
+                            <?php else: ?>
+                            <span class="text-muted">-</span>
+                            <?php endif; ?>
+                        </td>
+                        <td>
+                            <?php if (!empty($data['inventory_type'])): ?>
+                            <small><?= htmlspecialchars($data['inventory_type']) ?></small>
+                            <?php else: ?>
+                            <span class="text-muted">-</span>
+                            <?php endif; ?>
                         </td>
                         <td>
                             <span class="badge bg-warning" style="font-size: 14px; padding: 8px 12px;">
@@ -433,6 +461,21 @@ $buildPaginationUrl = function($pageNum) use ($searchQuery) {
                         <div style="font-size: 32px; font-weight: 700; color: var(--warning);"><?= $data['total_qty'] ?></div>
                         <div style="color: var(--text-muted);"><?= htmlspecialchars($data['unit'] ?? 'unit') ?> sedang dipinjam</div>
                     </div>
+                    
+                    <?php if (!empty($data['inventory_location']) || !empty($data['inventory_type'])): ?>
+                    <div style="margin-bottom: 16px; padding: 12px; background: var(--bg-main); border-radius: 8px;">
+                        <?php if (!empty($data['inventory_location'])): ?>
+                        <div style="font-size: 13px; color: var(--text-muted); margin-bottom: 4px;">
+                            <i class="bi bi-geo-alt me-1"></i>Lokasi: <strong><?= htmlspecialchars($data['inventory_location']) ?></strong>
+                        </div>
+                        <?php endif; ?>
+                        <?php if (!empty($data['inventory_type'])): ?>
+                        <div style="font-size: 13px; color: var(--text-muted);">
+                            <i class="bi bi-diagram-3 me-1"></i>Merek/Tipe: <strong><?= htmlspecialchars($data['inventory_type']) ?></strong>
+                        </div>
+                        <?php endif; ?>
+                    </div>
+                    <?php endif; ?>
                     
                     <h6 style="margin-bottom: 12px; color: var(--text-dark);">
                         <i class="bi bi-people me-1"></i>Daftar Peminjam:

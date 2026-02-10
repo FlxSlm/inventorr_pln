@@ -10,9 +10,10 @@ if (!isset($_SESSION['user']) || $_SESSION['user']['role'] !== 'karyawan') {
 $pageTitle = 'Usulan Material';
 $pdo = require __DIR__ . '/../config/database.php';
 
-$success = '';
+$success = $_GET['msg'] ?? '';
 $error = '';
 $userId = $_SESSION['user']['id'];
+$redirectAfterSubmit = false;
 
 // Handle form submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -92,6 +93,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ");
                 $stmt->execute([$userId, $categoryId, $subject, $message, $primaryImage, $additionalImages]);
                 $success = 'Usulan material berhasil dikirim! Admin akan segera merespon usulan Anda.';
+                $redirectAfterSubmit = true;
                 
                 // Clear form
                 $subject = $message = '';
@@ -127,6 +129,12 @@ $suggestions = $stmt->fetchAll();
         <p>Berikan masukan dan usulan material kepada admin</p>
     </div>
 </div>
+
+<?php if ($redirectAfterSubmit): ?>
+<script>
+    window.location.href = '/index.php?page=user_suggestions&msg=<?= urlencode($success) ?>';
+</script>
+<?php endif; ?>
 
 <?php if ($success): ?>
 <div class="alert alert-success alert-dismissible fade show" style="border-radius: var(--radius);">

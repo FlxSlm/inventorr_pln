@@ -673,7 +673,9 @@ $imageDeleted = isset($_GET['msg']) && $_GET['msg'] === 'image_deleted';
     display: flex;
     align-items: center;
     justify-content: center;
-    opacity: 0;
+    opacity: 1;
+    z-index: 5;
+    cursor: pointer;
     transition: opacity 0.3s ease;
 }
 .existing-image-item:hover .btn-remove-existing {
@@ -710,6 +712,8 @@ $imageDeleted = isset($_GET['msg']) && $_GET['msg'] === 'image_deleted';
     display: flex;
     align-items: center;
     justify-content: center;
+    z-index: 5;
+    cursor: pointer;
 }
 </style>
 

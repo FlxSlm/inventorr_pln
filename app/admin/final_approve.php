@@ -32,8 +32,8 @@ try {
     $stmt->execute([$loan['quantity'], $inv['id']]);
 
     // set loan approved
-    $stmt = $pdo->prepare('UPDATE loans SET stage = ?, approved_at = NOW() WHERE id = ?');
-    $stmt->execute(['approved', $loan_id]);
+    $stmt = $pdo->prepare('UPDATE loans SET stage = ?, approved_at = NOW(), approved_by = ? WHERE id = ?');
+    $stmt->execute(['approved', $_SESSION['user']['id'], $loan_id]);
 
     $pdo->commit();
     header('Location: /index.php?page=admin_loans&msg=' . urlencode('Loan finally approved'));
