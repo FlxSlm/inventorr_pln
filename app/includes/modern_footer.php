@@ -183,6 +183,33 @@
         modal.show();
     }
 
+    // Tracking Barang submenu toggle
+    function toggleTrackingSubmenu(e) {
+        if (e) e.preventDefault();
+        const submenu = document.getElementById('trackingSubmenu');
+        const chevron = document.querySelector('.tracking-chevron');
+        if (!submenu) return;
+        
+        if (submenu.style.maxHeight && submenu.style.maxHeight !== '0px') {
+            submenu.style.maxHeight = '0px';
+            if (chevron) chevron.style.transform = 'rotate(0deg)';
+        } else {
+            submenu.style.maxHeight = submenu.scrollHeight + 'px';
+            if (chevron) chevron.style.transform = 'rotate(180deg)';
+        }
+    }
+    
+    // Auto-expand submenu if on tracking page
+    document.addEventListener('DOMContentLoaded', function() {
+        const submenu = document.getElementById('trackingSubmenu');
+        const chevron = document.querySelector('.tracking-chevron');
+        if (submenu && submenu.style.maxHeight !== '0px' && submenu.style.maxHeight !== '') {
+            // Already expanded via PHP
+            submenu.style.maxHeight = submenu.scrollHeight + 'px';
+            if (chevron) chevron.style.transform = 'rotate(180deg)';
+        }
+    });
+
     // Toggle Credit Box Footer (expose globally)
     window.toggleCreditFooter = function (e) {
         if (e && e.stopPropagation) e.stopPropagation();

@@ -122,24 +122,23 @@ $pdo_temp = require __DIR__ . '/../config/database.php';
                             </a>
                         </li>
                         <li class="sidebar-menu-item">
-                            <a href="/index.php?page=admin_loan_tracking" class="sidebar-menu-link <?= (isset($_GET['page']) && in_array($_GET['page'] ?? '', ['admin_loan_tracking', 'admin_request_tracking'])) ? 'active' : '' ?>">
+                            <a href="javascript:void(0)" class="sidebar-menu-link <?= (isset($_GET['page']) && in_array($_GET['page'] ?? '', ['admin_loan_tracking', 'admin_request_tracking'])) ? 'active' : '' ?>" id="trackingToggle" onclick="toggleTrackingSubmenu(event)">
                                 <i class="bi bi-geo-alt-fill"></i>
                                 <span>Tracking Barang</span>
+                                <i class="bi bi-chevron-down ms-auto tracking-chevron" style="font-size: 12px; transition: transform 0.2s;"></i>
                             </a>
-                            <?php if (isset($_GET['page']) && in_array($_GET['page'], ['admin_loan_tracking', 'admin_request_tracking'])): ?>
-                            <ul style="list-style: none; padding: 0; margin: 4px 0 4px 36px;">
-                                <li style="margin-bottom: 2px;">
-                                    <a href="/index.php?page=admin_loan_tracking" style="font-size: 13px; color: <?= $_GET['page'] === 'admin_loan_tracking' ? 'var(--primary-light)' : 'var(--text-muted)' ?>; text-decoration: none; display: flex; align-items: center; gap: 6px; padding: 4px 0;">
-                                        <i class="bi bi-clipboard-check" style="font-size: 12px;"></i> Tracking Peminjaman
+                            <ul class="tracking-submenu" id="trackingSubmenu" style="list-style: none; padding: 0; margin: 0; overflow: hidden; <?= (isset($_GET['page']) && in_array($_GET['page'], ['admin_loan_tracking', 'admin_request_tracking'])) ? '' : 'max-height: 0;' ?>">
+                                <li>
+                                    <a href="/index.php?page=admin_loan_tracking" class="sidebar-submenu-link <?= (isset($_GET['page']) && $_GET['page'] === 'admin_loan_tracking') ? 'active' : '' ?>">
+                                        <i class="bi bi-clipboard-check"></i> Tracking Peminjaman
                                     </a>
                                 </li>
                                 <li>
-                                    <a href="/index.php?page=admin_request_tracking" style="font-size: 13px; color: <?= $_GET['page'] === 'admin_request_tracking' ? 'var(--primary-light)' : 'var(--text-muted)' ?>; text-decoration: none; display: flex; align-items: center; gap: 6px; padding: 4px 0;">
-                                        <i class="bi bi-cart-check" style="font-size: 12px;"></i> Tracking Permintaan
+                                    <a href="/index.php?page=admin_request_tracking" class="sidebar-submenu-link <?= (isset($_GET['page']) && $_GET['page'] === 'admin_request_tracking') ? 'active' : '' ?>">
+                                        <i class="bi bi-cart-check"></i> Tracking Permintaan
                                     </a>
                                 </li>
                             </ul>
-                            <?php endif; ?>
                         </li>
                     </ul>
                 </div>
@@ -158,7 +157,21 @@ $pdo_temp = require __DIR__ . '/../config/database.php';
                                 <i class="bi bi-lightbulb-fill"></i>
                                 <span>Usulan Material</span>
                                 <?php 
-                                $unreadSuggestionsCount = $pdo_temp->query("SELECT COUNT(*) FROM material_suggestions WHERE status = 'unread'")->fetchColumn();
+                                // Count unread suggestions for THIS admin only
+                                $currentAdminId = $_SESSION['user']['id'] ?? 0;
+                                try {
+                                    $stmtUnread = $pdo_temp->prepare("
+                                        SELECT COUNT(DISTINCT s.id) 
+                                        FROM material_suggestions s 
+                                        LEFT JOIN suggestion_views sv ON sv.suggestion_id = s.id AND sv.admin_id = ? 
+                                        WHERE sv.id IS NULL AND s.status != 'replied'
+                                    ");
+                                    $stmtUnread->execute([$currentAdminId]);
+                                    $unreadSuggestionsCount = $stmtUnread->fetchColumn();
+                                } catch (PDOException $e) {
+                                    // Fallback if suggestion_views table doesn't exist
+                                    $unreadSuggestionsCount = $pdo_temp->query("SELECT COUNT(*) FROM material_suggestions WHERE status = 'unread'")->fetchColumn();
+                                }
                                 if ($unreadSuggestionsCount > 0): 
                                 ?>
                                 <span class="sidebar-menu-badge"><?= $unreadSuggestionsCount ?></span>

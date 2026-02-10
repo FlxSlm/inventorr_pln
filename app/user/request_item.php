@@ -75,7 +75,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 // Fetch inventories
-$stmt = $pdo->query('SELECT id, name, code, stock_total, stock_available, image FROM inventories WHERE deleted_at IS NULL AND stock_total > 0 ORDER BY name ASC');
+$stmt = $pdo->query('SELECT id, name, code, stock_total, stock_available, image, unit FROM inventories WHERE deleted_at IS NULL AND stock_total > 0 ORDER BY name ASC');
 $items = $stmt->fetchAll();
 
 $preSelectedDetails = null;
@@ -132,8 +132,9 @@ if ($preSelectedItem) {
                                         data-stock="<?= $it['stock_total'] ?>"
                                         data-image="<?= htmlspecialchars($it['image'] ?? '') ?>"
                                         data-code="<?= htmlspecialchars($it['code'] ?? '') ?>"
-                                        data-name="<?= htmlspecialchars($it['name']) ?>">
-                                    <?= htmlspecialchars($it['name']) ?> (<?= htmlspecialchars($it['code']) ?>) - Stok: <?= $it['stock_total'] ?>
+                                        data-name="<?= htmlspecialchars($it['name']) ?>"
+                                        data-unit="<?= htmlspecialchars($it['unit'] ?? 'unit') ?>">
+                                    <?= htmlspecialchars($it['name']) ?> (<?= htmlspecialchars($it['code']) ?>) - Stok: <?= $it['stock_total'] ?> <?= htmlspecialchars($it['unit'] ?? 'unit') ?>
                                 </option>
                                 <?php endforeach; ?>
                             </select>
@@ -293,12 +294,13 @@ document.addEventListener('DOMContentLoaded', function() {
                 const stock = data.$option?.dataset?.stock || '';
                 const code = data.$option?.dataset?.code || '';
                 const image = data.$option?.dataset?.image || '';
+                const unit = data.$option?.dataset?.unit || 'unit';
                 return `<div class="d-flex align-items-center py-2">
                     ${image ? `<img src="/public/assets/uploads/${escape(image)}" class="rounded me-2" style="width:40px;height:40px;object-fit:cover;">` : 
                              `<div class="rounded me-2 d-flex align-items-center justify-content-center bg-light" style="width:40px;height:40px;"><i class="bi bi-box-seam text-muted"></i></div>`}
                     <div>
                         <div class="fw-semibold">${escape(data.text.split(' (')[0])}</div>
-                        <small class="text-muted">${escape(code)} | Stok: ${escape(stock)}</small>
+                        <small class="text-muted">${escape(code)} | Stok: ${escape(stock)} ${escape(unit)}</small>
                     </div>
                 </div>`;
             },
@@ -320,7 +322,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     name: option.dataset.name,
                     code: option.dataset.code,
                     image: option.dataset.image,
-                    stock: parseInt(option.dataset.stock)
+                    stock: parseInt(option.dataset.stock),
+                    unit: option.dataset.unit || 'unit'
                 };
                 maxStock = selectedItem.stock;
                 
@@ -328,7 +331,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 const usedQty = inCart ? inCart.qty : 0;
                 const available = maxStock - usedQty;
                 
-                stockHint.textContent = `Stok tersedia: ${available} unit${usedQty > 0 ? ` (${usedQty} sudah di keranjang)` : ''}`;
+                stockHint.textContent = `Stok tersedia: ${available} ${selectedItem.unit}${usedQty > 0 ? ` (${usedQty} sudah di keranjang)` : ''}`;
                 qtyInput.max = available;
                 qtyInput.value = Math.min(parseInt(qtyInput.value) || 1, available);
                 addToCartBtn.disabled = available <= 0;
@@ -345,7 +348,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (existingIdx >= 0) {
             cart[existingIdx].qty += qty;
         } else {
-            cart.push({ id: selectedItem.id, name: selectedItem.name, code: selectedItem.code, image: selectedItem.image, qty: qty, maxStock: selectedItem.stock });
+            cart.push({ id: selectedItem.id, name: selectedItem.name, code: selectedItem.code, image: selectedItem.image, qty: qty, maxStock: selectedItem.stock, unit: selectedItem.unit });
         }
         
         renderCart();
@@ -378,7 +381,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 </div>
                 <div class="cart-item-qty">
                     <input type="number" class="form-control form-control-sm qty-edit" value="${item.qty}" min="1" max="${item.maxStock}" data-idx="${idx}">
-                    <span class="text-muted">unit</span>
+                    <span class="text-muted">${escapeHtml(item.unit || 'unit')}</span>
                 </div>
                 <div class="cart-item-remove" data-idx="${idx}" title="Hapus"><i class="bi bi-trash"></i></div>
             </div>

@@ -120,6 +120,28 @@ $stmt = $pdo->prepare("
 ");
 $stmt->execute([$userId]);
 $suggestions = $stmt->fetchAll();
+
+// Fetch read receipts (which admins have viewed each suggestion)
+$suggestionIds = array_column($suggestions, 'id');
+$readReceipts = [];
+if (!empty($suggestionIds)) {
+    $placeholders = implode(',', array_fill(0, count($suggestionIds), '?'));
+    $stmtViews = $pdo->prepare("
+        SELECT sv.suggestion_id, sv.viewed_at, u.name AS admin_name
+        FROM suggestion_views sv
+        JOIN users u ON u.id = sv.admin_id
+        WHERE sv.suggestion_id IN ($placeholders)
+        ORDER BY sv.viewed_at ASC
+    ");
+    try {
+        $stmtViews->execute($suggestionIds);
+        foreach ($stmtViews->fetchAll() as $view) {
+            $readReceipts[$view['suggestion_id']][] = $view;
+        }
+    } catch (PDOException $e) {
+        // Table may not exist yet
+    }
+}
 ?>
 
 <!-- Page Header -->
@@ -265,6 +287,26 @@ $suggestions = $stmt->fetchAll();
                             <span class="ms-2"><i class="bi bi-reply me-1"></i>Dibalas <?= date('d M Y', strtotime($sug['replied_at'])) ?></span>
                             <?php endif; ?>
                         </small>
+                        <?php 
+                        $views = $readReceipts[$sug['id']] ?? [];
+                        if (!empty($views)): 
+                        ?>
+                        <div style="margin-top: 6px;">
+                            <small style="color: var(--info);">
+                                <i class="bi bi-eye-fill me-1"></i>Dilihat oleh: 
+                                <?php 
+                                $adminNames = array_map(function($v) { return htmlspecialchars($v['admin_name']); }, $views);
+                                echo implode(', ', $adminNames);
+                                ?>
+                            </small>
+                        </div>
+                        <?php elseif ($sug['status'] === 'unread'): ?>
+                        <div style="margin-top: 6px;">
+                            <small style="color: var(--text-light);">
+                                <i class="bi bi-eye-slash me-1"></i>Belum dilihat admin
+                            </small>
+                        </div>
+                        <?php endif; ?>
                     </div>
                     <?php endforeach; ?>
                 </div>
@@ -329,6 +371,35 @@ $suggestions = $stmt->fetchAll();
                             <?php endforeach; ?>
                         </div>
                     </div>
+                    <?php endif; ?>
+                </div>
+                
+                <!-- Read Receipts -->
+                <?php 
+                $modalViews = $readReceipts[$sug['id']] ?? [];
+                ?>
+                <div style="background: rgba(59, 130, 246, 0.05); border: 1px solid rgba(59, 130, 246, 0.15); padding: 12px 16px; border-radius: var(--radius); margin-bottom: 16px;">
+                    <small style="color: var(--info); font-weight: 600; display: block; margin-bottom: 6px;">
+                        <i class="bi bi-eye me-1"></i>Status Baca
+                    </small>
+                    <?php if (!empty($modalViews)): ?>
+                    <div class="d-flex flex-wrap gap-2">
+                        <?php foreach ($modalViews as $view): ?>
+                        <div class="d-flex align-items-center gap-2" style="background: rgba(59, 130, 246, 0.08); padding: 4px 10px; border-radius: 20px;">
+                            <div style="width: 22px; height: 22px; background: var(--info); color: #fff; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 600;">
+                                <?= strtoupper(substr($view['admin_name'], 0, 1)) ?>
+                            </div>
+                            <div>
+                                <small style="color: var(--text-dark); font-weight: 500;"><?= htmlspecialchars($view['admin_name']) ?></small>
+                                <br><small style="color: var(--text-muted); font-size: 11px;"><?= date('d M Y H:i', strtotime($view['viewed_at'])) ?></small>
+                            </div>
+                        </div>
+                        <?php endforeach; ?>
+                    </div>
+                    <?php else: ?>
+                    <small style="color: var(--text-muted);">
+                        <i class="bi bi-eye-slash me-1"></i>Belum ada admin yang melihat usulan ini
+                    </small>
                     <?php endif; ?>
                 </div>
                 

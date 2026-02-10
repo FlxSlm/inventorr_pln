@@ -239,6 +239,49 @@ body {
     color: #fff;
 }
 
+/* Tracking Submenu */
+.tracking-submenu {
+    transition: max-height 0.25s ease;
+    margin-left: 36px !important;
+}
+
+.sidebar-submenu-link {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.95);
+    text-decoration: none;
+    border-radius: var(--radius);
+    transition: var(--transition);
+    font-weight: 400;
+}
+
+.sidebar-submenu-link:hover {
+    color: rgba(255, 255, 255, 0.9);
+    background: rgba(255, 255, 255, 0.08);
+    text-decoration: none;
+}
+
+.sidebar-submenu-link.active {
+    color: var(--accent);
+    font-weight: 600;
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.sidebar-submenu-link i {
+    font-size: 12px;
+    width: 16px;
+    text-align: center;
+    flex-shrink: 0;
+}
+
+.tracking-chevron {
+    margin-left: auto;
+    opacity: 0.6;
+}
+
 .sidebar-user {
     padding: 16px 20px;
     border-top: 1px solid rgba(255, 255, 255, 0.1);
@@ -1849,8 +1892,8 @@ textarea.form-control {
     }
 
     /* Form row on mobile */
-    .row.g-3 > [class*="col-md-"],
-    .row.g-3 > [class*="col-lg-"] {
+    .row.g-3>[class*="col-md-"],
+    .row.g-3>[class*="col-lg-"] {
         width: 100%;
     }
 

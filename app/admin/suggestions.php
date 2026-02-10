@@ -58,36 +58,97 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     }
 }
 
-// Mark as read when viewing
-if (isset($_GET['view'])) {
-    $viewId = (int)$_GET['view'];
-    $pdo->prepare("UPDATE material_suggestions SET status = 'read' WHERE id = ? AND status = 'unread'")->execute([$viewId]);
+// Record admin view when opening modal (don't change global status)
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'record_view') {
+    $viewSuggestionId = (int)($_POST['suggestion_id'] ?? 0);
+    if ($viewSuggestionId > 0) {
+        try {
+            $pdo->prepare("INSERT IGNORE INTO suggestion_views (suggestion_id, admin_id) VALUES (?, ?)")
+                ->execute([$viewSuggestionId, $adminId]);
+            // Do NOT update global status - each admin has their own read status now
+        } catch (PDOException $e) {
+            // Ignore errors (table may not exist yet)
+        }
+        // Return JSON for AJAX
+        if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') {
+            header('Content-Type: application/json');
+            echo json_encode(['success' => true]);
+            exit;
+        }
+    }
 }
 
 // Get filter
 $filter = $_GET['filter'] ?? 'all';
 
-// Fetch suggestions
-$sql = "
-    SELECT s.*, c.name AS category_name, c.color AS category_color,
-           u.name AS user_name, u.email AS user_email
-    FROM material_suggestions s
-    LEFT JOIN categories c ON c.id = s.category_id
-    JOIN users u ON u.id = s.user_id
-";
+// Fetch suggestions with per-admin read status
+try {
+    $sql = "
+        SELECT s.*, c.name AS category_name, c.color AS category_color,
+               u.name AS user_name, u.email AS user_email,
+               ua.name AS replied_by_name,
+               (SELECT COUNT(*) FROM suggestion_views sv WHERE sv.suggestion_id = s.id AND sv.admin_id = ?) AS viewed_by_me
+        FROM material_suggestions s
+        LEFT JOIN categories c ON c.id = s.category_id
+        JOIN users u ON u.id = s.user_id
+        LEFT JOIN users ua ON ua.id = s.replied_by
+    ";
 
-if ($filter === 'unread') {
-    $sql .= " WHERE s.status = 'unread'";
-} elseif ($filter === 'replied') {
-    $sql .= " WHERE s.status = 'replied'";
+    // Filter logic adjusted for per-admin read status
+    if ($filter === 'unread') {
+        // Show suggestions this admin hasn't viewed AND not yet replied by anyone
+        $sql .= " WHERE s.status != 'replied' AND NOT EXISTS (SELECT 1 FROM suggestion_views sv WHERE sv.suggestion_id = s.id AND sv.admin_id = ?)";
+    } elseif ($filter === 'replied') {
+        $sql .= " WHERE s.status = 'replied'";
+    }
+
+    $sql .= " ORDER BY s.created_at DESC";
+
+    $stmt = $pdo->prepare($sql);
+    if ($filter === 'unread') {
+        $stmt->execute([$adminId, $adminId]);
+    } else {
+        $stmt->execute([$adminId]);
+    }
+    $suggestions = $stmt->fetchAll();
+} catch (PDOException $e) {
+    // Fallback if suggestion_views table doesn't exist
+    $sql = "
+        SELECT s.*, c.name AS category_name, c.color AS category_color,
+               u.name AS user_name, u.email AS user_email,
+               ua.name AS replied_by_name,
+               0 AS viewed_by_me
+        FROM material_suggestions s
+        LEFT JOIN categories c ON c.id = s.category_id
+        JOIN users u ON u.id = s.user_id
+        LEFT JOIN users ua ON ua.id = s.replied_by
+    ";
+    
+    if ($filter === 'unread') {
+        $sql .= " WHERE s.status = 'unread'";
+    } elseif ($filter === 'replied') {
+        $sql .= " WHERE s.status = 'replied'";
+    }
+    
+    $sql .= " ORDER BY s.created_at DESC";
+    $suggestions = $pdo->query($sql)->fetchAll();
 }
 
-$sql .= " ORDER BY s.created_at DESC";
+// Count by status (per-admin for unread)
+try {
+    $stmtUnread = $pdo->prepare("
+        SELECT COUNT(DISTINCT s.id) 
+        FROM material_suggestions s 
+        LEFT JOIN suggestion_views sv ON sv.suggestion_id = s.id AND sv.admin_id = ? 
+        WHERE sv.id IS NULL AND s.status != 'replied'
+    ");
+    $stmtUnread->execute([$adminId]);
+    $unreadCount = $stmtUnread->fetchColumn();
+} catch (PDOException $e) {
+    // Fallback if suggestion_views table doesn't exist
+    $unreadCount = $pdo->query("SELECT COUNT(*) FROM material_suggestions WHERE status = 'unread'")->fetchColumn();
+}
 
-$suggestions = $pdo->query($sql)->fetchAll();
-
-// Count by status
-$unreadCount = $pdo->query("SELECT COUNT(*) FROM material_suggestions WHERE status = 'unread'")->fetchColumn();
 $repliedCount = $pdo->query("SELECT COUNT(*) FROM material_suggestions WHERE status = 'replied'")->fetchColumn();
 $totalCount = $pdo->query("SELECT COUNT(*) FROM material_suggestions")->fetchColumn();
 
@@ -327,8 +388,8 @@ if ($redirectAfterReply):
             foreach ($suggestionsToDisplay as $sug): 
                 $rowNum++;
             ?>
-            <div class="suggestion-item <?= $sug['status'] === 'unread' ? 'unread' : '' ?> <?= $sug['status'] === 'replied' ? 'replied' : '' ?>" 
-                 style="padding: 20px 24px; border-bottom: 1px solid var(--border-color); cursor: pointer; <?= $sug['status'] === 'unread' ? 'background: rgba(26, 154, 170, 0.05);' : '' ?>"
+            <div class="suggestion-item <?= ($sug['viewed_by_me'] == 0 && $sug['status'] != 'replied') ? 'unread' : '' ?> <?= $sug['status'] === 'replied' ? 'replied' : '' ?>" 
+                 style="padding: 20px 24px; border-bottom: 1px solid var(--border-color); cursor: pointer; <?= ($sug['viewed_by_me'] == 0 && $sug['status'] != 'replied') ? 'background: rgba(26, 154, 170, 0.05);' : '' ?>"
                  data-bs-toggle="modal" data-bs-target="#suggestionModal<?= $sug['id'] ?>">
                 <div class="d-flex justify-content-between align-items-start">
                     <div class="d-flex gap-3" style="flex: 1;">
@@ -343,11 +404,11 @@ if ($redirectAfterReply):
                                     <?= htmlspecialchars($sug['category_name']) ?>
                                 </span>
                                 <?php endif; ?>
-                                <?php if ($sug['status'] === 'unread'): ?>
+                                <?php if ($sug['viewed_by_me'] == 0 && $sug['status'] != 'replied'): ?>
                                 <span class="badge bg-warning text-dark" style="font-size: 10px;">Baru</span>
                                 <?php endif; ?>
                             </div>
-                            <h6 style="margin: 0 0 6px 0; color: var(--text-dark); font-weight: <?= $sug['status'] === 'unread' ? '600' : '500' ?>;">
+                            <h6 style="margin: 0 0 6px 0; color: var(--text-dark); font-weight: <?= ($sug['viewed_by_me'] == 0 && $sug['status'] != 'replied') ? '600' : '500' ?>;">
                                 <?= htmlspecialchars($sug['subject']) ?>
                             </h6>
                             <p style="color: var(--text-muted); margin: 0; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
@@ -362,10 +423,11 @@ if ($redirectAfterReply):
                         <br>
                         <?php if ($sug['status'] === 'replied'): ?>
                         <span class="status-badge success" style="margin-top: 4px;">Dibalas</span>
-                        <?php elseif ($sug['status'] === 'read'): ?>
+                        <br><small style="color: var(--success); font-size: 10px;"><?= htmlspecialchars($sug['replied_by_name'] ?? 'Admin') ?></small>
+                        <?php elseif ($sug['viewed_by_me'] > 0): ?>
                         <span class="status-badge info" style="margin-top: 4px;">Dibaca</span>
                         <?php else: ?>
-                        <span class="status-badge warning" style="margin-top: 4px;">Baru</span>
+                        <span class="status-badge warning" style="margin-top: 4px;">Belum Dibaca</span>
                         <?php endif; ?>
                     </div>
                 </div>
@@ -450,7 +512,7 @@ if ($redirectAfterReply):
                 <div style="background: linear-gradient(135deg, var(--success) 0%, #059669 100%); padding: 16px; border-radius: var(--radius); color: #fff;">
                     <div class="d-flex align-items-center mb-2">
                         <i class="bi bi-reply-fill me-2"></i>
-                        <strong>Balasan Anda</strong>
+                        <strong>Balasan dari <?= htmlspecialchars($sug['replied_by_name'] ?? 'Admin') ?></strong>
                         <small class="ms-auto" style="opacity: 0.8;"><?= date('d M Y H:i', strtotime($sug['replied_at'])) ?></small>
                     </div>
                     <p style="margin: 0; white-space: pre-line;"><?= htmlspecialchars($sug['admin_reply']) ?></p>
@@ -494,3 +556,20 @@ if ($redirectAfterReply):
     border-left: 3px solid var(--success);
 }
 </style>
+
+<script>
+// Record admin view when suggestion modal is opened
+document.querySelectorAll('[id^="suggestionModal"]').forEach(modal => {
+    modal.addEventListener('shown.bs.modal', function() {
+        const suggestionId = this.id.replace('suggestionModal', '');
+        fetch(window.location.href, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: 'action=record_view&suggestion_id=' + suggestionId
+        }).catch(() => {});
+    });
+});
+</script>
